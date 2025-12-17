@@ -108,7 +108,13 @@ final class FilterViewController: BaseViewController {
     }
     
     override func configureBind() {
-        let input = FilterViewModel.Input()
+        let input = FilterViewModel.Input(
+            categorySelected: filterCategoryCollectionView.rx.itemSelected
+                .compactMap({ [weak self] indexPath in
+                    self?.categoryDataSource
+                        .itemIdentifier(for: indexPath)?.type
+                })
+        )
         
         let output = viewModel.transform(input: input)
         

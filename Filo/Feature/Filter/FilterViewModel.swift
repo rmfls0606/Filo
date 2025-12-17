@@ -13,7 +13,7 @@ final class FilterViewModel: ViewModelType{
     private let disposeBag = DisposeBag()
     
     struct Input{
-       
+        let categorySelected: Observable<FilterCategoryType>
     }
     
     struct Output{
@@ -26,6 +26,17 @@ final class FilterViewModel: ViewModelType{
                 FilterCategoryEntity(type: $0)
             }
         )
+        
+        input.categorySelected
+            .withLatestFrom(categoriesRelay){ selected, items in
+                items.map{
+                    var newItems = $0
+                    newItems.isSelected = ($0.type == selected)
+                    return newItems
+                }
+            }
+            .bind(to: categoriesRelay)
+            .disposed(by: disposeBag)
         
         return Output(
             categories: categoriesRelay.asDriver()
