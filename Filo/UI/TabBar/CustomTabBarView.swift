@@ -11,6 +11,7 @@ import RxSwift
 import RxCocoa
 
 final class CustomTabBarView: BaseView{
+    static let height: CGFloat = 64
     //MARK: - Properties
     private let selectedItemRelay = BehaviorRelay<TabBarItem>(value: .home)
     private let disposeBag = DisposeBag()

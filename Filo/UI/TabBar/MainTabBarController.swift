@@ -44,7 +44,7 @@ final class MainTabBarController: UITabBarController {
         customTabBar.snp.makeConstraints {
             $0.leading.trailing.equalToSuperview().inset(20)
             $0.bottom.equalTo(view.safeAreaLayoutGuide)
-            $0.height.equalTo(64)
+            $0.height.equalTo(CustomTabBarView.height)
         }
     }
 

@@ -21,6 +21,8 @@ final class FilterViewController: BaseViewController {
     private let filterScrollView: UIScrollView = {
         let view = UIScrollView()
         view.showsVerticalScrollIndicator = false
+        view.contentInset.bottom = CustomTabBarView.height
+        view.verticalScrollIndicatorInsets.bottom = CustomTabBarView.height
         return view
     }()
     
@@ -119,6 +121,9 @@ final class FilterViewController: BaseViewController {
         filterCategoryCollectionView.snp.makeConstraints { make in
             make.height.equalTo(30)
         }
+        
+//        filterScrollView.
+//        filterScrollView
     }
     
     override func configureView() {
