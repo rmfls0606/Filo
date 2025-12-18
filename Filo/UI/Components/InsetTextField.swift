@@ -27,7 +27,7 @@ final class InsetTextField: UITextField {
             string: placeholder ?? "",
             attributes: [.foregroundColor: Brand.deepTurquoise.color ?? .clear]
         )
-        borderStyle = .roundedRect
+        borderStyle = .none
         layer.borderWidth = 2.0
         layer.borderColor = Brand.deepTurquoise.color?.cgColor
         layer.cornerRadius = 12
