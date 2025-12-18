@@ -92,7 +92,31 @@ final class FilterViewController: BaseViewController {
     private let filterPriceTextField: InsetTextField = {
         let field = InsetTextField()
         field.placeholder = "1,000"
+        field.keyboardType = .numberPad
         return field
+    }()
+    
+    private let priceUnitLabel: UILabel = {
+        let label = UILabel()
+        label.text = "원"
+        label.font = .Pretendard.body2
+        label.textColor = GrayStyle.gray75.color
+        return label
+    }()
+    
+    private lazy var priceUnitView: UIView = {
+        priceUnitLabel.sizeToFit()
+        let height = max(priceUnitLabel.bounds.height, 24)
+        let width = priceUnitLabel.bounds.width + 12
+        let container = UIView(frame: CGRect(x: 0, y: 0, width: width, height: height))
+        priceUnitLabel.frame = CGRect(
+            x: 0,
+            y: (height - priceUnitLabel.bounds.height) / 2,
+            width: priceUnitLabel.bounds.width,
+            height: priceUnitLabel.bounds.height
+        )
+        container.addSubview(priceUnitLabel)
+        return container
     }()
     private lazy var filterPriceSection = FilterSectionView(titleView: filterPriceTitle, contentView: filterPriceTextField)
     
@@ -121,9 +145,6 @@ final class FilterViewController: BaseViewController {
         filterCategoryCollectionView.snp.makeConstraints { make in
             make.height.equalTo(30)
         }
-        
-//        filterScrollView.
-//        filterScrollView
     }
     
     override func configureView() {
@@ -131,6 +152,11 @@ final class FilterViewController: BaseViewController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(named: "save"))
         navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
         view.backgroundColor = .black
+        
+        filterPriceTextField.rightView = priceUnitView
+        filterPriceTextField.rightViewMode = .always
+        filterPriceTextField.contentInsets.right += priceUnitView.bounds.width
+        
         configureCategoryDataSource()
     }
     
