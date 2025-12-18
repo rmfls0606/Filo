@@ -9,6 +9,7 @@ import UIKit
 import SnapKit
 import RxSwift
 import RxCocoa
+import PhotosUI
 
 final class FilterViewController: BaseViewController {
     //MARK: - Properties
@@ -55,6 +56,26 @@ final class FilterViewController: BaseViewController {
     }()
     private lazy var filterCategorySection = FilterSectionView(titleView: filterCategoryTitle, contentView: filterCategoryCollectionView)
     
+    //대표 사진 등록
+    private let filterImageRegisterView = FilterImageRegisterView()
+    private let filterImageEditButton: UIButton = {
+        var config = UIButton.Configuration.plain()
+        var attributedTitle = AttributedString("수정하기")
+        attributedTitle.font = .Pretendard.body1
+        config.attributedTitle = attributedTitle
+        config.contentInsets = .zero
+        config.baseForegroundColor = GrayStyle.gray75.color
+        
+        let button = UIButton(configuration: config)
+        button.isHidden = true
+        return button
+    }()
+    private lazy var filterImageTitle = FilterTitleView(
+        title: "대표 사진 등록",
+        trailingView: filterImageEditButton
+    )
+    private lazy var filterImageRegisterSection = FilterSectionView(titleView: filterImageTitle, contentView: filterImageRegisterView)
+    
     //필터 소개
     private let filterIntroduceTitle = FilterTitleView(title: "필터 소개")
     private let filterIntroduceTextField: InsetTextField = {
@@ -80,6 +101,7 @@ final class FilterViewController: BaseViewController {
         
         filterStackView.addArrangedSubview(filterNameSection)
         filterStackView.addArrangedSubview(filterCategorySection)
+        filterStackView.addArrangedSubview(filterImageRegisterSection)
         filterStackView.addArrangedSubview(filterIntroduceSection)
         filterStackView.addArrangedSubview(filterPriceSection)
     }
@@ -122,6 +144,24 @@ final class FilterViewController: BaseViewController {
             .drive { [weak self] items in
                 self?.applyCategorySnapshot(items)
             }
+            .disposed(by: disposeBag)
+        
+        filterImageRegisterView.tap
+            .subscribe(onNext: { [weak self] in
+                self?.presentImagePicker()
+            })
+            .disposed(by: disposeBag)
+        
+        filterImageRegisterView.state
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] state in
+                switch state {
+                case .empty:
+                    self?.filterImageTitle.setTrailingHidden(true)
+                case .filled(_):
+                    self?.filterImageTitle.setTrailingHidden(false)
+                }
+            })
             .disposed(by: disposeBag)
     }
 }
@@ -171,5 +211,52 @@ extension FilterViewController{
         snapshot.appendSections([.main])
         snapshot.appendItems(items)
         categoryDataSource.apply(snapshot)
+    }
+}
+
+extension FilterViewController: PHPickerViewControllerDelegate{
+    private func presentImagePicker(){
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.selectionLimit = 2
+        configuration.filter = .images
+        
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+    
+    func picker(
+        _ picker: PHPickerViewController,
+        didFinishPicking results: [PHPickerResult]
+    ) {
+        picker.dismiss(animated: true)
+        
+        guard !results.isEmpty else { return }
+        
+        loadImages(from: results)
+    }
+    
+    private func loadImages(from results: [PHPickerResult]){
+        var images: [UIImage] = []
+        let group = DispatchGroup()
+        
+        for result in results{
+            let provider = result.itemProvider
+            
+            guard provider.canLoadObject(ofClass: UIImage.self) else { continue }
+            
+            group.enter()
+            provider.loadObject(ofClass: UIImage.self) { object, _ in
+                defer { group.leave() }
+                if let image = object as? UIImage{
+                    images.append(image)
+                }
+            }
+        }
+        
+        group.notify(queue: .main) { [weak self] in
+            guard let first = images.first else { return }
+            self?.filterImageRegisterView.setImage(first)
+        }
     }
 }
