@@ -10,6 +10,7 @@ import SnapKit
 import RxSwift
 import RxCocoa
 import PhotosUI
+import UniformTypeIdentifiers
 
 final class FilterViewController: BaseViewController {
     //MARK: - Properties
@@ -248,7 +249,7 @@ extension FilterViewController{
 extension FilterViewController: PHPickerViewControllerDelegate{
     private func presentImagePicker(){
         var configuration = PHPickerConfiguration(photoLibrary: .shared())
-        configuration.selectionLimit = 2
+        configuration.selectionLimit = 1
         configuration.filter = .images
         
         let picker = PHPickerViewController(configuration: configuration)
@@ -264,30 +265,24 @@ extension FilterViewController: PHPickerViewControllerDelegate{
         
         guard !results.isEmpty else { return }
         
-        loadImages(from: results)
+        loadImage(from: results)
     }
     
-    private func loadImages(from results: [PHPickerResult]){
-        var images: [UIImage] = []
-        let group = DispatchGroup()
+    private func loadImage(from results: [PHPickerResult]){
+        guard let result = results.first else { return }
+        let provider = result.itemProvider
         
-        for result in results{
-            let provider = result.itemProvider
-            
-            guard provider.canLoadObject(ofClass: UIImage.self) else { continue }
-            
-            group.enter()
-            provider.loadObject(ofClass: UIImage.self) { object, _ in
-                defer { group.leave() }
-                if let image = object as? UIImage{
-                    images.append(image)
-                }
+        guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else { return }
+        
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] data, _ in
+            guard let data,
+                  let image = UIImage(data: data) else { return }
+            DispatchQueue.main.async {
+                self?.filterImageRegisterView.setImage(image)
+                
+                let editViewController = FilterEditViewController()
+                self?.navigationController?.pushViewController(editViewController, animated: true)
             }
-        }
-        
-        group.notify(queue: .main) { [weak self] in
-            guard let first = images.first else { return }
-            self?.filterImageRegisterView.setImage(first)
         }
     }
 }
