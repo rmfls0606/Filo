@@ -280,7 +280,8 @@ extension FilterViewController: PHPickerViewControllerDelegate{
             DispatchQueue.main.async {
                 self?.filterImageRegisterView.setImage(image)
                 
-                let editViewController = FilterEditViewController()
+                let viewModel = FilterEditViewModel(imageData: data)
+                let editViewController = FilterEditViewController(viewModel: viewModel)
                 self?.navigationController?.pushViewController(editViewController, animated: true)
             }
         }

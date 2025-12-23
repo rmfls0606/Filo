@@ -11,9 +11,32 @@ import RxSwift
 import RxCocoa
 
 final class FilterEditViewController: BaseViewController {
-    override func configureHierarchy() {}
+    //MARK: - Properties
+    private let disposeBag = DisposeBag()
+    private let viewModel: FilterEditViewModel
 
-    override func configureLayout() {}
+    //MARK: - UI
+    private let imageView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .scaleAspectFit
+        view.clipsToBounds = true
+        return view
+    }()
+
+    init(viewModel: FilterEditViewModel) {
+        self.viewModel = viewModel
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    override func configureHierarchy() {
+        view.addSubview(imageView)
+    }
+
+    override func configureLayout() {
+        imageView.snp.makeConstraints { make in
+            make.edges.equalTo(view.safeAreaLayoutGuide)
+        }
+    }
 
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
@@ -22,5 +45,14 @@ final class FilterEditViewController: BaseViewController {
         navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
     }
 
-    override func configureBind() {}
+    override func configureBind() {
+        let input = FilterEditViewModel.Input()
+        
+        let output = viewModel.transform(input: input)
+        
+        output.imageData
+            .map { UIImage(data: $0) }
+            .drive(imageView.rx.image)
+            .disposed(by: disposeBag)
+    }
 }
