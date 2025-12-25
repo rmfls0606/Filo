@@ -18,9 +18,40 @@ final class FilterEditViewController: BaseViewController {
     //MARK: - UI
     private let imageView: UIImageView = {
         let view = UIImageView()
-        view.contentMode = .scaleAspectFit
+        view.contentMode = .scaleAspectFill
         view.clipsToBounds = true
         return view
+    }()
+    
+    private let rollbackStack: UIStackView = {
+        let view = UIStackView()
+        view.axis = .horizontal
+        view.spacing = 8
+        return view
+    }()
+    
+    private let undoButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.baseForegroundColor = GrayStyle.gray60.color
+        config.makeFilterResizeImageConfigurationFill(imageName: "undo")
+        let button = UIButton(configuration: config)
+        return button
+    }()
+    
+    private let redoButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.baseForegroundColor = GrayStyle.gray75.color
+        config.makeFilterResizeImageConfigurationFill(imageName: "redo")
+        let button = UIButton(configuration: config)
+        return button
+    }()
+    
+    private let compareButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.baseForegroundColor = GrayStyle.gray60.color
+        config.makeFilterResizeImageConfigurationFill(imageName: "compare")
+        let button = UIButton(configuration: config)
+        return button
     }()
 
     init(viewModel: FilterEditViewModel) {
@@ -30,11 +61,26 @@ final class FilterEditViewController: BaseViewController {
 
     override func configureHierarchy() {
         view.addSubview(imageView)
+        
+        view.addSubview(rollbackStack)
+        rollbackStack.addArrangedSubview(undoButton)
+        rollbackStack.addArrangedSubview(redoButton)
+        
+        view.addSubview(compareButton)
     }
 
     override func configureLayout() {
         imageView.snp.makeConstraints { make in
-            make.edges.equalTo(view.safeAreaLayoutGuide)
+            make.horizontalEdges.top.equalTo(view.safeAreaLayoutGuide)
+            make.height.equalTo(400)
+        }
+        
+        rollbackStack.snp.makeConstraints { make in
+            make.bottom.leading.equalTo(imageView).inset(20)
+        }
+        
+        compareButton.snp.makeConstraints { make in
+            make.bottom.trailing.equalTo(imageView).inset(20)
         }
     }
 
