@@ -53,6 +53,28 @@ final class FilterEditViewController: BaseViewController {
         let button = UIButton(configuration: config)
         return button
     }()
+    
+    private let filterPropsCollectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .horizontal
+        layout.minimumLineSpacing = 12
+        
+        let spacing = 12.0
+        let padding = 20.0
+        let itemSize = (UIScreen.main.bounds
+            .width - (2 * padding) - (4 * spacing)) / 5
+        layout.itemSize = CGSize(width: itemSize, height: itemSize)
+        
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view
+            .register(
+                FilterPropsCollectionViewCell.self,
+                forCellWithReuseIdentifier: FilterPropsCollectionViewCell.identifier
+            )
+        view.showsHorizontalScrollIndicator = false
+        view.contentInset = UIEdgeInsets(top: 12, left: 20, bottom: 12, right: 20)
+        return view
+    }()
 
     init(viewModel: FilterEditViewModel) {
         self.viewModel = viewModel
@@ -67,12 +89,14 @@ final class FilterEditViewController: BaseViewController {
         rollbackStack.addArrangedSubview(redoButton)
         
         view.addSubview(compareButton)
+        
+        view.addSubview(filterPropsCollectionView)
     }
 
     override func configureLayout() {
         imageView.snp.makeConstraints { make in
             make.horizontalEdges.top.equalTo(view.safeAreaLayoutGuide)
-            make.height.equalTo(400)
+            make.bottom.equalTo(filterPropsCollectionView)
         }
         
         rollbackStack.snp.makeConstraints { make in
@@ -81,6 +105,11 @@ final class FilterEditViewController: BaseViewController {
         
         compareButton.snp.makeConstraints { make in
             make.bottom.trailing.equalTo(imageView).inset(20)
+        }
+        
+        filterPropsCollectionView.snp.makeConstraints { make in
+            make.horizontalEdges.bottom.equalTo(view.safeAreaLayoutGuide)
+            make.height.equalTo(80)
         }
     }
 
@@ -99,6 +128,16 @@ final class FilterEditViewController: BaseViewController {
         output.imageData
             .map { UIImage(data: $0) }
             .drive(imageView.rx.image)
+            .disposed(by: disposeBag)
+        
+        output.filterProps
+            .drive(
+                filterPropsCollectionView.rx.items(
+                    cellIdentifier: FilterPropsCollectionViewCell.identifier,
+                    cellType: FilterPropsCollectionViewCell.self
+                )){ _, item, cell in
+                    cell.configure(item: item)
+                }
             .disposed(by: disposeBag)
     }
 }
