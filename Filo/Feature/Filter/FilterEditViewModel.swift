@@ -14,6 +14,7 @@ final class FilterEditViewModel: ViewModelType {
     
     struct Output {
         let imageData: Driver<Data>
+        let filterProps: Driver<[FilterProps]>
     }
     
     private let imageRelay: BehaviorRelay<Data>
@@ -23,6 +24,13 @@ final class FilterEditViewModel: ViewModelType {
     }
     
     func transform(input: Input) -> Output {
-        Output(imageData: imageRelay.asDriver())
+        let filterPropsRelay = BehaviorRelay<[FilterProps]>(
+            value: FilterProps.allCases
+        )
+        
+        return Output(
+            imageData: imageRelay.asDriver(),
+            filterProps: filterPropsRelay.asDriver()
+        )
     }
 }
