@@ -53,6 +53,8 @@ final class FilterEditViewController: BaseViewController {
         let button = UIButton(configuration: config)
         return button
     }()
+
+    private let filterSliderView = FilterSliderView()
     
     private let filterPropsCollectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
@@ -80,7 +82,7 @@ final class FilterEditViewController: BaseViewController {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
     }
-
+    
     override func configureHierarchy() {
         view.addSubview(imageView)
         
@@ -89,14 +91,15 @@ final class FilterEditViewController: BaseViewController {
         rollbackStack.addArrangedSubview(redoButton)
         
         view.addSubview(compareButton)
-        
+
+        view.addSubview(filterSliderView)
         view.addSubview(filterPropsCollectionView)
     }
 
     override func configureLayout() {
         imageView.snp.makeConstraints { make in
             make.horizontalEdges.top.equalTo(view.safeAreaLayoutGuide)
-            make.bottom.equalTo(filterPropsCollectionView)
+            make.bottom.equalTo(filterSliderView.snp.top).offset(-20)
         }
         
         rollbackStack.snp.makeConstraints { make in
@@ -105,6 +108,11 @@ final class FilterEditViewController: BaseViewController {
         
         compareButton.snp.makeConstraints { make in
             make.bottom.trailing.equalTo(imageView).inset(20)
+        }
+
+        filterSliderView.snp.makeConstraints { make in
+            make.bottom.equalTo(filterPropsCollectionView.snp.top).offset(-20)
+            make.horizontalEdges.equalTo(view.safeAreaLayoutGuide).inset(20)
         }
         
         filterPropsCollectionView.snp.makeConstraints { make in
