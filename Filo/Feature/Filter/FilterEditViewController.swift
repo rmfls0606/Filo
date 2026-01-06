@@ -73,6 +73,7 @@ final class FilterEditViewController: BaseViewController {
                 FilterPropsCollectionViewCell.self,
                 forCellWithReuseIdentifier: FilterPropsCollectionViewCell.identifier
             )
+        view.backgroundColor = GrayStyle.gray100.color
         view.showsHorizontalScrollIndicator = false
         view.contentInset = UIEdgeInsets(top: 12, left: 20, bottom: 12, right: 20)
         return view
@@ -82,6 +83,8 @@ final class FilterEditViewController: BaseViewController {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
     }
+
+    override var prefersCustomTabBarHidden: Bool { true }
     
     override func configureHierarchy() {
         view.addSubview(imageView)
