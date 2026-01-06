@@ -7,7 +7,9 @@
 
 import UIKit
 
-class BaseViewController: UIViewController{
+class BaseViewController: UIViewController, CustomTabBarVisibilityProtocol {
+    var prefersCustomTabBarHidden: Bool { false }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -15,6 +17,11 @@ class BaseViewController: UIViewController{
         configureLayout()
         configureView()
         configureBind()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        setMainCustomTabBarHidden(prefersCustomTabBarHidden)
     }
     
     override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
