@@ -14,6 +14,7 @@ final class MainTabBarController: UITabBarController {
 
     //MARK: - Properties
     private let disposeBag = DisposeBag()
+    private var isCustomTabBarHidden = false
     
     // MARK: - UI
     private let customTabBar = CustomTabBarView()
@@ -46,6 +47,13 @@ final class MainTabBarController: UITabBarController {
             $0.bottom.equalTo(view.safeAreaLayoutGuide)
             $0.height.equalTo(CustomTabBarView.height)
         }
+    }
+
+    func setCustomTabBarHidden(_ hidden: Bool, animated: Bool = true) {
+        guard hidden != isCustomTabBarHidden else { return }
+        isCustomTabBarHidden = hidden
+
+        customTabBar.isHidden = hidden
     }
 
     // MARK: - Bind
