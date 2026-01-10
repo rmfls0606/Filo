@@ -25,3 +25,8 @@ enum FilterProps: String, CaseIterable{
         self.rawValue.uppercased()
     }
 }
+
+struct FilterPropItem{
+    let prop: FilterProps
+    let isSelected: Bool
+}
