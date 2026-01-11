@@ -41,8 +41,10 @@ final class FilterPropsCollectionViewCell: BaseCollectionViewCell {
         }
     }
     
-    func configure(item: FilterProps){
-        filterIcon.image = UIImage(named: item.rawValue)
-        filterText.text = item.title
+    func configure(item: FilterPropItem){
+        filterIcon.image = UIImage(named: item.prop.rawValue)
+        filterText.text = item.prop.title
+        filterIcon.tintColor = item.isSelected ? GrayStyle.gray30.color : GrayStyle.gray75.color
+        filterText.textColor = item.isSelected ? GrayStyle.gray30.color : GrayStyle.gray75.color
     }
 }

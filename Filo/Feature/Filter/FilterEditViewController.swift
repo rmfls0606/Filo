@@ -132,7 +132,10 @@ final class FilterEditViewController: BaseViewController {
     }
 
     override func configureBind() {
-        let input = FilterEditViewModel.Input()
+        let input = FilterEditViewModel.Input(
+            selectedProp: filterPropsCollectionView.rx
+                .modelSelected(FilterPropItem.self)
+        )
         
         let output = viewModel.transform(input: input)
         
