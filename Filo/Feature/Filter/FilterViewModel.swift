@@ -14,10 +14,15 @@ final class FilterViewModel: ViewModelType{
     
     struct Input{
         let categorySelected: Observable<FilterCategoryType>
+        let imageSelected: Observable<Data>
+        let editResult: Observable<(Data, FilterImagePropsEntity)>
     }
     
     struct Output{
         let categories: Driver<[FilterCategoryEntity]>
+        let currentImageData: Driver<Data?>
+        let currentFilterProps: Driver<FilterImagePropsEntity?>
+        let editEnabled: Driver<Bool>
     }
     
     func transform(input: Input) -> Output {
@@ -26,6 +31,8 @@ final class FilterViewModel: ViewModelType{
                 FilterCategoryEntity(type: $0)
             }
         )
+        let imageDataRelay = BehaviorRelay<Data?>(value: nil)
+        let filterPropsRelay = BehaviorRelay<FilterImagePropsEntity?>(value: nil)
         
         input.categorySelected
             .withLatestFrom(categoriesRelay){ selected, items in
@@ -38,8 +45,26 @@ final class FilterViewModel: ViewModelType{
             .bind(to: categoriesRelay)
             .disposed(by: disposeBag)
         
+        input.imageSelected
+            .subscribe(onNext: {data in
+                imageDataRelay.accept(data)
+                filterPropsRelay.accept(nil)
+            })
+            .disposed(by: disposeBag)
+        
+        input.editResult
+            .subscribe(onNext: {data, props in
+                imageDataRelay.accept(data)
+            })
+            .disposed(by: disposeBag)
+        
         return Output(
-            categories: categoriesRelay.asDriver()
+            categories: categoriesRelay.asDriver(),
+            currentImageData: imageDataRelay.asDriver(),
+            currentFilterProps: filterPropsRelay.asDriver(),
+            editEnabled: imageDataRelay
+                .map { $0 != nil }
+                .asDriver(onErrorJustReturn: false)
         )
     }
 }
