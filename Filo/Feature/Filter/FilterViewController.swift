@@ -17,6 +17,8 @@ final class FilterViewController: BaseViewController {
     private let disposeBag = DisposeBag()
     private let viewModel = FilterViewModel()
     private var categoryDataSource: UICollectionViewDiffableDataSource<FilterCategorySection, FilterCategoryEntity>!
+    private let imageSelectedRelay = PublishRelay<Data>()
+    private let editResultRelay = PublishRelay<(Data, FilterImagePropsEntity)>()
     
     //MARK: - UI
     private let filterScrollView: UIScrollView = {
@@ -167,7 +169,9 @@ final class FilterViewController: BaseViewController {
                 .compactMap({ [weak self] indexPath in
                     self?.categoryDataSource
                         .itemIdentifier(for: indexPath)?.type
-                })
+                }),
+            imageSelected: imageSelectedRelay.asObservable(),
+            editResult: editResultRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -176,6 +180,24 @@ final class FilterViewController: BaseViewController {
             .drive { [weak self] items in
                 self?.applyCategorySnapshot(items)
             }
+            .disposed(by: disposeBag)
+        
+        output.currentImageData
+            .compactMap { $0 }
+            .withLatestFrom(output.currentFilterProps){ imageData, filterProps in
+                return (imageData, filterProps)
+            }
+            .drive(onNext: { [weak self] imageData, filterProps in
+                guard let image = UIImage(data: imageData) else { return }
+                self?.filterImageRegisterView.setImage(image)
+                let viewModel = FilterEditViewModel(imageData: imageData)
+                let editViewController = FilterEditViewController(viewModel: viewModel)
+                self?.navigationController?.pushViewController(editViewController, animated: true)
+            })
+            .disposed(by: disposeBag)
+        
+        output.editEnabled
+            .drive(filterImageEditButton.rx.isEnabled)
             .disposed(by: disposeBag)
         
         filterImageRegisterView.tap
@@ -193,6 +215,16 @@ final class FilterViewController: BaseViewController {
                 case .filled(_):
                     self?.filterImageTitle.setTrailingHidden(false)
                 }
+            })
+            .disposed(by: disposeBag)
+        
+        filterImageEditButton.rx.tap
+            .withLatestFrom(output.currentImageData)
+            .subscribe(onNext: { [weak self] imageData in
+                guard let imageData else { return }
+                let vm = FilterEditViewModel(imageData: imageData)
+                let vc = FilterEditViewController(viewModel: vm)
+                self?.navigationController?.pushViewController(vc, animated: true)
             })
             .disposed(by: disposeBag)
     }
@@ -276,13 +308,10 @@ extension FilterViewController: PHPickerViewControllerDelegate{
         
         provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] data, _ in
             guard let data,
-                  let image = UIImage(data: data) else { return }
+                  UIImage(data: data) != nil else { return }
             DispatchQueue.main.async {
-                self?.filterImageRegisterView.setImage(image)
-                
-                let viewModel = FilterEditViewModel(imageData: data)
-                let editViewController = FilterEditViewController(viewModel: viewModel)
-                self?.navigationController?.pushViewController(editViewController, animated: true)
+                guard let self else { return }
+                self.imageSelectedRelay.accept(data)
             }
         }
     }
