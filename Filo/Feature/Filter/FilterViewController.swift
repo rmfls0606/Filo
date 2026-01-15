@@ -184,15 +184,9 @@ final class FilterViewController: BaseViewController {
         
         output.currentImageData
             .compactMap { $0 }
-            .withLatestFrom(output.currentFilterProps){ imageData, filterProps in
-                return (imageData, filterProps)
-            }
-            .drive(onNext: { [weak self] imageData, filterProps in
-                guard let image = UIImage(data: imageData) else { return }
+            .compactMap { UIImage(data: $0) }
+            .drive(onNext: { [weak self] image in
                 self?.filterImageRegisterView.setImage(image)
-                let viewModel = FilterEditViewModel(imageData: imageData)
-                let editViewController = FilterEditViewController(viewModel: viewModel)
-                self?.navigationController?.pushViewController(editViewController, animated: true)
             })
             .disposed(by: disposeBag)
         
@@ -219,14 +213,24 @@ final class FilterViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         filterImageEditButton.rx.tap
-            .withLatestFrom(output.currentImageData)
-            .subscribe(onNext: { [weak self] imageData in
-                guard let imageData else { return }
-                let vm = FilterEditViewModel(imageData: imageData)
-                let vc = FilterEditViewController(viewModel: vm)
-                self?.navigationController?.pushViewController(vc, animated: true)
+            .withLatestFrom(Observable.combineLatest(
+                output.originalImageData.asObservable(),
+                output.currentFilterProps.asObservable()
+            ))
+            .subscribe(onNext: { [weak self] imageData, filterProps in
+                guard let self = self, let imageData else { return }
+                self.pushEditViewController(with: imageData, props: filterProps)
             })
             .disposed(by: disposeBag)
+    }
+    
+    private func pushEditViewController(with imageData: Data, props: FilterImagePropsEntity?) {
+        let viewModel = FilterEditViewModel(imageData: imageData, initialProps: props)
+        let editViewController = FilterEditViewController(viewModel: viewModel)
+        editViewController.onComplete = { [weak self] data, props in
+            self?.editResultRelay.accept((data, props))
+        }
+        navigationController?.pushViewController(editViewController, animated: true)
     }
 }
 
@@ -312,6 +316,7 @@ extension FilterViewController: PHPickerViewControllerDelegate{
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.imageSelectedRelay.accept(data)
+                self.pushEditViewController(with: data, props: nil)
             }
         }
     }
