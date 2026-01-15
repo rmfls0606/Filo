@@ -15,6 +15,10 @@ final class FilterSliderView: BaseView {
     private var valueLabelCenterXConstraint: Constraint?
     private let disposeBag = DisposeBag()
     
+    var valueChanged: ControlProperty<Float> {
+        slider.rx.value
+    }
+    
     //MARK: - UI
     private let slider = GradientSlider()
     private let valueLabelBox: UIView = {
@@ -36,6 +40,11 @@ final class FilterSliderView: BaseView {
     override func layoutSubviews() {
         super.layoutSubviews()
         updateValueLabel(value: slider.value)
+    }
+
+    func configureValue(value: Float) {
+        slider.setValue(value, animated: false)
+        updateValueLabel(value: value)
     }
     
     override func configureHierarchy() {
