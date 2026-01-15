@@ -14,6 +14,7 @@ final class FilterEditViewController: BaseViewController {
     //MARK: - Properties
     private let disposeBag = DisposeBag()
     private let viewModel: FilterEditViewModel
+    var onComplete: ((Data, FilterImagePropsEntity) -> Void)?
 
     //MARK: - UI
     private let imageView: UIImageView = {
@@ -134,13 +135,14 @@ final class FilterEditViewController: BaseViewController {
     override func configureBind() {
         let input = FilterEditViewModel.Input(
             selectedProp: filterPropsCollectionView.rx
-                .modelSelected(FilterPropItem.self)
+                .modelSelected(FilterPropItem.self),
+            sliderValueChanged: filterSliderView.valueChanged
         )
         
         let output = viewModel.transform(input: input)
         
         output.imageData
-            .map { UIImage(data: $0) }
+            .compactMap { UIImage(data: $0) }
             .drive(imageView.rx.image)
             .disposed(by: disposeBag)
         
@@ -152,6 +154,19 @@ final class FilterEditViewController: BaseViewController {
                 )){ _, item, cell in
                     cell.configure(item: item)
                 }
+            .disposed(by: disposeBag)
+
+        output.sliderValue
+            .drive(onNext: { [weak self] value in
+                self?.filterSliderView.configureValue(value: value)
+            })
+            .disposed(by: disposeBag)
+        
+        navigationItem.rightBarButtonItem?.rx.tap
+            .bind(with: self, onNext: { owner, _ in
+                owner.onComplete?(owner.viewModel.latestImageData, owner.viewModel.latestProps)
+                owner.navigationController?.popViewController(animated: true)
+            })
             .disposed(by: disposeBag)
     }
 }
