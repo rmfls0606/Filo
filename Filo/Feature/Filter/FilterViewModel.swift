@@ -22,6 +22,7 @@ final class FilterViewModel: ViewModelType{
         let categories: Driver<[FilterCategoryEntity]>
         let currentImageData: Driver<Data?>
         let currentFilterProps: Driver<FilterImagePropsEntity?>
+        let originalImageData: Driver<Data?>
         let editEnabled: Driver<Bool>
     }
     
@@ -32,6 +33,7 @@ final class FilterViewModel: ViewModelType{
             }
         )
         let imageDataRelay = BehaviorRelay<Data?>(value: nil)
+        let originalImageDataRelay = BehaviorRelay<Data?>(value: nil)
         let filterPropsRelay = BehaviorRelay<FilterImagePropsEntity?>(value: nil)
         
         input.categorySelected
@@ -47,6 +49,7 @@ final class FilterViewModel: ViewModelType{
         
         input.imageSelected
             .subscribe(onNext: {data in
+                originalImageDataRelay.accept(data)
                 imageDataRelay.accept(data)
                 filterPropsRelay.accept(nil)
             })
@@ -55,6 +58,7 @@ final class FilterViewModel: ViewModelType{
         input.editResult
             .subscribe(onNext: {data, props in
                 imageDataRelay.accept(data)
+                filterPropsRelay.accept(props)
             })
             .disposed(by: disposeBag)
         
@@ -62,6 +66,7 @@ final class FilterViewModel: ViewModelType{
             categories: categoriesRelay.asDriver(),
             currentImageData: imageDataRelay.asDriver(),
             currentFilterProps: filterPropsRelay.asDriver(),
+            originalImageData: originalImageDataRelay.asDriver(),
             editEnabled: imageDataRelay
                 .map { $0 != nil }
                 .asDriver(onErrorJustReturn: false)
