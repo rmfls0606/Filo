@@ -19,6 +19,10 @@ final class FilterSliderView: BaseView {
         slider.rx.value
     }
     
+    var editingEnded: ControlEvent<Void> {
+        slider.rx.controlEvent([.touchUpInside, .touchUpOutside, .touchCancel])
+    }
+    
     //MARK: - UI
     private let slider = GradientSlider()
     private let valueLabelBox: UIView = {

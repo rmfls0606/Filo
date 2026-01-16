@@ -17,6 +17,9 @@ final class FilterEditViewModel: ViewModelType {
         let selectedProp: ControlEvent<FilterPropItem>
         let sliderValueChanged: ControlProperty<Float>
         let compareButtonTapped: ControlEvent<Void>
+        let sliderEditingEnded: ControlEvent<Void> //사용자가 슬라이더를 움직인 후 터치를 그만 두었을 때
+        let undoButtonTapped: ControlEvent<Void>
+        let redoButtonTapped: ControlEvent<Void>
     }
 
     struct Output {
@@ -38,6 +41,8 @@ final class FilterEditViewModel: ViewModelType {
     private var compareWorkItem: DispatchWorkItem?
     private let comparingRelay = BehaviorRelay<Bool>(value: false)
     private var filterValues: [FilterProps: Float] = [:]
+    private var history: [[FilterProps: Float]] = [] //필터 적용 순서 기록
+    private var historyIndex: Int = 0 //필터 적용 순서 기록 찾기용 index
 
     var latestImageData: Data { filteredImageData }
     var latestProps: FilterImagePropsEntity {
@@ -50,6 +55,7 @@ final class FilterEditViewModel: ViewModelType {
         self.filteredImageData = imageData
         self.filterValues = [:]
         self.filterValues = valuesDictionary(entity: initialProps)
+        self.history = [filterValues]
         if !isAllNeutral(filterValues) {
             applyFilters(with: filterValues)
         }
@@ -111,6 +117,21 @@ final class FilterEditViewModel: ViewModelType {
             })
             .disposed(by: disposeBag)
 
+        input.sliderEditingEnded
+            .withLatestFrom(filterValuesRelay)
+            .subscribe(onNext: { [weak self] values in
+                guard let self else { return }
+                if self.history.isEmpty {
+                    self.history = [values]
+                    self.historyIndex = 0
+                } else if values != self.history[self.historyIndex] {
+                    self.history = Array(self.history.prefix(self.historyIndex + 1))
+                    self.history.append(values)
+                    self.historyIndex = self.history.count - 1
+                }
+            })
+            .disposed(by: disposeBag)
+
         input.compareButtonTapped
             .subscribe(onNext: { [weak self] in
                 guard let self else { return }
@@ -125,6 +146,24 @@ final class FilterEditViewModel: ViewModelType {
                 }
                 self.compareWorkItem = workItem
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+            })
+            .disposed(by: disposeBag)
+
+        input.undoButtonTapped
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                guard self.historyIndex > 0 else { return }
+                self.historyIndex -= 1
+                filterValuesRelay.accept(self.history[self.historyIndex])
+            })
+            .disposed(by: disposeBag)
+
+        input.redoButtonTapped
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                guard self.historyIndex + 1 < self.history.count else { return }
+                self.historyIndex += 1
+                filterValuesRelay.accept(self.history[self.historyIndex])
             })
             .disposed(by: disposeBag)
 

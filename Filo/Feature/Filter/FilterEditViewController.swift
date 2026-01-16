@@ -168,7 +168,10 @@ final class FilterEditViewController: BaseViewController {
             selectedProp: filterPropsCollectionView.rx
                 .modelSelected(FilterPropItem.self),
             sliderValueChanged: filterSliderView.valueChanged,
-            compareButtonTapped: compareButton.rx.tap
+            compareButtonTapped: compareButton.rx.tap,
+            sliderEditingEnded: filterSliderView.editingEnded,
+            undoButtonTapped: undoButton.rx.tap,
+            redoButtonTapped: redoButton.rx.tap
         )
         
         let output = viewModel.transform(input: input)
