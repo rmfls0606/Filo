@@ -16,12 +16,14 @@ final class FilterEditViewModel: ViewModelType {
     struct Input {
         let selectedProp: ControlEvent<FilterPropItem>
         let sliderValueChanged: ControlProperty<Float>
+        let compareButtonTapped: ControlEvent<Void>
     }
 
     struct Output {
         let imageData: Driver<Data>
         let filterProps: Driver<[FilterPropItem]>
         let sliderValue: Driver<Float>
+        let isComparing: Driver<Bool>
     }
 
     private let imageRelay: BehaviorRelay<Data>
@@ -29,10 +31,15 @@ final class FilterEditViewModel: ViewModelType {
     private let processingQueue = DispatchQueue(label: "com.filo.filter.edit", qos: .userInitiated)
     private let ciContext = CIContext()
     private let originalImageData: Data
+    
+    private var filteredImageData: Data
     private var pendingWorkItem: DispatchWorkItem?
+    
+    private var compareWorkItem: DispatchWorkItem?
+    private let comparingRelay = BehaviorRelay<Bool>(value: false)
     private var filterValues: [FilterProps: Float] = [:]
 
-    var latestImageData: Data { imageRelay.value }
+    var latestImageData: Data { filteredImageData }
     var latestProps: FilterImagePropsEntity {
         makeEntity(from: filterValues)
     }
@@ -40,6 +47,8 @@ final class FilterEditViewModel: ViewModelType {
     init(imageData: Data, initialProps: FilterImagePropsEntity? = nil) {
         self.originalImageData = imageData
         self.imageRelay = BehaviorRelay(value: imageData)
+        self.filteredImageData = imageData
+        self.filterValues = [:]
         self.filterValues = valuesDictionary(entity: initialProps)
         if !isAllNeutral(filterValues) {
             applyFilters(with: filterValues)
@@ -102,10 +111,28 @@ final class FilterEditViewModel: ViewModelType {
             })
             .disposed(by: disposeBag)
 
+        input.compareButtonTapped
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                guard !self.isAllNeutral(self.filterValues) else { return }
+                self.comparingRelay.accept(true)
+                self.compareWorkItem?.cancel()
+                self.imageRelay.accept(self.originalImageData)
+                let workItem = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    self.comparingRelay.accept(false)
+                    self.imageRelay.accept(self.filteredImageData)
+                }
+                self.compareWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+            })
+            .disposed(by: disposeBag)
+
         return Output(
             imageData: imageRelay.asDriver(),
             filterProps: filterPropsRelay.asDriver(),
-            sliderValue: sliderValueRelay.asDriver()
+            sliderValue: sliderValueRelay.asDriver(),
+            isComparing: comparingRelay.asDriver()
         )
     }
     
@@ -265,12 +292,14 @@ final class FilterEditViewModel: ViewModelType {
     }
 
     private func applyFilters(with values: [FilterProps: Float]) {
+        let baseData = originalImageData
         if isAllNeutral(values) {
-            imageRelay.accept(originalImageData)
+            filteredImageData = baseData
+            if !comparingRelay.value {
+                imageRelay.accept(baseData)
+            }
             return
         }
-
-        let baseData = originalImageData
         let workItem = DispatchWorkItem { [weak self] in
             let options: [CIImageOption: Any] = [.applyOrientationProperty: true]
             guard let self = self,
@@ -401,7 +430,10 @@ final class FilterEditViewModel: ViewModelType {
             guard let outputData = jpegData(from: cgImage, compressionQuality: 0.9) else { return }
 
             DispatchQueue.main.async {
-                self.imageRelay.accept(outputData)
+                self.filteredImageData = outputData
+                if !self.comparingRelay.value {
+                    self.imageRelay.accept(outputData)
+                }
             }
         }
         // 이전 작업을 취소하고 최신 작업만 실행
