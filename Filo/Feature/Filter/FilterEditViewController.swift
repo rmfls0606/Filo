@@ -23,6 +23,24 @@ final class FilterEditViewController: BaseViewController {
         view.clipsToBounds = true
         return view
     }()
+
+    private let originalBadgeLabelBox: UIView = {
+        let view = UIView()
+        view.backgroundColor = Brand.blackTurquoise.color?.withAlphaComponent(0.5)
+        view.layer.cornerRadius = 12
+        view.layer.masksToBounds = true
+        view.isHidden = true
+        return view
+    }()
+    
+    private let originalBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.text = "원본"
+        label.textAlignment = .center
+        label.font = .Pretendard.caption2
+        label.textColor = GrayStyle.gray30.color
+        return label
+    }()
     
     private let rollbackStack: UIStackView = {
         let view = UIStackView()
@@ -90,6 +108,9 @@ final class FilterEditViewController: BaseViewController {
     override func configureHierarchy() {
         view.addSubview(imageView)
         
+        view.addSubview(originalBadgeLabelBox)
+        originalBadgeLabelBox.addSubview(originalBadgeLabel)
+        
         view.addSubview(rollbackStack)
         rollbackStack.addArrangedSubview(undoButton)
         rollbackStack.addArrangedSubview(redoButton)
@@ -104,6 +125,16 @@ final class FilterEditViewController: BaseViewController {
         imageView.snp.makeConstraints { make in
             make.horizontalEdges.top.equalTo(view.safeAreaLayoutGuide)
             make.bottom.equalTo(filterSliderView.snp.top).offset(-20)
+        }
+
+        originalBadgeLabelBox.snp.makeConstraints { make in
+            make.top.equalTo(imageView).inset(16)
+            make.centerX.equalTo(imageView)
+        }
+        
+        originalBadgeLabel.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(12)
+            make.verticalEdges.equalToSuperview().inset(6)
         }
         
         rollbackStack.snp.makeConstraints { make in
