@@ -51,7 +51,7 @@ final class FilterEditViewController: BaseViewController {
     
     private let undoButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.baseForegroundColor = GrayStyle.gray60.color
+        config.baseForegroundColor = GrayStyle.gray75.color
         config.makeFilterResizeImageConfigurationFill(imageName: "undo")
         let button = UIButton(configuration: config)
         return button
@@ -194,6 +194,24 @@ final class FilterEditViewController: BaseViewController {
         output.sliderValue
             .drive(onNext: { [weak self] value in
                 self?.filterSliderView.configureValue(value: value)
+            })
+            .disposed(by: disposeBag)
+
+        output.canUndo
+            .drive(onNext: { [weak self] canUndo in
+                guard let self else { return }
+                var config = undoButton.configuration
+                config?.baseForegroundColor = canUndo ? GrayStyle.gray60.color : GrayStyle.gray75.color
+                undoButton.configuration = config
+            })
+            .disposed(by: disposeBag)
+
+        output.canRedo
+            .drive(onNext: { [weak self] canRedo in
+                guard let self else { return }
+                var config = redoButton.configuration
+                config?.baseForegroundColor = canRedo ? GrayStyle.gray60.color : GrayStyle.gray75.color
+                redoButton.configuration = config
             })
             .disposed(by: disposeBag)
 

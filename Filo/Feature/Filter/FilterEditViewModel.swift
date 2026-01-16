@@ -27,6 +27,8 @@ final class FilterEditViewModel: ViewModelType {
         let filterProps: Driver<[FilterPropItem]>
         let sliderValue: Driver<Float>
         let isComparing: Driver<Bool>
+        let canUndo: Driver<Bool>
+        let canRedo: Driver<Bool>
     }
 
     private let imageRelay: BehaviorRelay<Data>
@@ -67,6 +69,14 @@ final class FilterEditViewModel: ViewModelType {
         let sliderValueRelay = BehaviorRelay<Float>(
             value: uiValue(from: value(for: .blackPoint, in: filterValues), for: .blackPoint)
         )
+        let canUndoRelay = BehaviorRelay<Bool>(value: historyIndex > 0)
+        let canRedoRelay = BehaviorRelay<Bool>(value: historyIndex + 1 < history.count)
+        
+        let updateHistoryState: () -> Void = { [weak self] in
+            guard let self else { return }
+            canUndoRelay.accept(self.historyIndex > 0)
+            canRedoRelay.accept(self.historyIndex + 1 < self.history.count)
+        }
 
         input.selectedProp
             .map { $0.prop }
@@ -129,6 +139,7 @@ final class FilterEditViewModel: ViewModelType {
                     self.history.append(values)
                     self.historyIndex = self.history.count - 1
                 }
+                updateHistoryState()
             })
             .disposed(by: disposeBag)
 
@@ -155,6 +166,7 @@ final class FilterEditViewModel: ViewModelType {
                 guard self.historyIndex > 0 else { return }
                 self.historyIndex -= 1
                 filterValuesRelay.accept(self.history[self.historyIndex])
+                updateHistoryState()
             })
             .disposed(by: disposeBag)
 
@@ -164,6 +176,7 @@ final class FilterEditViewModel: ViewModelType {
                 guard self.historyIndex + 1 < self.history.count else { return }
                 self.historyIndex += 1
                 filterValuesRelay.accept(self.history[self.historyIndex])
+                updateHistoryState()
             })
             .disposed(by: disposeBag)
 
@@ -171,7 +184,9 @@ final class FilterEditViewModel: ViewModelType {
             imageData: imageRelay.asDriver(),
             filterProps: filterPropsRelay.asDriver(),
             sliderValue: sliderValueRelay.asDriver(),
-            isComparing: comparingRelay.asDriver()
+            isComparing: comparingRelay.asDriver(),
+            canUndo: canUndoRelay.asDriver(),
+            canRedo: canRedoRelay.asDriver()
         )
     }
     
