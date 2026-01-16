@@ -167,7 +167,8 @@ final class FilterEditViewController: BaseViewController {
         let input = FilterEditViewModel.Input(
             selectedProp: filterPropsCollectionView.rx
                 .modelSelected(FilterPropItem.self),
-            sliderValueChanged: filterSliderView.valueChanged
+            sliderValueChanged: filterSliderView.valueChanged,
+            compareButtonTapped: compareButton.rx.tap
         )
         
         let output = viewModel.transform(input: input)
@@ -191,6 +192,11 @@ final class FilterEditViewController: BaseViewController {
             .drive(onNext: { [weak self] value in
                 self?.filterSliderView.configureValue(value: value)
             })
+            .disposed(by: disposeBag)
+
+        output.isComparing
+            .map { !$0 }
+            .drive(originalBadgeLabelBox.rx.isHidden)
             .disposed(by: disposeBag)
         
         navigationItem.rightBarButtonItem?.rx.tap
