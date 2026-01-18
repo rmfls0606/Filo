@@ -18,4 +18,7 @@ struct FilterImageMetadata {
     let width: Int?
     let height: Int?
     let fileSizeMB: String?
+    let latitude: Double?
+    let longitude: Double?
+    let address: String?
 }
