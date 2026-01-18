@@ -20,6 +20,8 @@ final class FilterViewController: BaseViewController {
     private let imageSelectedRelay = PublishRelay<Data>()
     private let assetIdentifierRelay = PublishRelay<String?>()
     private let editResultRelay = PublishRelay<(Data, FilterImagePropsEntity)>()
+    private var selectionToken: Int = 0
+    private var pendingSelectionWorkItem: DispatchWorkItem?
     
     //MARK: - UI
     private let filterScrollView: UIScrollView = {
@@ -314,6 +316,8 @@ extension FilterViewController: PHPickerViewControllerDelegate{
     
     private func loadImage(from results: [PHPickerResult]){
         guard let result = results.first else { return }
+        selectionToken += 1
+        let currentToken = selectionToken
         let provider = result.itemProvider
         
         guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else { return }
@@ -323,9 +327,17 @@ extension FilterViewController: PHPickerViewControllerDelegate{
                   UIImage(data: data) != nil else { return }
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.imageSelectedRelay.accept(data)
-                self.assetIdentifierRelay.accept(result.assetIdentifier)
-                self.pushEditViewController(with: data, props: nil)
+                guard currentToken == self.selectionToken else { return }
+                self.pendingSelectionWorkItem?.cancel()
+                let workItem = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    guard currentToken == self.selectionToken else { return }
+                    self.imageSelectedRelay.accept(data)
+                    self.assetIdentifierRelay.accept(result.assetIdentifier)
+                    self.pushEditViewController(with: data, props: nil)
+                }
+                self.pendingSelectionWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
             }
         }
     }
