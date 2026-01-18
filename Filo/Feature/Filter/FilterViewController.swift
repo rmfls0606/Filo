@@ -18,6 +18,7 @@ final class FilterViewController: BaseViewController {
     private let viewModel = FilterViewModel()
     private var categoryDataSource: UICollectionViewDiffableDataSource<FilterCategorySection, FilterCategoryEntity>!
     private let imageSelectedRelay = PublishRelay<Data>()
+    private let assetIdentifierRelay = PublishRelay<String?>()
     private let editResultRelay = PublishRelay<(Data, FilterImagePropsEntity)>()
     
     //MARK: - UI
@@ -171,7 +172,8 @@ final class FilterViewController: BaseViewController {
                         .itemIdentifier(for: indexPath)?.type
                 }),
             imageSelected: imageSelectedRelay.asObservable(),
-            editResult: editResultRelay.asObservable()
+            editResult: editResultRelay.asObservable(),
+            assetIdentifier: assetIdentifierRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -187,6 +189,12 @@ final class FilterViewController: BaseViewController {
             .compactMap { UIImage(data: $0) }
             .drive(onNext: { [weak self] image in
                 self?.filterImageRegisterView.setImage(image)
+            })
+            .disposed(by: disposeBag)
+
+        output.metadata
+            .drive(onNext: { [weak self] metadata in
+                self?.filterImageRegisterView.applyMetadata(metadata)
             })
             .disposed(by: disposeBag)
         
@@ -316,6 +324,7 @@ extension FilterViewController: PHPickerViewControllerDelegate{
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.imageSelectedRelay.accept(data)
+                self.assetIdentifierRelay.accept(result.assetIdentifier)
                 self.pushEditViewController(with: data, props: nil)
             }
         }
