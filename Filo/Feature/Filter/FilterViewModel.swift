@@ -10,6 +10,7 @@ import RxSwift
 import RxCocoa
 import ImageIO
 import Photos
+import CoreLocation
 
 final class FilterViewModel: ViewModelType{
     private let disposeBag = DisposeBag()
@@ -32,6 +33,8 @@ final class FilterViewModel: ViewModelType{
     
     private let metadataQueue = DispatchQueue(label: "com.filo.filter.metadata", qos: .userInitiated)
     private let metadataRelay = BehaviorRelay<FilterImageMetadata?>(value: nil)
+    private let geocoder = CLGeocoder()
+    private var lastGeocodedCoordinate: CLLocationCoordinate2D?
     private var latestOriginalData: Data?
     private var lastAssetIdentifier: String?
     
@@ -116,7 +119,7 @@ final class FilterViewModel: ViewModelType{
             guard let self else { return }
             let metadata = self.extractMetadata(from: data)
             DispatchQueue.main.async { [weak self] in
-                self?.metadataRelay.accept(metadata)
+                self?.publishMetadata(metadata)
             }
         }
     }
@@ -140,7 +143,7 @@ final class FilterViewModel: ViewModelType{
                 guard let self else { return }
                 let metadata = self.extractMetadata(from: url)
                 DispatchQueue.main.async { [weak self] in
-                    self?.metadataRelay.accept(metadata)
+                    self?.publishMetadata(metadata)
                 }
             }
         }
@@ -169,6 +172,7 @@ final class FilterViewModel: ViewModelType{
     private func extractMetadata(from properties: [CFString: Any], fileSizeMB: String?) -> FilterImageMetadata {
         let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
         let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        let gps = properties[kCGImagePropertyGPSDictionary] as? [CFString: Any]
         
         let make = (tiff?[kCGImagePropertyTIFFMake] as? String)
         let model = (tiff?[kCGImagePropertyTIFFModel] as? String)
@@ -191,6 +195,18 @@ final class FilterViewModel: ViewModelType{
         
         let width = properties[kCGImagePropertyPixelWidth] as? Int
         let height = properties[kCGImagePropertyPixelHeight] as? Int
+
+        var latitude = gps?[kCGImagePropertyGPSLatitude] as? Double
+        let latitudeRef = gps?[kCGImagePropertyGPSLatitudeRef] as? String
+        if latitudeRef == "S", let value = latitude {
+            latitude = -value
+        }
+
+        var longitude = gps?[kCGImagePropertyGPSLongitude] as? Double
+        let longitudeRef = gps?[kCGImagePropertyGPSLongitudeRef] as? String
+        if longitudeRef == "W", let value = longitude {
+            longitude = -value
+        }
         
         let megaPixel: Double?
         if let width, let height {
@@ -209,7 +225,10 @@ final class FilterViewModel: ViewModelType{
             megaPixel: megaPixel,
             width: width,
             height: height,
-            fileSizeMB: fileSizeMB
+            fileSizeMB: fileSizeMB,
+            latitude: latitude,
+            longitude: longitude,
+            address: nil
         )
     }
     
@@ -223,5 +242,83 @@ final class FilterViewModel: ViewModelType{
     
     private func fileSizeString(from byteCount: Int) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(byteCount), countStyle: .file)
+    }
+
+    private func publishMetadata(_ metadata: FilterImageMetadata?) {
+        metadataRelay.accept(metadata)
+        updateAddress(for: metadata)
+    }
+
+    private func updateAddress(for metadata: FilterImageMetadata?) {
+        guard let metadata,
+              let latitude = metadata.latitude,
+              let longitude = metadata.longitude else {
+            return
+        }
+
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        
+        //이미 있고, 오차 범위가 작다면 그대로 사용
+        if let last = lastGeocodedCoordinate,
+           abs(last.latitude - coordinate.latitude) < 0.0001,
+           abs(last.longitude - coordinate.longitude) < 0.0001 {
+            return
+        }
+
+        //아니라면 저장
+        lastGeocodedCoordinate = coordinate
+        geocoder.cancelGeocode()
+        let location = CLLocation(latitude: latitude, longitude: longitude)
+        Task { [weak self] in
+            guard let self else { return }
+            let address = await reverseGeocodeAddress(for: location)
+
+            let updated = FilterImageMetadata(
+                make: metadata.make,
+                model: metadata.model,
+                lensModel: metadata.lensModel,
+                focalLength: metadata.focalLength,
+                fNumber: metadata.fNumber,
+                iso: metadata.iso,
+                megaPixel: metadata.megaPixel,
+                width: metadata.width,
+                height: metadata.height,
+                fileSizeMB: metadata.fileSizeMB,
+                latitude: metadata.latitude,
+                longitude: metadata.longitude,
+                address: address
+            )
+
+            await MainActor.run { [weak self] in
+                self?.metadataRelay.accept(updated)
+            }
+        }
+    }
+
+    private func reverseGeocodeAddress(for location: CLLocation) async -> String? {
+        do {
+            let placemarks = try await geocoder.reverseGeocodeLocation(location)
+            guard let first = placemarks.first else { return nil }
+            return formatAddress(from: first)
+        } catch {
+            return nil
+        }
+    }
+
+    private func formatAddress(from placemark: CLPlacemark) -> String? {
+        let road = [placemark.thoroughfare, placemark.subThoroughfare]
+            .compactMap { $0 }
+            .joined(separator: " ")
+
+        let adminArea = placemark.administrativeArea
+
+        if !road.isEmpty {
+            if let adminArea, !adminArea.isEmpty {
+                return "\(road) (\(adminArea))"
+            }
+            return road
+        }
+
+        return adminArea?.isEmpty == false ? adminArea : nil
     }
 }
