@@ -71,6 +71,7 @@ final class FilterImageRegisterView: BaseView {
         view.layer.borderWidth = 2.0
         view.layer.borderColor = Brand.blackTurquoise.color?.cgColor
         view.backgroundColor = Brand.blackTurquoise.color
+        view.isHidden = true
         return view
     }()
     
@@ -173,7 +174,6 @@ final class FilterImageRegisterView: BaseView {
         label.font = .Pretendard.caption1
         label.textColor = GrayStyle.gray75.color
         label.numberOfLines = 0
-        label.text = "와이드 카메라 - 26mm f1.5 ISO 400"
         return label
     }()
     
@@ -190,7 +190,6 @@ final class FilterImageRegisterView: BaseView {
         label.font = .Pretendard.caption1
         label.textColor = GrayStyle.gray75.color
         label.numberOfLines = 2
-        label.text = "12MP 3024 x 4032 2.2MB"
         return label
     }()
     
@@ -309,6 +308,51 @@ final class FilterImageRegisterView: BaseView {
         stateRelay.accept(.filled(image))
     }
     
+    func applyMetadata(_ metadata: FilterImageMetadata?) {
+        guard let metadata else {
+            metadataContainer.isHidden = true
+            return
+        }
+        
+        let deviceText = [metadata.make, metadata.model]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        deviceLabel.text = deviceText.isEmpty ? "카메라 정보 없음" : deviceText
+
+        let focalText = metadata.focalLength.map { String(format: "%.0f mm", $0) }
+        let fNumberText = metadata.fNumber.map { String(format: "f %.1f", $0) }
+        let isoText = metadata.iso.map { "ISO \($0)" }
+        let cameraDetail = [focalText, fNumberText, isoText]
+            .compactMap { $0 }
+            .joined(separator: " ")
+
+        if !cameraDetail.isEmpty {
+            cameraLabel.text = "\(cameraDetail)"
+        } else {
+            cameraLabel.text = "렌즈 정보 없음"
+        }
+
+        var sizeParts: [String] = []
+        if let megaPixel = metadata.megaPixel {
+            sizeParts.append(String(format: "%.0fMP", megaPixel))
+        }
+
+        if let width = metadata.width,
+            let height = metadata.height {
+            sizeParts.append("\(width) x \(height)")
+        }
+
+        if let fileSizeMB = metadata.fileSizeMB {
+            sizeParts.append(fileSizeMB)
+        }
+
+        detailLabel.text = sizeParts.joined(separator: " · ")
+        mapImageView.image = nil
+        mapPlaceholderStack.isHidden = false
+        metadataContainer.isHidden = false
+    }
+    
     func reset(){
         stateRelay.accept(.empty)
     }
@@ -320,6 +364,7 @@ final class FilterImageRegisterView: BaseView {
             imageView.isHidden = true
             squareHeightConstraint?.deactivate()
             emptyHeightConstraint?.activate()
+            applyMetadata(nil)
         case .filled(let image):
             imageView.image = image
             plusImageView.isHidden = true
