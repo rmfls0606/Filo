@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import MapKit
 import SnapKit
 import RxSwift
 import RxCocoa
@@ -29,6 +30,9 @@ final class FilterImageRegisterView: BaseView {
     var state: Observable<FilterImageState>{
         stateRelay.asObservable()
     }
+    
+    private var lastMapCoordinate: CLLocationCoordinate2D?
+    private var mapSnapshotter: MKMapSnapshotter?
     
     //MARK: - UI
     private let mainStack: UIStackView = {
@@ -348,8 +352,16 @@ final class FilterImageRegisterView: BaseView {
         }
 
         detailLabel.text = sizeParts.joined(separator: " · ")
-        mapImageView.image = nil
-        mapPlaceholderStack.isHidden = false
+
+        if let latitude = metadata.latitude, let longitude = metadata.longitude {
+            let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+            updateMapSnapshot(for: coordinate)
+            locationLabel.text = metadata.address?.isEmpty == false ? metadata.address : "위치 정보 없음"
+        } else {
+            mapImageView.image = nil
+            mapPlaceholderStack.isHidden = false
+            locationLabel.text = "위치 정보 없음"
+        }
         metadataContainer.isHidden = false
     }
 
@@ -378,7 +390,7 @@ final class FilterImageRegisterView: BaseView {
         if lowercased.contains("front") {
             return "정면 카메라"
         }
-        return nil
+        return "메인 카메라"
     }
     
     func reset(){
@@ -402,6 +414,47 @@ final class FilterImageRegisterView: BaseView {
             
             containerView.layer.borderWidth = 2.0
             containerView.layer.borderColor = Brand.deepTurquoise.color?.cgColor
+        }
+    }
+
+    private func updateMapSnapshot(for coordinate: CLLocationCoordinate2D) {
+        if let last = lastMapCoordinate,
+           abs(last.latitude - coordinate.latitude) < 0.0001,
+           abs(last.longitude - coordinate.longitude) < 0.0001,
+           mapImageView.image != nil {
+            return
+        }
+
+        lastMapCoordinate = coordinate
+        mapSnapshotter?.cancel()
+        mapImageView.image = nil
+        mapPlaceholderStack.isHidden = false
+
+        var snapshotSize = mapImageViewContainer.bounds.size
+        if snapshotSize == .zero {
+            layoutIfNeeded()
+            snapshotSize = mapImageViewContainer.bounds.size
+        }
+        
+        if snapshotSize == .zero {
+            snapshotSize = CGSize(width: 76, height: 76)
+        }
+
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(
+            center: coordinate,
+            latitudinalMeters: 500,
+            longitudinalMeters: 500
+        )
+        options.size = snapshotSize
+        options.scale = UIScreen.main.scale
+
+        let snapshotter = MKMapSnapshotter(options: options)
+        mapSnapshotter = snapshotter
+        snapshotter.start { [weak self] snapshot, _ in
+            guard let self, let image = snapshot?.image else { return }
+            self.mapImageView.image = image
+            self.mapPlaceholderStack.isHidden = true
         }
     }
 }
