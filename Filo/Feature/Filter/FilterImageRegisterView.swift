@@ -322,7 +322,7 @@ final class FilterImageRegisterView: BaseView {
 
         if let lensText = localizedLensLabel(from: metadata.lensModel){
             let focalText = metadata.focalLength.map { String(format: "%.0f mm", $0) }
-            let fNumberText = metadata.fNumber.map { String(format: "f%.1f", $0) }
+            let fNumberText = metadata.fNumber.map { String(format: "ƒ%.1f", $0) }
             let isoText = metadata.iso.map { "ISO \($0)" }
             let cameraDetail = [focalText, fNumberText, isoText]
                 .compactMap { $0 }
