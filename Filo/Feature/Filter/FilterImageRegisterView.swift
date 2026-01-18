@@ -320,16 +320,16 @@ final class FilterImageRegisterView: BaseView {
             .joined(separator: " ")
         deviceLabel.text = deviceText.isEmpty ? "카메라 정보 없음" : deviceText
 
-        let focalText = metadata.focalLength.map { String(format: "%.0f mm", $0) }
-        let fNumberText = metadata.fNumber.map { String(format: "f %.1f", $0) }
-        let isoText = metadata.iso.map { "ISO \($0)" }
-        let cameraDetail = [focalText, fNumberText, isoText]
-            .compactMap { $0 }
-            .joined(separator: " ")
-
-        if !cameraDetail.isEmpty {
-            cameraLabel.text = "\(cameraDetail)"
-        } else {
+        if let lensText = localizedLensLabel(from: metadata.lensModel){
+            let focalText = metadata.focalLength.map { String(format: "%.0f mm", $0) }
+            let fNumberText = metadata.fNumber.map { String(format: "f%.1f", $0) }
+            let isoText = metadata.iso.map { "ISO \($0)" }
+            let cameraDetail = [focalText, fNumberText, isoText]
+                .compactMap { $0 }
+                .joined(separator: " ")
+            
+            cameraLabel.text = "\(lensText) - \(cameraDetail)"
+        }else{
             cameraLabel.text = "렌즈 정보 없음"
         }
 
@@ -351,6 +351,34 @@ final class FilterImageRegisterView: BaseView {
         mapImageView.image = nil
         mapPlaceholderStack.isHidden = false
         metadataContainer.isHidden = false
+    }
+
+    private func localizedLensLabel(from lensModel: String?) -> String? {
+        guard let lensModel, !lensModel.isEmpty else { return nil }
+        let lowercased = lensModel.lowercased()
+
+        if lowercased.contains("triple") {
+            return "트리플 카메라"
+        }
+        if lowercased.contains("dual") {
+            return "듀얼 카메라"
+        }
+        if lowercased.contains("ultra") && lowercased.contains("wide") {
+            return "울트라 와이드 카메라"
+        }
+        if lowercased.contains("wide") {
+            return "와이드 카메라"
+        }
+        if lowercased.contains("tele") {
+            return "망원 카메라"
+        }
+        if lowercased.contains("back") {
+            return "후면 카메라"
+        }
+        if lowercased.contains("front") {
+            return "정면 카메라"
+        }
+        return nil
     }
     
     func reset(){
