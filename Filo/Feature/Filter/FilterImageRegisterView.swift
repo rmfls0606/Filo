@@ -344,7 +344,7 @@ final class FilterImageRegisterView: BaseView {
         }
 
         if let fileSizeMB = metadata.fileSizeMB {
-            sizeParts.append(fileSizeMB)
+            sizeParts.append(fileSizeMB.replacingOccurrences(of: " ", with: ""))
         }
 
         detailLabel.text = sizeParts.joined(separator: " · ")
