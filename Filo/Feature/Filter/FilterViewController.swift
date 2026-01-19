@@ -22,6 +22,8 @@ final class FilterViewController: BaseViewController {
     private let editResultRelay = PublishRelay<(Data, FilterImagePropsEntity)>()
     private var selectionToken: Int = 0
     private var pendingSelectionWorkItem: DispatchWorkItem?
+    private var pendingOriginalData: Data?
+    private var pendingAssetIdentifier: String?
     
     //MARK: - UI
     private let filterScrollView: UIScrollView = {
@@ -252,7 +254,7 @@ final class FilterViewController: BaseViewController {
             ))
             .subscribe(onNext: { [weak self] imageData, filterProps in
                 guard let self = self, let imageData else { return }
-                self.pushEditViewController(with: imageData, props: filterProps)
+                self.pushEditViewController(with: imageData, props: filterProps, isNewSelection: false)
             })
             .disposed(by: disposeBag)
         
@@ -263,11 +265,18 @@ final class FilterViewController: BaseViewController {
             .disposed(by: disposeBag)
     }
     
-    private func pushEditViewController(with imageData: Data, props: FilterImagePropsEntity?) {
+    private func pushEditViewController(with imageData: Data, props: FilterImagePropsEntity?, isNewSelection: Bool) {
         let viewModel = FilterEditViewModel(imageData: imageData, initialProps: props)
         let editViewController = FilterEditViewController(viewModel: viewModel)
         editViewController.onComplete = { [weak self] data, props in
-            self?.editResultRelay.accept((data, props))
+            guard let self else { return }
+            if isNewSelection, let originalData = self.pendingOriginalData {
+                self.imageSelectedRelay.accept(originalData)
+                self.assetIdentifierRelay.accept(self.pendingAssetIdentifier)
+                self.pendingOriginalData = nil
+                self.pendingAssetIdentifier = nil
+            }
+            self.editResultRelay.accept((data, props))
         }
         navigationController?.pushViewController(editViewController, animated: true)
     }
@@ -361,9 +370,9 @@ extension FilterViewController: PHPickerViewControllerDelegate{
                 let workItem = DispatchWorkItem { [weak self] in
                     guard let self else { return }
                     guard currentToken == self.selectionToken else { return }
-                    self.imageSelectedRelay.accept(data)
-                    self.assetIdentifierRelay.accept(result.assetIdentifier)
-                    self.pushEditViewController(with: data, props: nil)
+                    self.pendingOriginalData = data
+                    self.pendingAssetIdentifier = result.assetIdentifier
+                    self.pushEditViewController(with: data, props: nil, isNewSelection: true)
                 }
                 self.pendingSelectionWorkItem = workItem
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
