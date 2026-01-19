@@ -2,7 +2,7 @@
 //  FilterImageMetadata.swift
 //  Filo
 //
-//  Created by 이상민 on 01/xx/26.
+//  Created by 이상민 on 01/17/26.
 //
 
 import Foundation
