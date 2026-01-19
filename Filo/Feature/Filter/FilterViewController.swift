@@ -175,7 +175,8 @@ final class FilterViewController: BaseViewController {
                 }),
             imageSelected: imageSelectedRelay.asObservable(),
             editResult: editResultRelay.asObservable(),
-            assetIdentifier: assetIdentifierRelay.asObservable()
+            assetIdentifier: assetIdentifierRelay.asObservable(),
+            priceInputText: filterPriceTextField.rx.text.orEmpty
         )
         
         let output = viewModel.transform(input: input)
@@ -202,6 +203,10 @@ final class FilterViewController: BaseViewController {
         
         output.editEnabled
             .drive(filterImageEditButton.rx.isEnabled)
+            .disposed(by: disposeBag)
+
+        output.priceNumberText
+            .drive(filterPriceTextField.rx.text)
             .disposed(by: disposeBag)
         
         filterImageRegisterView.tap
