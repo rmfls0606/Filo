@@ -108,3 +108,6 @@ xcuserdata
 
 # Firebase
 GoogleService-Info.plist
+
+# API
+NetworkConfig.swift
