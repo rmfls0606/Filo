@@ -20,6 +20,7 @@ final class FilterViewModel: ViewModelType{
         let imageSelected: Observable<Data>
         let editResult: Observable<(Data, FilterImagePropsEntity)>
         let assetIdentifier: Observable<String?>
+        let priceInputText: ControlProperty<String>
     }
     
     struct Output{
@@ -29,6 +30,7 @@ final class FilterViewModel: ViewModelType{
         let originalImageData: Driver<Data?>
         let editEnabled: Driver<Bool>
         let metadata: Driver<FilterImageMetadata?>
+        let priceNumberText: Driver<String>
     }
     
     private let metadataQueue = DispatchQueue(label: "com.filo.filter.metadata", qos: .userInitiated)
@@ -47,6 +49,7 @@ final class FilterViewModel: ViewModelType{
         let imageDataRelay = BehaviorRelay<Data?>(value: nil)
         let originalImageDataRelay = BehaviorRelay<Data?>(value: nil)
         let filterPropsRelay = BehaviorRelay<FilterImagePropsEntity?>(value: nil)
+        let priceNumberText = PublishRelay<String>()
         
         input.categorySelected
             .withLatestFrom(categoriesRelay){ selected, items in
@@ -97,6 +100,12 @@ final class FilterViewModel: ViewModelType{
             })
             .disposed(by: disposeBag)
         
+        input.priceInputText
+            .map { $0.formattedDecimal() }
+            .distinctUntilChanged()
+            .bind(to: priceNumberText)
+            .disposed(by: disposeBag)
+        
         return Output(
             categories: categoriesRelay.asDriver(),
             currentImageData: imageDataRelay.asDriver(),
@@ -105,7 +114,8 @@ final class FilterViewModel: ViewModelType{
             editEnabled: imageDataRelay
                 .map { $0 != nil }
                 .asDriver(onErrorJustReturn: false),
-            metadata: metadataRelay.asDriver()
+            metadata: metadataRelay.asDriver(),
+            priceNumberText: priceNumberText.asDriver(onErrorJustReturn: "")
         )
     }
     
