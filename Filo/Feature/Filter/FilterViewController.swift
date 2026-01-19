@@ -89,6 +89,7 @@ final class FilterViewController: BaseViewController {
     private let filterIntroduceTextField: InsetTextField = {
         let field = InsetTextField()
         field.placeholder = "이 필터에 대해 간단하게 소개해주세요."
+        field.returnKeyType = .next
         return field
     }()
     private lazy var filterIntroduceSection = FilterSectionView(titleView: filterIntroduceTitle, contentView: filterIntroduceTextField)
@@ -124,7 +125,10 @@ final class FilterViewController: BaseViewController {
         container.addSubview(priceUnitLabel)
         return container
     }()
+    
     private lazy var filterPriceSection = FilterSectionView(titleView: filterPriceTitle, contentView: filterPriceTextField)
+    
+    private lazy var filterViewTapGesture = UITapGestureRecognizer()
     
     override func configureHierarchy() {
         view.addSubview(filterScrollView)
@@ -136,6 +140,8 @@ final class FilterViewController: BaseViewController {
         filterStackView.addArrangedSubview(filterImageRegisterSection)
         filterStackView.addArrangedSubview(filterIntroduceSection)
         filterStackView.addArrangedSubview(filterPriceSection)
+        
+        view.addGestureRecognizer(filterViewTapGesture)
     }
     
     override func configureLayout() {
@@ -208,6 +214,18 @@ final class FilterViewController: BaseViewController {
         output.priceNumberText
             .drive(filterPriceTextField.rx.text)
             .disposed(by: disposeBag)
+
+        filterNameTextField.rx.controlEvent(.editingDidEndOnExit)
+            .bind(with: self) { owner, _ in
+                owner.view.endEditing(true)
+            }
+            .disposed(by: disposeBag)
+
+        filterIntroduceTextField.rx.controlEvent(.editingDidEndOnExit)
+            .bind(with: self) { owner, _ in
+                owner.filterPriceTextField.becomeFirstResponder()
+            }
+            .disposed(by: disposeBag)
         
         filterImageRegisterView.tap
             .subscribe(onNext: { [weak self] in
@@ -236,6 +254,12 @@ final class FilterViewController: BaseViewController {
                 guard let self = self, let imageData else { return }
                 self.pushEditViewController(with: imageData, props: filterProps)
             })
+            .disposed(by: disposeBag)
+        
+        filterViewTapGesture.rx.event
+            .bind(with: self) { owner, _ in
+                owner.view.endEditing(true)
+            }
             .disposed(by: disposeBag)
     }
     
