@@ -9,6 +9,7 @@ import UIKit
 import FirebaseCore
 import FirebaseMessaging
 import IQKeyboardManagerSwift
+import Kingfisher
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -39,8 +40,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             print("Error fetching FCM registration token: \(error)")
           } else if let token = token { }
         }
-        
+
         IQKeyboardManager.shared.isEnabled = true
+
+        let cache = ImageCache.default
+        cache.memoryStorage.config.totalCostLimit = 120 * 1024 * 1024
+        cache.diskStorage.config.sizeLimit = 500 * 1024 * 1024
+        cache.memoryStorage.config.expiration = .seconds(60 * 60)
+        cache.diskStorage.config.expiration = .days(30)
         return true
     }
 
