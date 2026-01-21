@@ -40,29 +40,36 @@ enum NetworkError: LocalizedError{
 }
 
 extension NetworkError{
-    static func mapping(error: Error?, response: URLResponse?, data: Data?) throws(NetworkError){
-        
+    static func mapping(error: Error?, statusCode: Int?, data: Data?) -> NetworkError{
+        //서버 에러 DTO 우선
         if let data,
            let result = try? JSONDecoder().decode(ServerErrorDTO.self, from: data){
-            throw .serverError(result)
+            return .serverError(result)
         }
         
-        if let httpResponse = response as? HTTPURLResponse{
-            if !(200..<300).contains(httpResponse.statusCode){
-                throw .statusCodeError(type: StatusCodeError.codeMapping(statusCode: httpResponse.statusCode))
-            }
+        //상태 코드 기반
+        if let statusCode{
+            return .statusCodeError(type: StatusCodeError.codeMapping(statusCode: statusCode))
         }
         
+        //네트워크 레벨 에러
         if let urlError = error as? URLError{
             switch urlError.code{
             case .notConnectedToInternet:
-                throw .notConnectedToInternet
+                return .notConnectedToInternet
             case .timedOut:
-                throw .timeOut
+                return .timeOut
             default:
-                throw .unknown(urlError)
+                return .unknown(urlError)
             }
         }
+        
+        //디코딩
+        if error is DecodingError{
+            return .decodingError
+        }
+        
+        return .unknown(error ?? NSError())
     }
 }
 
