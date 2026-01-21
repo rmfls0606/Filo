@@ -12,7 +12,7 @@ final class HotTrendCollectionViewCell: BaseCollectionViewCell {
     //MARK: - UI
     private let imageView: UIImageView = {
         let view = UIImageView()
-        view.backgroundColor = .orange
+        view.contentMode = .scaleAspectFill
         view.layer.cornerRadius = 12
         view.clipsToBounds = true
         return view
@@ -22,6 +22,7 @@ final class HotTrendCollectionViewCell: BaseCollectionViewCell {
         let label = UILabel()
         label.font = .Mulggeol.caption1
         label.textColor = GrayStyle.gray30.color
+        label.numberOfLines = 2
         return label
     }()
     
@@ -35,6 +36,7 @@ final class HotTrendCollectionViewCell: BaseCollectionViewCell {
     private let likeIcon: UIImageView = {
         let view = UIImageView()
         view.image = UIImage(named: "like_Fill")
+        view.contentMode = .scaleAspectFit
         view.tintColor = GrayStyle.gray30.color
         return view
     }()
@@ -61,11 +63,23 @@ final class HotTrendCollectionViewCell: BaseCollectionViewCell {
         }
         
         titleLabel.snp.makeConstraints { make in
-            make.top.leading.equalToSuperview().inset(8)
+            make.top.horizontalEdges.equalTo(imageView).inset(8)
         }
         
         likeStackView.snp.makeConstraints { make in
             make.bottom.trailing.equalToSuperview().inset(8)
+            make.height.equalTo(16)
         }
+        
+        likeIcon.snp.makeConstraints { make in
+            make.size.equalTo(16)
+        }
+    }
+    
+    //MARK: - Function
+    func configure(_ item: FilterSummaryResponseEntity) {
+        imageView.setKFImage(urlString: item.files[1])
+        titleLabel.text = item.title
+        likeCountText.text = "\(item.likeCount)"
     }
 }
