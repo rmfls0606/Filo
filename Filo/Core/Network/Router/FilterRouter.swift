@@ -9,17 +9,20 @@ import Alamofire
 
 enum FilterRouter: APITarget{
     case todayFilter
+    case hotTrend
     
     var path: String{
         switch self {
         case .todayFilter:
             return "/filters/today-filter"
+        case .hotTrend:
+            return "/filters/hot-trend"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .todayFilter:
+        case .hotTrend, .todayFilter:
             return .get
         }
     }
@@ -31,14 +34,14 @@ enum FilterRouter: APITarget{
     
     var parameters: Parameters?{
         switch self {
-        case .todayFilter:
+        case .todayFilter, .hotTrend:
             return nil
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .todayFilter:
+        case .todayFilter, .hotTrend:
             return URLEncoding.default
         }
     }
