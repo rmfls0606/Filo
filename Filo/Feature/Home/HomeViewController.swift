@@ -21,8 +21,6 @@ final class HomeViewController: BaseViewController {
     private let homeScrollView: UIScrollView = {
         let view = UIScrollView()
         view.showsVerticalScrollIndicator = false
-        view.contentInset.bottom = CustomTabBarView.height
-        view.verticalScrollIndicatorInsets.bottom = CustomTabBarView.height
         view.contentInsetAdjustmentBehavior = .never
         return view
     }()
@@ -114,6 +112,13 @@ final class HomeViewController: BaseViewController {
         super.init(nibName: nil, bundle: nil)
     }
     
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let bottomInset = CustomTabBarView.height + view.safeAreaInsets.bottom
+        homeScrollView.contentInset.bottom = bottomInset + 20
+        homeScrollView.verticalScrollIndicatorInsets.bottom = bottomInset + 20
+    }
+    
     override func configureHierarchy() {
         view.addSubview(homeScrollView)
         homeScrollView.addSubview(homeStacView)
@@ -131,6 +136,7 @@ final class HomeViewController: BaseViewController {
         todayFilterIntroductionView.addSubview(todayFilterDescription)
         
         todayFilterIntroductionView.addSubview(filterCategoryStackView)
+        
         homeStacView.addArrangedSubview(hotTrendView)
     }
     
@@ -193,7 +199,7 @@ final class HomeViewController: BaseViewController {
         
         //핫 트렌드
         hotTrendView.snp.makeConstraints { make in
-            make.height.equalTo(320)
+            make.height.equalTo(hotTrendView.calculatedHeight)
         }
     }
     
@@ -221,6 +227,8 @@ final class HomeViewController: BaseViewController {
                 owner.todayFilterDescription.text = data.description
             }
             .disposed(by: disposeBag)
+
+        hotTrendView.bind(items: output.hotTrendItems)
     }
     
     //MARK: - function
