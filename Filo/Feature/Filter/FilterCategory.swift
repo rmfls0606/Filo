@@ -13,10 +13,14 @@ enum FilterCategorySection: String{
 
 enum FilterCategoryType: String, CaseIterable, Hashable{
     case food = "푸드"
-    case person = "인물"
+    case people = "인물"
     case landscape = "풍경"
     case night = "야경"
     case star = "별"
+    
+    var imageName: String{
+        return String(describing: self)
+    }
 }
 
 nonisolated
