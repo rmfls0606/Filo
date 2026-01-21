@@ -38,7 +38,7 @@ final class HomeViewController: BaseViewController {
     
     private let todayFilterImageView: UIImageView = {
         let view = UIImageView()
-        view.backgroundColor = .orange
+        view.backgroundColor = GrayStyle.gray60.color
         return view
     }()
     
@@ -194,6 +194,7 @@ final class HomeViewController: BaseViewController {
         
         output.todayFilterData
             .drive(with: self){ owner, data in
+                owner.todayFilterImageView.setKFImage(urlString: data.files[0])
                 owner.todayFilterTitle.text = data.title
                 owner.todayFilterDescription.text = data.description
             }
