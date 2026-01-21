@@ -38,6 +38,16 @@ final class HotTrendView: BaseView {
         view.contentInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
         return view
     }()
+
+    var calculatedHeight: CGFloat {
+        let spacing = 12.0
+        let width = (UIScreen.main.bounds.width - spacing) / 1.8
+        let itemHeight = width * 1.2
+        let top = 20.0
+        let titleHeight = hotTrendTitle.intrinsicContentSize.height
+        let gap = 20.0
+        return top + titleHeight + gap + itemHeight
+    }
     
     override func configureHierarchy() {
         addSubview(hotTrendTitle)
