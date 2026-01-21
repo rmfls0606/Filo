@@ -77,7 +77,6 @@ final class HomeViewController: BaseViewController {
     
     private let todayFilterTitle: UILabel = {
         let label = UILabel()
-        label.text = "새싹을 담은 필터 청록 새록"
         label.font = .Mulggeol.title1
         label.textColor = GrayStyle.gray30.color
         label.numberOfLines = 2
@@ -88,7 +87,7 @@ final class HomeViewController: BaseViewController {
     
     private let todayFilterDescription: UILabel = {
         let label = UILabel()
-        label.text = "햇살 아래 돋아나는 새싹처럼, 맑고 투명한 빝을 담은 자연 감성 필터입니다. 너무 과하지 않게, 부드러운 색감으로 분위기를 사렬줍닏. 새로운 싲ㄱ, 순수한 감정을 담고 싶을 때 이 필터를 사용해보세요."
+        label.text = "..."
         label.font = .Pretendard.caption1
         label.textColor = GrayStyle.gray60.color
         label.numberOfLines = 4
@@ -190,6 +189,13 @@ final class HomeViewController: BaseViewController {
         output.filterCategories
             .drive(with: self) { owner, categories in
                 owner.makeButtons(categories: categories)
+            }
+            .disposed(by: disposeBag)
+        
+        output.todayFilterData
+            .drive(with: self){ owner, data in
+                owner.todayFilterTitle.text = data.title
+                owner.todayFilterDescription.text = data.description
             }
             .disposed(by: disposeBag)
     }
