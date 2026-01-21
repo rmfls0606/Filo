@@ -30,7 +30,7 @@ final class MainTabBarController: UITabBarController {
     // MARK: - Setup
     private func configureViewControllers() {
         viewControllers = [
-            UINavigationController(rootViewController: HomeViewController()),
+            UINavigationController(rootViewController: HomeViewController(viewModel: HomeViewModel())),
             UINavigationController(rootViewController: FeedViewController()),
             UINavigationController(rootViewController: FilterViewController()),
             UINavigationController(rootViewController: SearchViewController()),
