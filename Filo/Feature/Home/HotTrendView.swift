@@ -13,7 +13,6 @@ import RxCocoa
 final class HotTrendView: BaseView {
     //MARK: - Properties
     private let disposeBag = DisposeBag()
-    private let dummyItems = Observable.just(["소낙씨", "화양연화", "여름밤", "도시감성"])
     
     //MARK: - UI
     private let hotTrendTitle: UILabel = {
@@ -27,13 +26,12 @@ final class HotTrendView: BaseView {
     private lazy var collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
-        layout.minimumLineSpacing = 8
+        layout.minimumLineSpacing = 12
         let spacing = 12.0
-        let padding = 20
         let width = (UIScreen.main.bounds.width - spacing) / 1.8
         let height = width * 1.2
         layout.itemSize = CGSize(width: width, height: height)
-    
+        
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.register(HotTrendCollectionViewCell.self, forCellWithReuseIdentifier: HotTrendCollectionViewCell.identifier)
         view.showsHorizontalScrollIndicator = false
@@ -57,12 +55,13 @@ final class HotTrendView: BaseView {
         }
     }
     
-    override func configureBind() {
-        dummyItems
-            .bind(to: collectionView.rx.items(
+    func bind(items: Driver<[FilterSummaryResponseEntity]>) {
+        items
+            .drive(collectionView.rx.items(
                 cellIdentifier: HotTrendCollectionViewCell.identifier,
-                cellType: HotTrendCollectionViewCell.self)
-            ){ index, item, cell in
+                cellType: HotTrendCollectionViewCell.self
+            )) { _, element, cell in
+                cell.configure(element)
             }
             .disposed(by: disposeBag)
     }
