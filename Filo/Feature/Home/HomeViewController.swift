@@ -21,6 +21,9 @@ final class HomeViewController: BaseViewController {
     private let homeScrollView: UIScrollView = {
         let view = UIScrollView()
         view.showsVerticalScrollIndicator = false
+        view.contentInset.bottom = CustomTabBarView.height
+        view.verticalScrollIndicatorInsets.bottom = CustomTabBarView.height
+        view.contentInsetAdjustmentBehavior = .never
         return view
     }()
     
@@ -103,6 +106,9 @@ final class HomeViewController: BaseViewController {
         return view
     }()
     
+    //핫 트렌드
+    private let hotTrendView = HotTrendView()
+    
     init(viewModel: HomeViewModel) {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
@@ -125,6 +131,7 @@ final class HomeViewController: BaseViewController {
         todayFilterIntroductionView.addSubview(todayFilterDescription)
         
         todayFilterIntroductionView.addSubview(filterCategoryStackView)
+        homeStacView.addArrangedSubview(hotTrendView)
     }
     
     override func configureLayout() {
@@ -134,14 +141,14 @@ final class HomeViewController: BaseViewController {
         }
         
         homeStacView.snp.makeConstraints { make in
-            make.height.equalTo(homeScrollView.contentLayoutGuide)
+            make.edges.equalTo(homeScrollView.contentLayoutGuide)
             make.width.equalTo(homeScrollView.frameLayoutGuide)
         }
         
         todayFilterIntroductionView.snp.makeConstraints { make in
             make.top.equalToSuperview()
             make.horizontalEdges.equalToSuperview()
-            make.height.equalTo(homeStacView.snp.width).multipliedBy(1.2)
+            make.height.equalTo(UIScreen.main.bounds.height * 0.64)
         }
         
         todayFilterImageView.snp.makeConstraints { make in
@@ -155,7 +162,8 @@ final class HomeViewController: BaseViewController {
         }
         
         filterUseButton.snp.makeConstraints { make in
-            make.top.trailing.equalToSuperview().inset(20)
+            make.top.equalTo(view.safeAreaLayoutGuide).inset(12)
+            make.trailing.equalToSuperview().inset(20)
         }
         
         todayFilterIntroductionTitleBox.snp.makeConstraints { make in
@@ -182,6 +190,11 @@ final class HomeViewController: BaseViewController {
             make.horizontalEdges.equalToSuperview().inset(20)
             make.bottom.equalToSuperview().inset(24)
         }
+        
+        //핫 트렌드
+        hotTrendView.snp.makeConstraints { make in
+            make.height.equalTo(320)
+        }
     }
     
     override func configureView() {
@@ -203,7 +216,7 @@ final class HomeViewController: BaseViewController {
         
         output.todayFilterData
             .drive(with: self){ owner, data in
-                owner.todayFilterImageView.setKFImage(urlString: data.files[0])
+                owner.todayFilterImageView.setKFImage(urlString: data.files[1])
                 owner.todayFilterTitle.text = data.title
                 owner.todayFilterDescription.text = data.description
             }
