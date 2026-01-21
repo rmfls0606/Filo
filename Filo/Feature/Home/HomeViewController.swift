@@ -33,20 +33,19 @@ final class HomeViewController: BaseViewController {
     
     private let todayFilterIntroductionView: UIView = {
         let view = UIView()
+        view.backgroundColor = .orange
         return view
     }()
     
     private let todayFilterImageView: UIImageView = {
         let view = UIImageView()
         view.backgroundColor = GrayStyle.gray60.color
+        view.contentMode = .scaleAspectFill
+        view.clipsToBounds = true
         return view
     }()
     
-    private let filterImageGradientView: UIImageView = {
-        let view = UIImageView()
-        view.backgroundColor = .black.withAlphaComponent(0.3)
-        return view
-    }()
+    private let gradientView = DarkGradientView()
     
     private let filterUseButton: UIButton = {
         var config = UIButton.Configuration.filled()
@@ -117,6 +116,8 @@ final class HomeViewController: BaseViewController {
         todayFilterIntroductionView.addSubview(todayFilterImageView)
         todayFilterIntroductionView.addSubview(filterUseButton)
         
+        todayFilterIntroductionView.addSubview(gradientView)
+        
         todayFilterIntroductionView.addSubview(todayFilterIntroductionTitleBox)
         todayFilterIntroductionTitleBox.addSubview(todayFilterIntroductionTitle)
         todayFilterIntroductionTitleBox.addSubview(todayFilterTitle)
@@ -140,12 +141,17 @@ final class HomeViewController: BaseViewController {
         todayFilterIntroductionView.snp.makeConstraints { make in
             make.top.equalToSuperview()
             make.horizontalEdges.equalToSuperview()
+            make.height.equalTo(homeStacView.snp.width).multipliedBy(1.2)
         }
         
         todayFilterImageView.snp.makeConstraints { make in
             make.top.equalToSuperview()
             make.horizontalEdges.equalToSuperview()
-            make.height.equalTo(todayFilterIntroductionView.snp.height)
+            make.bottom.equalToSuperview()
+        }
+        
+        gradientView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
         }
         
         filterUseButton.snp.makeConstraints { make in
@@ -153,33 +159,36 @@ final class HomeViewController: BaseViewController {
         }
         
         todayFilterIntroductionTitleBox.snp.makeConstraints { make in
-            make.centerY.equalToSuperview()
             make.horizontalEdges.equalToSuperview().inset(20)
+            make.bottom.equalTo(todayFilterIntroductionTitle.snp.top).offset(-20)
         }
         
         todayFilterIntroductionTitle.snp.makeConstraints { make in
             make.top.horizontalEdges.equalToSuperview()
+            make.bottom.equalTo(todayFilterTitle.snp.top).offset(-4)
         }
         
         todayFilterTitle.snp.makeConstraints { make in
-            make.top.equalTo(todayFilterIntroductionTitle.snp.bottom).offset(4)
-            make.horizontalEdges.bottom.equalToSuperview()
+            make.horizontalEdges.equalToSuperview()
+            make.bottom.equalTo(todayFilterDescription.snp.top).offset(-20)
         }
         
         todayFilterDescription.snp.makeConstraints { make in
-            make.top.equalTo(todayFilterIntroductionTitleBox.snp.bottom).offset(20)
             make.horizontalEdges.equalToSuperview().inset(20)
+            make.bottom.equalTo(filterCategoryStackView.snp.top).offset(-40)
         }
         
         filterCategoryStackView.snp.makeConstraints { make in
-            make.top.equalTo(todayFilterDescription.snp.bottom).offset(40)
             make.horizontalEdges.equalToSuperview().inset(20)
-            make.bottom.equalToSuperview()
+            make.bottom.equalToSuperview().inset(24)
         }
     }
     
     override func configureView() {
         navigationController?.navigationBar.isHidden = true
+        
+        gradientView.frame = todayFilterImageView.bounds
+        gradientView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     }
     
     override func configureBind() {
