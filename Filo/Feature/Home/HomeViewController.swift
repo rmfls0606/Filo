@@ -107,6 +107,9 @@ final class HomeViewController: BaseViewController {
     //핫 트렌드
     private let hotTrendView = HotTrendView()
     
+    //오늘의 작가 소개
+    private let todayAuthorView = TodayAuthorView()
+    
     init(viewModel: HomeViewModel) {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
@@ -138,6 +141,8 @@ final class HomeViewController: BaseViewController {
         todayFilterIntroductionView.addSubview(filterCategoryStackView)
         
         homeStacView.addArrangedSubview(hotTrendView)
+        
+        homeStacView.addArrangedSubview(todayAuthorView)
     }
     
     override func configureLayout() {
