@@ -15,7 +15,6 @@ final class TodayAuthorImageCollectionViewCell: BaseCollectionViewCell {
         view.contentMode = .scaleAspectFill
         view.clipsToBounds = true
         view.layer.cornerRadius = 8
-        view.backgroundColor = .blue
         return view
     }()
     
@@ -27,5 +26,9 @@ final class TodayAuthorImageCollectionViewCell: BaseCollectionViewCell {
         authorImage.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
+    }
+
+    func configure(urlString: String) {
+        authorImage.setKFImage(urlString: urlString)
     }
 }
