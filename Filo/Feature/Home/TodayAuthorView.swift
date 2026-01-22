@@ -39,9 +39,10 @@ final class TodayAuthorView: BaseView {
     
     private let authorProfileImage: UIImageView = {
         let view = UIImageView()
-        view.backgroundColor = .orange
         view.contentMode = .scaleAspectFill
         view.layer.cornerRadius = 36
+        view.layer.borderWidth = 1.0
+        view.layer.borderColor = GrayStyle.gray75.color?.withAlphaComponent(0.5).cgColor
         view.clipsToBounds = true
         return view
     }()
@@ -55,15 +56,13 @@ final class TodayAuthorView: BaseView {
     
     private let authorName: UILabel = {
         let label = UILabel()
-        label.text = "윤새싹"
         label.font = .Mulggeol.body1
         label.textColor = GrayStyle.gray30.color
         return label
     }()
     
-    private let authorEnglishName: UILabel = {
+    private let authorNickname: UILabel = {
         let label = UILabel()
-        label.text = "SESAC YOON"
         label.font = .Pretendard.body1
         label.textColor = GrayStyle.gray75.color
         return label
@@ -101,7 +100,6 @@ final class TodayAuthorView: BaseView {
     
     private let authorIntroductionLabel: UILabel = {
         let label = UILabel()
-        label.text = "자연의 섬세함을 담아내는 감성사진작가"
         label.font = .Mulggeol.caption1
         label.textColor = GrayStyle.gray60.color
         return label
@@ -109,7 +107,6 @@ final class TodayAuthorView: BaseView {
     
     private let authorDescriptionLabel: UILabel = {
         let label = UILabel()
-        label.text = "윤새싹은 자연의 섬세ㅏㄴ 아ㅡㅁ다움으 ㄹ포갛는데 탁월갛ㄴ 가"
         label.font = .Pretendard.caption1
         label.textColor = GrayStyle.gray60.color
         label.numberOfLines = 0
@@ -125,7 +122,7 @@ final class TodayAuthorView: BaseView {
         authorProfileBox.addSubview(authorNameStackView)
 
         authorNameStackView.addArrangedSubview(authorName)
-        authorNameStackView.addArrangedSubview(authorEnglishName)
+        authorNameStackView.addArrangedSubview(authorNickname)
         
         authorIntroductionStackView.addArrangedSubview(authorImageCollectionView)
         
@@ -184,22 +181,35 @@ final class TodayAuthorView: BaseView {
         }
     }
     
-    override func configureBind() {
-        dummyItems
-            .bind(to: authorImageCollectionView.rx.items(
+    func bind(items: Driver<TodayAuthorResponseEntity>){
+        items
+            .map{ $0.author }
+            .drive(with: self){ owner, author in
+                owner.authorProfileImage.setKFImage(urlString: author.profileImage)
+                owner.authorName.text = author.name
+                owner.authorNickname.text = author.nick
+                owner.authorIntroductionLabel.text = author.introduction
+                owner.authorDescriptionLabel.text = author.description
+            }
+            .disposed(by: disposeBag)
+        
+        items
+            .map { $0.filters }
+            .drive(authorImageCollectionView.rx.items(
                 cellIdentifier: TodayAuthorImageCollectionViewCell.identifier,
                 cellType: TodayAuthorImageCollectionViewCell.self
-            )){ index, element, cell in
-                
+            )){ _, element, cell in
+                cell.configure(urlString: element.files[1])
             }
             .disposed(by: disposeBag)
 
-        dummyHashtags
-            .bind(to: hashtagCollectionView.rx.items(
+        items
+            .map { $0.author.hashTags }
+            .drive(hashtagCollectionView.rx.items(
                 cellIdentifier: TodayAuthorHashtagCollectionViewCell.identifier,
                 cellType: TodayAuthorHashtagCollectionViewCell.self
-            )) { _, item, cell in
-                cell.configure(item)
+            )) { _, element, cell in
+                cell.configure(element)
             }
             .disposed(by: disposeBag)
     }
