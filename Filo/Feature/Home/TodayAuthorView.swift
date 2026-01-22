@@ -1,0 +1,206 @@
+//
+//  TodayAuthorView.swift
+//  Filo
+//
+//  Created by 이상민 on 1/22/26.
+//
+
+import UIKit
+import SnapKit
+import RxSwift
+import RxCocoa
+
+final class TodayAuthorView: BaseView {
+    //MARK: - Properties
+    let dummyItems = Observable.just([1,2,3,4,5])
+    let dummyHashtags = Observable.just(["#섬세함","#자연", "#미니멀"])
+    private let disposeBag = DisposeBag()
+    
+    //MARK: - UI
+    private let todayAuthorTitle: UILabel = {
+        let label = UILabel()
+        label.text = "오늘의 작가 소개"
+        label.textColor = GrayStyle.gray60.color
+        label.font = .Pretendard.body1
+        return label
+    }()
+    
+    private let authorIntroductionStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 20
+        return view
+    }()
+    
+    private let authorProfileBox: UIView = {
+        let view = UIView()
+        return view
+    }()
+    
+    private let authorProfileImage: UIImageView = {
+        let view = UIImageView()
+        view.backgroundColor = .orange
+        view.contentMode = .scaleAspectFill
+        view.layer.cornerRadius = 36
+        view.clipsToBounds = true
+        return view
+    }()
+    
+    private let authorNameStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 8
+        return view
+    }()
+    
+    private let authorName: UILabel = {
+        let label = UILabel()
+        label.text = "윤새싹"
+        label.font = .Mulggeol.body1
+        label.textColor = GrayStyle.gray30.color
+        return label
+    }()
+    
+    private let authorEnglishName: UILabel = {
+        let label = UILabel()
+        label.text = "SESAC YOON"
+        label.font = .Pretendard.body1
+        label.textColor = GrayStyle.gray75.color
+        return label
+    }()
+
+    private lazy var authorImageCollectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .horizontal
+        layout.minimumLineSpacing = 16
+        let spacing = 16.0
+        let padding = 20.0
+        let width = (UIScreen.main.bounds.width - padding - (2 * spacing)) / 2.8
+        let height = width * 0.6
+        layout.itemSize = CGSize(width: width, height: height)
+        
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.register(TodayAuthorImageCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorImageCollectionViewCell.identifier)
+        view.showsHorizontalScrollIndicator = false
+        view.contentInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+        return view
+    }()
+    
+    private lazy var hashtagCollectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .horizontal
+        layout.minimumLineSpacing = 4
+        layout.estimatedItemSize = UICollectionViewFlowLayout.automaticSize
+
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.register(TodayAuthorHashtagCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorHashtagCollectionViewCell.identifier)
+        view.showsHorizontalScrollIndicator = false
+        view.contentInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+        return view
+    }()
+    
+    private let authorIntroductionLabel: UILabel = {
+        let label = UILabel()
+        label.text = "자연의 섬세함을 담아내는 감성사진작가"
+        label.font = .Mulggeol.caption1
+        label.textColor = GrayStyle.gray60.color
+        return label
+    }()
+    
+    private let authorDescriptionLabel: UILabel = {
+        let label = UILabel()
+        label.text = "윤새싹은 자연의 섬세ㅏㄴ 아ㅡㅁ다움으 ㄹ포갛는데 탁월갛ㄴ 가"
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.numberOfLines = 0
+        return label
+    }()
+    
+    override func configureHierarchy() {
+        addSubview(todayAuthorTitle)
+        addSubview(authorIntroductionStackView)
+        
+        authorIntroductionStackView.addArrangedSubview(authorProfileBox)
+        authorProfileBox.addSubview(authorProfileImage)
+        authorProfileBox.addSubview(authorNameStackView)
+
+        authorNameStackView.addArrangedSubview(authorName)
+        authorNameStackView.addArrangedSubview(authorEnglishName)
+        
+        authorIntroductionStackView.addArrangedSubview(authorImageCollectionView)
+        
+        authorIntroductionStackView.addArrangedSubview(hashtagCollectionView)
+        
+        authorIntroductionStackView.addArrangedSubview(authorIntroductionLabel)
+        
+        authorIntroductionStackView.addArrangedSubview(authorDescriptionLabel)
+    }
+    
+    override func configureLayout() {
+        todayAuthorTitle.snp.makeConstraints { make in
+            make.top.horizontalEdges.equalToSuperview().inset(20)
+        }
+        
+        authorIntroductionStackView.snp.makeConstraints { make in
+            make.top.equalTo(todayAuthorTitle.snp.bottom).offset(20)
+            make.horizontalEdges.equalToSuperview()
+            make.bottom.equalToSuperview()
+        }
+        
+        authorProfileBox.snp.makeConstraints { make in
+            make.top.equalToSuperview().inset(4)
+            make.horizontalEdges.equalToSuperview().inset(20)
+            make.height.equalTo(72)
+        }
+        
+        authorProfileImage.snp.makeConstraints { make in
+            make.top.leading.equalToSuperview()
+            make.size.equalTo(72)
+        }
+        
+        authorNameStackView.snp.makeConstraints { make in
+            make.leading.equalTo(authorProfileImage.snp.trailing).offset(20)
+            make.centerY.equalToSuperview()
+            make.trailing.equalToSuperview()
+        }
+        
+        authorImageCollectionView.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview()
+            make.height.equalTo(100)
+        }
+        
+        hashtagCollectionView.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview()
+            make.height.equalTo(24)
+        }
+        
+        authorIntroductionLabel.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+        }
+        
+        authorDescriptionLabel.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+            make.bottom.equalToSuperview()
+        }
+    }
+    
+    override func configureBind() {
+        dummyItems
+            .bind(to: authorImageCollectionView.rx.items(
+                cellIdentifier: TodayAuthorImageCollectionViewCell.identifier,
+                cellType: TodayAuthorImageCollectionViewCell.self
+            )){ index, element, cell in
+                
+            }
+            .disposed(by: disposeBag)
+
+        dummyHashtags
+            .bind(to: hashtagCollectionView.rx.items(
+                cellIdentifier: TodayAuthorHashtagCollectionViewCell.identifier,
+                cellType: TodayAuthorHashtagCollectionViewCell.self
+            )) { _, item, cell in
+                cell.configure(item)
+            }
+            .disposed(by: disposeBag)
+    }
+}
