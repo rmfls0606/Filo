@@ -234,6 +234,8 @@ final class HomeViewController: BaseViewController {
             .disposed(by: disposeBag)
 
         hotTrendView.bind(items: output.hotTrendItems)
+        
+        todayAuthorView.bind(items: output.todayAuthorData)
     }
     
     //MARK: - function
