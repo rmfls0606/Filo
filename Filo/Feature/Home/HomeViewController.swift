@@ -104,6 +104,9 @@ final class HomeViewController: BaseViewController {
         return view
     }()
     
+    //배너
+    private let bannerView = HomeBannerView()
+    
     //핫 트렌드
     private let hotTrendView = HotTrendView()
     
@@ -139,6 +142,8 @@ final class HomeViewController: BaseViewController {
         todayFilterIntroductionView.addSubview(todayFilterDescription)
         
         todayFilterIntroductionView.addSubview(filterCategoryStackView)
+        
+        homeStacView.addArrangedSubview(bannerView)
         
         homeStacView.addArrangedSubview(hotTrendView)
         
@@ -202,6 +207,11 @@ final class HomeViewController: BaseViewController {
             make.bottom.equalToSuperview().inset(24)
         }
         
+        //배너
+        bannerView.snp.makeConstraints { make in
+            make.height.equalTo(100)
+        }
+        
         //핫 트렌드
         hotTrendView.snp.makeConstraints { make in
             make.height.equalTo(hotTrendView.calculatedHeight)
@@ -232,6 +242,8 @@ final class HomeViewController: BaseViewController {
                 owner.todayFilterDescription.text = data.description
             }
             .disposed(by: disposeBag)
+
+        bannerView.bind(items: output.bannerItems)
 
         hotTrendView.bind(items: output.hotTrendItems)
         
