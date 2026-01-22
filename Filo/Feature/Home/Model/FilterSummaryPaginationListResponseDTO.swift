@@ -19,7 +19,7 @@ struct FilterSummaryPaginationListResponseDTO: Decodable, Sendable{
 
 struct FilterSummaryResponseDTO: Decodable, Sendable{
     let filterId: String
-    let category: String
+    let category: String?
     let title: String
     let description: String
     let files: [String]
@@ -42,6 +42,21 @@ struct FilterSummaryResponseDTO: Decodable, Sendable{
         case buyerCount = "buyer_count"
         case createdAt
         case updatedAt
+    }
+    
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.filterId = try container.decode(String.self, forKey: .filterId)
+        self.category = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
+        self.title = try container.decode(String.self, forKey: .title)
+        self.description = try container.decode(String.self, forKey: .description)
+        self.files = try container.decode([String].self, forKey: .files)
+        self.creator = try container.decode(UserInfoResponseDTO.self, forKey: .creator)
+        self.isLiked = try container.decode(Bool.self, forKey: .isLiked)
+        self.likeCount = try container.decode(Int.self, forKey: .likeCount)
+        self.buyerCount = try container.decode(Int.self, forKey: .buyerCount)
+        self.createdAt = try container.decode(String.self, forKey: .createdAt)
+        self.updatedAt = try container.decode(String.self, forKey: .updatedAt)
     }
 }
 
