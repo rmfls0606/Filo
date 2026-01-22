@@ -21,12 +21,14 @@ final class HomeViewModel: ViewModelType{
         let filterCategories: Driver<[FilterCategoryType]>
         let todayFilterData: Driver<TodayFilterResponseEntity>
         let hotTrendItems: Driver<[FilterSummaryResponseEntity]>
+        let todayAuthorData: Driver<TodayAuthorResponseEntity>
     }
     
     func transform(input: Input) -> Output {
         let filterCategoriesRelay = BehaviorRelay<[FilterCategoryType]>(value: FilterCategoryType.allCases)
         let todayFilterRelay = PublishRelay<TodayFilterResponseEntity>()
         let hotTrendRelay = PublishRelay<[FilterSummaryResponseEntity]>()
+        let todayAuthorRelay = PublishRelay<TodayAuthorResponseEntity>()
         let networkErrorRelay = PublishRelay<NetworkError>()
         
         Task{
@@ -51,10 +53,22 @@ final class HomeViewModel: ViewModelType{
             }
         }
         
+        Task{
+            do{
+                let dto: TodayAuthorResponseDTO = try await NetworkManager.shared.request(UserRouter.todayAuthor)
+                
+                todayAuthorRelay.accept(dto.toEntity())
+            }catch(let error as NetworkError){
+                print(error)
+                networkErrorRelay.accept(error)
+            }
+        }
+        
         return Output(
             filterCategories: filterCategoriesRelay.asDriver(),
             todayFilterData: todayFilterRelay.asDriver(onErrorDriveWith: .empty()),
-            hotTrendItems: hotTrendRelay.asDriver(onErrorDriveWith: .empty())
+            hotTrendItems: hotTrendRelay.asDriver(onErrorDriveWith: .empty()),
+            todayAuthorData: todayAuthorRelay.asDriver(onErrorDriveWith: .empty())
         )
     }
 }
