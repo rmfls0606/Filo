@@ -113,6 +113,20 @@ final class TodayAuthorView: BaseView {
         return label
     }()
     
+    private var authorImageCollectionHeight: CGFloat {
+        guard let height = (authorImageCollectionView.collectionViewLayout as? UICollectionViewFlowLayout)?.itemSize.height else {
+            return 0
+        }
+        return height
+    }
+    
+    private var hashtagCollectionHeight: CGFloat {
+        guard let font = UIFont.Pretendard.caption1 else {
+            return 0
+        }
+        return font.lineHeight + 8
+    }
+    
     override func configureHierarchy() {
         addSubview(todayAuthorTitle)
         addSubview(authorIntroductionStackView)
@@ -163,12 +177,12 @@ final class TodayAuthorView: BaseView {
         
         authorImageCollectionView.snp.makeConstraints { make in
             make.horizontalEdges.equalToSuperview()
-            make.height.equalTo(100)
+            make.height.equalTo(authorImageCollectionHeight)
         }
         
         hashtagCollectionView.snp.makeConstraints { make in
             make.horizontalEdges.equalToSuperview()
-            make.height.equalTo(24)
+            make.height.equalTo(hashtagCollectionHeight)
         }
         
         authorIntroductionLabel.snp.makeConstraints { make in
