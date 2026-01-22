@@ -22,6 +22,7 @@ final class HomeViewModel: ViewModelType{
         let todayFilterData: Driver<TodayFilterResponseEntity>
         let hotTrendItems: Driver<[FilterSummaryResponseEntity]>
         let todayAuthorData: Driver<TodayAuthorResponseEntity>
+        let bannerItems: Driver<BannerListResponseEntity>
     }
     
     func transform(input: Input) -> Output {
@@ -29,6 +30,7 @@ final class HomeViewModel: ViewModelType{
         let todayFilterRelay = PublishRelay<TodayFilterResponseEntity>()
         let hotTrendRelay = PublishRelay<[FilterSummaryResponseEntity]>()
         let todayAuthorRelay = PublishRelay<TodayAuthorResponseEntity>()
+        let bannerRelay = PublishRelay<BannerListResponseEntity>()
         let networkErrorRelay = PublishRelay<NetworkError>()
         
         Task{
@@ -36,6 +38,17 @@ final class HomeViewModel: ViewModelType{
                 let dto: TodayFilterResponseDTO = try await NetworkManager.shared.request(FilterRouter.todayFilter)
                 
                 todayFilterRelay.accept(dto.toEntity())
+            }catch(let error as NetworkError){
+                print(error)
+                networkErrorRelay.accept(error)
+            }
+        }
+        
+        Task{
+            do{
+                let dto: BannerListResponseDTO = try await NetworkManager.shared.request(BannerRouter.main)
+                
+                bannerRelay.accept(dto.toEntity())
             }catch(let error as NetworkError){
                 print(error)
                 networkErrorRelay.accept(error)
@@ -68,7 +81,8 @@ final class HomeViewModel: ViewModelType{
             filterCategories: filterCategoriesRelay.asDriver(),
             todayFilterData: todayFilterRelay.asDriver(onErrorDriveWith: .empty()),
             hotTrendItems: hotTrendRelay.asDriver(onErrorDriveWith: .empty()),
-            todayAuthorData: todayAuthorRelay.asDriver(onErrorDriveWith: .empty())
+            todayAuthorData: todayAuthorRelay.asDriver(onErrorDriveWith: .empty()),
+            bannerItems: bannerRelay.asDriver(onErrorDriveWith: .empty())
         )
     }
 }
