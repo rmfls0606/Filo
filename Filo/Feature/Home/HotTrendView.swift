@@ -28,7 +28,8 @@ final class HotTrendView: BaseView {
         layout.scrollDirection = .horizontal
         layout.minimumLineSpacing = 12
         let spacing = 12.0
-        let width = (UIScreen.main.bounds.width - spacing) / 1.8
+        let padding = 20.0
+        let width = (UIScreen.main.bounds.width - padding - spacing) / 1.8
         let height = width * 1.2
         layout.itemSize = CGSize(width: width, height: height)
         
@@ -41,7 +42,8 @@ final class HotTrendView: BaseView {
 
     var calculatedHeight: CGFloat {
         let spacing = 12.0
-        let width = (UIScreen.main.bounds.width - spacing) / 1.8
+        let padding = 20.0
+        let width = (UIScreen.main.bounds.width - padding - spacing) / 1.8
         let itemHeight = width * 1.2
         let top = 20.0
         let titleHeight = hotTrendTitle.intrinsicContentSize.height
