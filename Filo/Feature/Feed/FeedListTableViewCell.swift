@@ -1,0 +1,133 @@
+//
+//  FeedListTableViewCell.swift
+//  Filo
+//
+//  Created by 이상민 on 01/23/26.
+//
+
+import UIKit
+import SnapKit
+
+final class FeedListTableViewCell: BaseTableViewCell {
+    private let thumbnailImageView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .scaleAspectFill
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 12
+        return view
+    }()
+    
+    private let textView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 8
+        return view
+    }()
+    
+    private let titleAndCategorykView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .horizontal
+        view.spacing = 8
+        view.alignment = .center
+        return view
+    }()
+    
+    private let titleLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Mulggeol.body1
+        label.textColor = GrayStyle.gray30.color
+        return label
+    }()
+    
+    private let categoryLabelbox: UIView = {
+        let view = UIView()
+        view.backgroundColor = Brand.blackTurquoise.color
+        view.clipsToBounds = true
+        return view
+    }()
+    
+    private let categoryLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        return label
+    }()
+    
+    private let nicknameLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.body1
+        label.textColor = GrayStyle.gray75.color
+        return label
+    }()
+    
+    private let descriptionLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.numberOfLines = 2
+        return label
+    }()
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        categoryLabelbox.layoutIfNeeded()
+        categoryLabelbox.layer.cornerRadius = categoryLabelbox.bounds.height / 2
+    }
+    
+    override func configureHierarchy() {
+        contentView.addSubview(thumbnailImageView)
+        contentView.addSubview(textView)
+        
+        textView.addArrangedSubview(titleAndCategorykView)
+        titleAndCategorykView.addArrangedSubview(titleLabel)
+        titleAndCategorykView.addArrangedSubview(categoryLabelbox)
+        categoryLabelbox.addSubview(categoryLabel)
+        textView.addArrangedSubview(nicknameLabel)
+        textView.addArrangedSubview(descriptionLabel)
+    }
+    
+    override func configureLayout() {
+        thumbnailImageView.snp.makeConstraints { make in
+            make.leading.equalToSuperview()
+            make.verticalEdges.equalToSuperview().inset(20)
+            make.height.equalTo(120)
+            make.width.equalTo(100)
+        }
+        
+        textView.snp.makeConstraints { make in
+            make.leading.equalTo(thumbnailImageView.snp.trailing).offset(20)
+            make.trailing.equalToSuperview().inset(20)
+            make.centerY.equalToSuperview()
+            make.top.greaterThanOrEqualToSuperview().offset(20)
+            make.bottom.lessThanOrEqualToSuperview().inset(-20)
+        }
+        
+        titleAndCategorykView.snp.makeConstraints { make in
+            make.leading.equalToSuperview()
+            make.trailing.lessThanOrEqualToSuperview()
+        }
+        
+        categoryLabelbox.snp.makeConstraints { make in
+            make.trailing.lessThanOrEqualToSuperview()
+        }
+        
+        categoryLabel.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview().inset(6)
+            make.horizontalEdges.equalToSuperview().inset(12)
+        }
+    }
+    
+    override func configureView() {
+        selectionStyle = .none
+    }
+    
+    func configure(_ item: FilterSummaryResponseDTO) {
+        thumbnailImageView.setKFImage(urlString: item.files[1])
+        titleLabel.text = item.title
+        if let category = item.category{
+            categoryLabel.text = "#\(category)"
+        }
+        nicknameLabel.text = item.creator.nick
+        descriptionLabel.text = item.description
+    }
+}
