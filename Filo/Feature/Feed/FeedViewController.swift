@@ -25,6 +25,8 @@ final class FeedViewController: BaseViewController {
     private let feedScrollView: UIScrollView = {
         let view = UIScrollView()
         view.showsVerticalScrollIndicator = false
+        view.contentInset.bottom = CustomTabBarView.height + 20
+        view.verticalScrollIndicatorInsets.bottom = CustomTabBarView.height + 20
         return view
     }()
     
@@ -63,6 +65,48 @@ final class FeedViewController: BaseViewController {
         return view
     }()
     
+    private let filterFeedTitleView: UIView = {
+        let view = UIView()
+        return view
+    }()
+    
+    private let filterFeedText: UILabel = {
+        let label = UILabel()
+        label.text = "Filter Feed"
+        label.font = .Pretendard.body1
+        label.textColor = GrayStyle.gray60.color
+        return label
+    }()
+    
+    private let filterFeedModeText: UIButton = {
+        var config = UIButton.Configuration.plain()
+        config.title = "List Mode"
+        config.baseForegroundColor = GrayStyle.gray75.color
+        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer({ text in
+            var outputText = text
+            outputText.font = .Pretendard.body1
+            return outputText
+        })
+        let button = UIButton(configuration: config)
+        return button
+    }()
+    
+    private let feedBodyView: UIView = {
+        let view = UIView()
+        return view
+    }()
+
+    private let listTableView: UITableView = {
+        let view = UITableView()
+        view.register(FeedListTableViewCell.self, forCellReuseIdentifier: FeedListTableViewCell.identifier)
+        view.separatorStyle = .none
+        view.rowHeight = UITableView.automaticDimension
+        view.isScrollEnabled = false
+        return view
+    }()
+    
+    private var feedBodyHeightConstraint: Constraint?
+    
     override func configureHierarchy() {
         view.addSubview(feedScrollView)
         
@@ -74,6 +118,13 @@ final class FeedViewController: BaseViewController {
         contentView.addSubview(orderByStackView)
         
         contentView.addSubview(rankingCollectionView)
+        
+        contentView.addSubview(filterFeedTitleView)
+        filterFeedTitleView.addSubview(filterFeedText)
+        filterFeedTitleView.addSubview(filterFeedModeText)
+        
+        contentView.addSubview(feedBodyView)
+        feedBodyView.addSubview(listTableView)
     }
     
     override func configureLayout() {
@@ -106,8 +157,33 @@ final class FeedViewController: BaseViewController {
                 make.top.equalTo(orderByStackView.snp.bottom).offset(20)
                 make.horizontalEdges.equalToSuperview()
                 make.height.equalTo(layout.requiredHeight)
-                make.bottom.equalToSuperview()
             }
+        }
+        
+        filterFeedTitleView.snp.makeConstraints { make in
+            make.top.equalTo(rankingCollectionView.snp.bottom).offset(16)
+            make.horizontalEdges.equalToSuperview().inset(20)
+        }
+        
+        filterFeedText.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview().inset(20)
+            make.leading.equalToSuperview()
+        }
+        
+        filterFeedModeText.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview().inset(20)
+            make.trailing.equalToSuperview()
+        }
+        
+        feedBodyView.snp.makeConstraints { make in
+            make.top.equalTo(filterFeedTitleView.snp.bottom)
+            make.horizontalEdges.equalToSuperview().inset(20)
+            feedBodyHeightConstraint = make.height.equalTo(0).constraint
+            make.bottom.equalToSuperview()
+        }
+        
+        listTableView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
         }
     }
     
@@ -124,7 +200,8 @@ final class FeedViewController: BaseViewController {
         )
         
         let input = FeedViewModel.Input(
-            orderByItemSelected: orderByItemSelected
+            orderByItemSelected: orderByItemSelected,
+            feedFilterModeSelected: filterFeedModeText.rx.tap
         )
         
         let output = viewModel.transform(input: input)
@@ -165,6 +242,40 @@ final class FeedViewController: BaseViewController {
                 let indexPath = IndexPath(item: min(1, items.count - 1), section: 0)
                 owner.rankingCollectionView.scrollToItem(at: indexPath, at: .centeredHorizontally, animated: false)
             }
+            .disposed(by: disposeBag)
+        
+        let feedItems = output.filtersData
+            .map { $0.data.dropFirst(3)}
+
+        feedItems
+            .drive(listTableView.rx.items(
+                cellIdentifier: FeedListTableViewCell.identifier,
+                cellType: FeedListTableViewCell.self
+            )) { _, item, cell in
+                cell.configure(item)
+            }
+            .disposed(by: disposeBag)
+
+        feedItems
+            .drive(with: self) { owner, items in
+                owner.listTableView.layoutIfNeeded()
+                owner.feedBodyHeightConstraint?.update(offset: owner.listTableView.contentSize.height)
+            }
+            .disposed(by: disposeBag)
+
+        listTableView.rx
+            .observe(CGSize.self, "contentSize")
+            .compactMap { $0?.height }
+            .distinctUntilChanged()
+            .subscribe(onNext: { [weak self] height in
+                guard let self else { return }
+                self.feedBodyHeightConstraint?.update(offset: height)
+            })
+            .disposed(by: disposeBag)
+        
+        output.feedFilterMode
+            .map{ $0 ? "List Mode" : "Block Mode" }
+            .drive(filterFeedModeText.rx.title())
             .disposed(by: disposeBag)
     }
     
