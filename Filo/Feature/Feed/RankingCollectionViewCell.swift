@@ -48,6 +48,7 @@ final class RankingCollectionViewCell: BaseCollectionViewCell {
         label.font = .Mulggeol.title1
         label.textColor = GrayStyle.gray30.color
         label.textAlignment = .center
+        label.numberOfLines = 2
         return label
     }()
 
