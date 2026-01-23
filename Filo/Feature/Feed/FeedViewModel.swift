@@ -19,11 +19,13 @@ final class FeedViewModel: ViewModelType {
     
     struct Input{
         let orderByItemSelected: Observable<OrderByItem>
+        let feedFilterModeSelected: ControlEvent<Void>
     }
     
     struct Output{
         let selectedOrder: Driver<OrderByItem>
         let filtersData: Driver<FilterSummaryPaginationListResponseEntity>
+        let feedFilterMode: Driver<Bool>
     }
     
     func transform(input: Input) -> Output {
@@ -31,6 +33,7 @@ final class FeedViewModel: ViewModelType {
         let filtersDataRelay = PublishRelay<FilterSummaryPaginationListResponseEntity>()
         let networkErrorRelay = PublishRelay<NetworkError>()
         let categoryRelay = BehaviorRelay<String>(value: category)
+        let feedFileterModeRelay = BehaviorRelay<Bool>(value: true) //true: listMode, false: blockMode
         
         input.orderByItemSelected
             .bind(to: selectedOrderRelay)
@@ -53,10 +56,19 @@ final class FeedViewModel: ViewModelType {
                 }
             })
             .disposed(by: disposeBag)
+        
+        input.feedFilterModeSelected
+            .withLatestFrom(feedFileterModeRelay)
+            .map{ !$0}
+            .bind(to: feedFileterModeRelay)
+            .disposed(by: disposeBag)
+            
+            
 
         return Output(
             selectedOrder: selectedOrderRelay.asDriver(),
-            filtersData: filtersDataRelay.asDriver(onErrorDriveWith: .empty())
+            filtersData: filtersDataRelay.asDriver(onErrorDriveWith: .empty()),
+            feedFilterMode: feedFileterModeRelay.asDriver()
         )
     }
 }
