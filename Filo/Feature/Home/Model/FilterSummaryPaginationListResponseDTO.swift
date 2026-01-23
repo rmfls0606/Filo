@@ -60,6 +60,15 @@ struct FilterSummaryResponseDTO: Decodable, Sendable{
     }
 }
 
+extension FilterSummaryPaginationListResponseDTO{
+    func toEntity() -> FilterSummaryPaginationListResponseEntity{
+        return FilterSummaryPaginationListResponseEntity(
+            data: data,
+            nextCursor: nextCursor
+        )
+    }
+}
+
 extension FilterSummaryResponseDTO{
     func toEntity() -> FilterSummaryResponseEntity{
         return FilterSummaryResponseEntity(
