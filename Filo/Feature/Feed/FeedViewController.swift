@@ -15,7 +15,8 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
     private let viewModel: FeedViewModel
     private let disposeBag = DisposeBag()
     private var orderByButtons: [UIButton] = []
-    private var currentFeedItems: [FilterSummaryResponseDTO] = []
+    private var currentFeedItems: [FilterSummaryResponseEntity] = []
+    private let likeTappedRelay = PublishRelay<LikeInputTap>()
     
     private var feedBodyHeightConstraint: Constraint?
     
@@ -227,7 +228,8 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
         
         let input = FeedViewModel.Input(
             orderByItemSelected: orderByItemSelected,
-            feedFilterModeSelected: filterFeedModeText.rx.tap
+            feedFilterModeSelected: filterFeedModeText.rx.tap,
+            likeTapped: likeTappedRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -242,7 +244,7 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
         
         let rankingItems = output.filtersData
             .map { $0.data.prefix(3) }
-            .map { items -> [(item: FilterSummaryResponseDTO, rank: Int)] in
+            .map { items -> [(item: FilterSummaryResponseEntity, rank: Int)] in
                 guard items.count >= 3 else {
                     return items.enumerated().map { ($0.element, $0.offset + 1) }
                 }
@@ -277,8 +279,24 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
             .drive(listTableView.rx.items(
                 cellIdentifier: FeedListTableViewCell.identifier,
                 cellType: FeedListTableViewCell.self
-            )) { _, item, cell in
-                cell.configure(item)
+            )) { [weak self] index, item, cell in
+                guard let self else { return }
+                cell.configure(item, isLiked: LikeStore.shared.isLiked(id: item.filterId))
+                cell.likeTapped
+                    .bind(onNext: { [weak self] in
+                        guard let self else { return }
+                        self.likeTappedRelay.accept(LikeInputTap(
+                            index: index,
+                            item: item
+                        ))
+                    })
+                    .disposed(by: cell.disposeBag)
+            }
+            .disposed(by: disposeBag)
+
+        output.likeUIUpdate
+            .drive(with: self) { owner, update in
+                owner.applyLikeUpdate(update)
             }
             .disposed(by: disposeBag)
 
@@ -358,7 +376,7 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
         return imageHeight + topSpacing + nicknameHeight + bottomInset
     }
     
-    private func aspectRatio(for item: FilterSummaryResponseDTO) -> CGFloat {
+    private func aspectRatio(for item: FilterSummaryResponseEntity) -> CGFloat {
         let seed = item.filterId
         let hash = stableHash(seed)
         let minRatio: CGFloat = 0.8
@@ -373,6 +391,15 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
             hash = ((hash << 5) &+ hash) &+ Int(scalar.value)
         }
         return hash
+    }
+
+    private func applyLikeUpdate(_ update: OutputLikeUpdate) {
+        if let index = currentFeedItems.firstIndex(where: { $0.filterId == update.filterId }) {
+            let indexPath = IndexPath(row: index, section: 0)
+            if let cell = listTableView.cellForRow(at: indexPath) as? FeedListTableViewCell {
+                cell.setLiked(update.liked)
+            }
+        }
     }
 
     private func boundingHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
