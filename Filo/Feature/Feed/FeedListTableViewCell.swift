@@ -7,14 +7,44 @@
 
 import UIKit
 import SnapKit
+import RxSwift
+import RxCocoa
 
 final class FeedListTableViewCell: BaseTableViewCell {
+    private(set) var disposeBag = DisposeBag()
+    
+    var likeTapped: ControlEvent<Void> {
+        likeButton.rx.tap
+    }
     private let thumbnailImageView: UIImageView = {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
         view.clipsToBounds = true
         view.layer.cornerRadius = 12
         return view
+    }()
+    
+    private let likeButton: UIButton = {
+        var config = UIButton.Configuration.plain()
+        var imageConfig = UIImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
+        config.contentInsets = .zero
+        config.preferredSymbolConfigurationForImage = imageConfig
+        config.baseForegroundColor = GrayStyle.gray60.color
+        config.baseBackgroundColor = .clear
+        config.image = UIImage(named: "like_Empty")
+        let button = UIButton(configuration: config)
+        button.configurationUpdateHandler = { btn in
+            var config = btn.configuration
+            if btn.isSelected{
+                config?.image = UIImage(named: "like_Fill")
+                config?.baseForegroundColor = GrayStyle.gray30.color
+            }else{
+                config?.image = UIImage(named: "like_Empty")
+                config?.baseForegroundColor = GrayStyle.gray60.color
+            }
+            btn.configuration = config
+        }
+        return button
     }()
     
     private let textView: UIStackView = {
@@ -68,6 +98,12 @@ final class FeedListTableViewCell: BaseTableViewCell {
         return label
     }()
     
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        
+        disposeBag = DisposeBag()
+    }
+    
     override func layoutSubviews() {
         super.layoutSubviews()
         categoryLabelbox.layoutIfNeeded()
@@ -76,6 +112,7 @@ final class FeedListTableViewCell: BaseTableViewCell {
     
     override func configureHierarchy() {
         contentView.addSubview(thumbnailImageView)
+        contentView.addSubview(likeButton)
         contentView.addSubview(textView)
         
         textView.addArrangedSubview(titleAndCategorykView)
@@ -92,6 +129,10 @@ final class FeedListTableViewCell: BaseTableViewCell {
             make.verticalEdges.equalToSuperview().inset(20)
             make.height.equalTo(120)
             make.width.equalTo(100)
+        }
+        
+        likeButton.snp.makeConstraints { make in
+            make.bottom.trailing.equalTo(thumbnailImageView).inset(4)
         }
         
         textView.snp.makeConstraints { make in
@@ -121,13 +162,19 @@ final class FeedListTableViewCell: BaseTableViewCell {
         selectionStyle = .none
     }
     
-    func configure(_ item: FilterSummaryResponseDTO) {
+    func configure(_ item: FilterSummaryResponseEntity, isLiked: Bool) {
         thumbnailImageView.setKFImage(urlString: item.files[1])
+        setLiked(isLiked)
         titleLabel.text = item.title
         if let category = item.category{
             categoryLabel.text = "#\(category)"
         }
         nicknameLabel.text = item.creator.nick
         descriptionLabel.text = item.description
+    }
+
+    func setLiked(_ isLiked: Bool) {
+        likeButton.isSelected = isLiked
+//        likeButton.setNeedsUpdateConfiguration()
     }
 }
