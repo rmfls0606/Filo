@@ -11,7 +11,8 @@ enum FilterRouter: APITarget{
     case todayFilter
     case hotTrend
     case filters(next: String, limit: String, category: String, orderBy: String)
-    
+    case like(filterId: String, liked: Bool)
+
     var path: String{
         switch self {
         case .todayFilter:
@@ -20,6 +21,8 @@ enum FilterRouter: APITarget{
             return "/filters/hot-trend"
         case .filters:
             return "/filters"
+        case .like(let filterId, _):
+            return "/filters/\(filterId)/like"
         }
     }
     
@@ -27,6 +30,8 @@ enum FilterRouter: APITarget{
         switch self {
         case .hotTrend, .todayFilter, .filters:
             return .get
+        case .like:
+            return .post
         }
     }
     
@@ -45,6 +50,8 @@ enum FilterRouter: APITarget{
             if !limit.isEmpty { parms["limit"] = limit }
             if !category.isEmpty { parms["category"] = category }
             return parms
+        case .like(_, let liked):
+            return ["like_status": liked]
         }
     }
     
@@ -52,6 +59,8 @@ enum FilterRouter: APITarget{
         switch self {
         case .todayFilter, .hotTrend, .filters:
             return URLEncoding.default
+        case .like:
+            return JSONEncoding.default
         }
     }
 }
