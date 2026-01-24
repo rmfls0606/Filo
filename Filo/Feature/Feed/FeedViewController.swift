@@ -286,7 +286,6 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
                     .bind(onNext: { [weak self] in
                         guard let self else { return }
                         self.likeTappedRelay.accept(LikeInputTap(
-                            index: index,
                             item: item
                         ))
                     })
@@ -308,12 +307,16 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
                 guard let self else { return }
                 let ratio = self.aspectRatio(for: item)
                 cell.configure(item, imageRatio: ratio)
+                let liked = LikeStore.shared.isLiked(id: item.filterId)
+                let count = LikeStore.shared.likeCount(id: item.filterId) ?? item.likeCount
+                cell.setLiked(liked, count)
                 cell.likeTapped
                     .bind { [weak self] in
                         guard let self else { return }
-                        self.likeTappedRelay.accept(LikeInputTap(
-                            index: index,
-                            item: item)
+                        self.likeTappedRelay.accept(
+                            LikeInputTap(
+                            item: item
+                            )
                         )
                     }
                     .disposed(by: cell.disposeBag)
