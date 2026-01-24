@@ -75,15 +75,16 @@ final class FeedViewModel: ViewModelType {
                             FilterRouter.like(filterId: payload.item.filterId, liked: desiredLiked)
                         )
                         let entity = dto.toEntity()
+                        print(entity.likeStatus)
                         let likedNow = entity.likeStatus
                         let baseCount = LikeStore.shared.likeCount(id: payload.item.filterId) ?? payload.item.likeCount
-                        let delta = likedNow ? 1 : -1
-                        let likeCount = max(0, baseCount + delta)
+                        let likeCount = likedNow ? max(0, baseCount + 1) : max(0, baseCount - 1)
                         LikeStore.shared.setLiked(id: payload.item.filterId, liked: likedNow, count: likeCount)
                         likeUIUpdateRelay.accept(OutputLikeUpdate(
                             filterId: payload.item.filterId,
                             index: payload.index,
-                            liked: likedNow
+                            liked: likedNow,
+                            likeCount: likeCount
                         ))
                     }catch(let error as NetworkError){
                         print(error)
