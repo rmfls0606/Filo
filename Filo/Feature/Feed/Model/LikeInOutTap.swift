@@ -16,4 +16,5 @@ struct OutputLikeUpdate {
     let filterId: String
     let index: Int
     let liked: Bool
+    let likeCount: Int
 }
