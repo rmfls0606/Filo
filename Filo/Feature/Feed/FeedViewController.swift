@@ -10,11 +10,14 @@ import SnapKit
 import RxSwift
 import RxCocoa
 
-final class FeedViewController: BaseViewController {
+final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
     //MARK: - Properties
     private let viewModel: FeedViewModel
     private let disposeBag = DisposeBag()
     private var orderByButtons: [UIButton] = []
+    private var currentFeedItems: [FilterSummaryResponseDTO] = []
+    
+    private var feedBodyHeightConstraint: Constraint?
     
     init(viewModel: FeedViewModel = FeedViewModel()) {
         self.viewModel = viewModel
@@ -104,8 +107,26 @@ final class FeedViewController: BaseViewController {
         view.isScrollEnabled = false
         return view
     }()
+
+    private lazy var blockCollectionView: UICollectionView = {
+        let layout = PinterestLayout()
+        layout.numberOfColumns = 2
+        layout.cellPadding = 6
+        layout.delegate = self
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.register(FeedBlockCollectionViewCell.self, forCellWithReuseIdentifier: FeedBlockCollectionViewCell.identifier)
+        view.isScrollEnabled = false
+        view.backgroundColor = .clear
+        view.isHidden = true
+        return view
+    }()
     
-    private var feedBodyHeightConstraint: Constraint?
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if !blockCollectionView.isHidden {
+            updateBlockLayout()
+        }
+    }
     
     override func configureHierarchy() {
         view.addSubview(feedScrollView)
@@ -125,6 +146,7 @@ final class FeedViewController: BaseViewController {
         
         contentView.addSubview(feedBodyView)
         feedBodyView.addSubview(listTableView)
+        feedBodyView.addSubview(blockCollectionView)
     }
     
     override func configureLayout() {
@@ -133,7 +155,7 @@ final class FeedViewController: BaseViewController {
         }
         
         contentView.snp.makeConstraints { make in
-            make.height.equalTo(feedScrollView.contentLayoutGuide)
+            make.edges.equalTo(feedScrollView.contentLayoutGuide)
             make.width.equalTo(feedScrollView.frameLayoutGuide)
         }
         
@@ -183,6 +205,10 @@ final class FeedViewController: BaseViewController {
         }
         
         listTableView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+        
+        blockCollectionView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
     }
@@ -245,7 +271,7 @@ final class FeedViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         let feedItems = output.filtersData
-            .map { $0.data.dropFirst(3)}
+            .map { Array($0.data.dropFirst(3)) }
 
         feedItems
             .drive(listTableView.rx.items(
@@ -257,28 +283,108 @@ final class FeedViewController: BaseViewController {
             .disposed(by: disposeBag)
 
         feedItems
-            .drive(with: self) { owner, items in
-                owner.listTableView.layoutIfNeeded()
-                owner.feedBodyHeightConstraint?.update(offset: owner.listTableView.contentSize.height)
+            .drive(blockCollectionView.rx.items(
+                cellIdentifier: FeedBlockCollectionViewCell.identifier,
+                cellType: FeedBlockCollectionViewCell.self
+            )) { [weak self] _, item, cell in
+                guard let self else { return }
+                let ratio = self.aspectRatio(for: item)
+                cell.configure(item, imageRatio: ratio)
             }
             .disposed(by: disposeBag)
 
-        listTableView.rx
+        let modeStream = output.feedFilterMode
+            .distinctUntilChanged()
+            .asObservable()
+        
+        modeStream
+            .map{ $0 ? "List Mode" : "Block Mode"}
+            .bind(to: filterFeedModeText.rx.title())
+            .disposed(by: disposeBag)
+
+        Observable
+            .combineLatest(modeStream, feedItems.asObservable())
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] isList, items in
+                guard let self else { return }
+                self.currentFeedItems = items
+                self.listTableView.isHidden = !isList
+                self.blockCollectionView.isHidden = isList
+                if isList {
+                    self.listTableView.layoutIfNeeded()
+                    self.feedBodyHeightConstraint?.update(offset: self.listTableView.contentSize.height)
+                } else {
+                    self.updateBlockLayout()
+                }
+            })
+            .disposed(by: disposeBag)
+
+        let listHeight = listTableView.rx
             .observe(CGSize.self, "contentSize")
             .compactMap { $0?.height }
             .distinctUntilChanged()
-            .subscribe(onNext: { [weak self] height in
+
+        let blockHeight = blockCollectionView.rx
+            .observe(CGSize.self, "contentSize")
+            .compactMap { $0?.height }
+            .distinctUntilChanged()
+
+        Observable
+            .combineLatest(modeStream, listHeight, blockHeight)
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] isList, listH, blockH in
                 guard let self else { return }
-                self.feedBodyHeightConstraint?.update(offset: height)
+                self.feedBodyHeightConstraint?.update(offset: isList ? listH : blockH)
             })
             .disposed(by: disposeBag)
-        
-        output.feedFilterMode
-            .map{ $0 ? "List Mode" : "Block Mode" }
-            .drive(filterFeedModeText.rx.title())
-            .disposed(by: disposeBag)
+    }
+
+    private func updateBlockLayout() {
+        let layout = blockCollectionView.collectionViewLayout as? PinterestLayout
+        layout?.invalidateLayout()
+        blockCollectionView.collectionViewLayout.invalidateLayout()
+        blockCollectionView.layoutIfNeeded()
+        feedBodyHeightConstraint?.update(offset: blockCollectionView.collectionViewLayout.collectionViewContentSize.height)
     }
     
+    func collectionView(_ collectionView: UICollectionView, heightForItemAt indexPath: IndexPath, with width: CGFloat) -> CGFloat {
+        guard indexPath.item < currentFeedItems.count else { return width }
+        let item = currentFeedItems[indexPath.item]
+        let imageHeight = width * aspectRatio(for: item)
+        let textWidth = width - 16
+        let nicknameHeight = boundingHeight(item.creator.nick, font: .Pretendard.caption1 ?? UIFont.systemFont(ofSize: 12), width: textWidth)
+        let topSpacing: CGFloat = 8
+        let bottomInset: CGFloat = 0
+        return imageHeight + topSpacing + nicknameHeight + bottomInset
+    }
+    
+    private func aspectRatio(for item: FilterSummaryResponseDTO) -> CGFloat {
+        let seed = item.filterId
+        let hash = stableHash(seed)
+        let minRatio: CGFloat = 0.8
+        let maxRatio: CGFloat = 1.8
+        let unit = CGFloat(abs(hash % 1000)) / 1000.0
+        return minRatio + (maxRatio - minRatio) * unit
+    }
+    
+    private func stableHash(_ string: String) -> Int {
+        var hash = 5381
+        for scalar in string.unicodeScalars {
+            hash = ((hash << 5) &+ hash) &+ Int(scalar.value)
+        }
+        return hash
+    }
+
+    private func boundingHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
+        let rect = (text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        )
+        return ceil(rect.height)
+    }
+
     private func makeOrderByButtons(_ items: [OrderByItem]) {
         orderByButtons = items.enumerated().map { index, item in
             var config = UIButton.Configuration.filled()
