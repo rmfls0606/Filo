@@ -304,10 +304,19 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
             .drive(blockCollectionView.rx.items(
                 cellIdentifier: FeedBlockCollectionViewCell.identifier,
                 cellType: FeedBlockCollectionViewCell.self
-            )) { [weak self] _, item, cell in
+            )) { [weak self] index, item, cell in
                 guard let self else { return }
                 let ratio = self.aspectRatio(for: item)
                 cell.configure(item, imageRatio: ratio)
+                cell.likeTapped
+                    .bind { [weak self] in
+                        guard let self else { return }
+                        self.likeTappedRelay.accept(LikeInputTap(
+                            index: index,
+                            item: item)
+                        )
+                    }
+                    .disposed(by: cell.disposeBag)
             }
             .disposed(by: disposeBag)
 
@@ -395,9 +404,14 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
 
     private func applyLikeUpdate(_ update: OutputLikeUpdate) {
         if let index = currentFeedItems.firstIndex(where: { $0.filterId == update.filterId }) {
-            let indexPath = IndexPath(row: index, section: 0)
-            if let cell = listTableView.cellForRow(at: indexPath) as? FeedListTableViewCell {
+            let indexPathRow = IndexPath(row: index, section: 0)
+            if let cell = listTableView.cellForRow(at: indexPathRow) as? FeedListTableViewCell {
                 cell.setLiked(update.liked)
+            }
+            
+            let indexPathItem = IndexPath(item: index, section: 0)
+            if let cell = blockCollectionView.cellForItem(at: indexPathItem) as? FeedBlockCollectionViewCell{
+                cell.setLiked(update.liked, update.likeCount)
             }
         }
     }
