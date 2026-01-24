@@ -24,28 +24,7 @@ final class FeedListTableViewCell: BaseTableViewCell {
         return view
     }()
     
-    private let likeButton: UIButton = {
-        var config = UIButton.Configuration.plain()
-        var imageConfig = UIImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
-        config.contentInsets = .zero
-        config.preferredSymbolConfigurationForImage = imageConfig
-        config.baseForegroundColor = GrayStyle.gray60.color
-        config.baseBackgroundColor = .clear
-        config.image = UIImage(named: "like_Empty")
-        let button = UIButton(configuration: config)
-        button.configurationUpdateHandler = { btn in
-            var config = btn.configuration
-            if btn.isSelected{
-                config?.image = UIImage(named: "like_Fill")
-                config?.baseForegroundColor = GrayStyle.gray30.color
-            }else{
-                config?.image = UIImage(named: "like_Empty")
-                config?.baseForegroundColor = GrayStyle.gray60.color
-            }
-            btn.configuration = config
-        }
-        return button
-    }()
+    private let likeButton = LikeButton()
     
     private let textView: UIStackView = {
         let view = UIStackView()
@@ -175,6 +154,5 @@ final class FeedListTableViewCell: BaseTableViewCell {
 
     func setLiked(_ isLiked: Bool) {
         likeButton.isSelected = isLiked
-//        likeButton.setNeedsUpdateConfiguration()
     }
 }
