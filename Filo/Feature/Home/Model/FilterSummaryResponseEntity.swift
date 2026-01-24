@@ -9,7 +9,14 @@ import Foundation
 
 struct FilterSummaryResponseEntity{
     let filterId: String
+    let category: String?
     let title: String
-    let likeCount: Int
+    let description: String
     let files: [String]
+    let creator: UserInfoResponseDTO
+    var isLiked: Bool
+    var likeCount: Int
+    let buyerCount: Int
+    let createdAt: String
+    let updatedAt: String
 }

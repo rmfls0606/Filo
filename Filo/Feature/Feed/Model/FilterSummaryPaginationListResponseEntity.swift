@@ -8,6 +8,6 @@
 import Foundation
 
 struct FilterSummaryPaginationListResponseEntity{
-    let data: [FilterSummaryResponseDTO]
+    let data: [FilterSummaryResponseEntity]
     let nextCursor: String
 }

@@ -63,7 +63,7 @@ struct FilterSummaryResponseDTO: Decodable, Sendable{
 extension FilterSummaryPaginationListResponseDTO{
     func toEntity() -> FilterSummaryPaginationListResponseEntity{
         return FilterSummaryPaginationListResponseEntity(
-            data: data,
+            data: data.map { $0.toEntity() },
             nextCursor: nextCursor
         )
     }
@@ -73,9 +73,16 @@ extension FilterSummaryResponseDTO{
     func toEntity() -> FilterSummaryResponseEntity{
         return FilterSummaryResponseEntity(
             filterId: filterId,
+            category: category,
             title: title,
+            description: description,
+            files: files,
+            creator: creator,
+            isLiked: isLiked,
             likeCount: likeCount,
-            files: files
+            buyerCount: buyerCount,
+            createdAt: createdAt,
+            updatedAt: updatedAt
         )
     }
 }
