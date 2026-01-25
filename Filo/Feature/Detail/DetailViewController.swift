@@ -34,7 +34,6 @@ final class DetailViewController: BaseViewController {
     private let filterImageContainer: UIView = {
         let view = UIView()
         view.clipsToBounds = true
-        view.layer.cornerRadius = 12
         return view
     }()
     
@@ -42,6 +41,7 @@ final class DetailViewController: BaseViewController {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
         view.clipsToBounds = true
+        view.layer.cornerRadius = 12
         return view
     }()
     
@@ -49,6 +49,7 @@ final class DetailViewController: BaseViewController {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
         view.clipsToBounds = true
+        view.layer.cornerRadius = 12
         return view
     }()
     
@@ -96,13 +97,16 @@ final class DetailViewController: BaseViewController {
     private let compareDragButton: UIButton = {
         var config = UIButton.Configuration.filled()
         config.cornerStyle = .capsule
-        config.image = UIImage(named: "arrowtriangle.up.fill")
+        var imageConfig = UIImage.SymbolConfiguration(pointSize: 8)
+        config.preferredSymbolConfigurationForImage = imageConfig
+        config.image = UIImage(systemName: "arrowtriangle.up.fill")
         config.baseForegroundColor = GrayStyle.gray60.color
         config.baseBackgroundColor = GrayStyle.gray75.color?.withAlphaComponent(0.5)
         config.cornerStyle = .capsule
         config.background.strokeWidth = 2.0
         config.background.strokeColor = GrayStyle.gray75.color
         let button = UIButton(configuration: config)
+        button.contentMode = .scaleAspectFit
         return button
     }()
     
@@ -777,7 +781,18 @@ final class DetailViewController: BaseViewController {
         compareHandleCenterXConstraint?.update(offset: offset)
         filterImageContainer.layoutIfNeeded()
 
+        let fadeStart: CGFloat = 0.08
+        let fadeEnd: CGFloat = 0.18
+        let leftAlpha = clamp((compareProgress - fadeStart) / (fadeEnd - fadeStart))
+        let rightAlpha = clamp(((1.0 - compareProgress) - fadeStart) / (fadeEnd - fadeStart))
+        compareAfterLabelBox.alpha = leftAlpha
+        compareBeforeBox.alpha = rightAlpha
+
         CATransaction.commit()
+    }
+
+    private func clamp(_ value: CGFloat) -> CGFloat {
+        min(max(value, 0.0), 1.0)
     }
     
     private func downloadCheck(_ isDownload: Bool) {
