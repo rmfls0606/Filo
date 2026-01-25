@@ -38,6 +38,11 @@ final class TodayAuthorHashtagCollectionViewCell: BaseCollectionViewCell {
     }
 
     func configure(_ text: String) {
-        titleLabel.text = text
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("#") || trimmed.isEmpty {
+            titleLabel.text = trimmed
+        } else {
+            titleLabel.text = "#\(trimmed)"
+        }
     }
 }
