@@ -12,8 +12,6 @@ import RxCocoa
 
 final class TodayAuthorView: BaseView {
     //MARK: - Properties
-    let dummyItems = Observable.just([1,2,3,4,5])
-    let dummyHashtags = Observable.just(["#섬세함","#자연", "#미니멀"])
     private let disposeBag = DisposeBag()
     
     //MARK: - UI
