@@ -12,6 +12,7 @@ enum FilterRouter: APITarget{
     case hotTrend
     case filters(next: String, limit: String, category: String, orderBy: String)
     case like(filterId: String, liked: Bool)
+    case detailFilter(filterId: String)
 
     var path: String{
         switch self {
@@ -23,12 +24,14 @@ enum FilterRouter: APITarget{
             return "/filters"
         case .like(let filterId, _):
             return "/filters/\(filterId)/like"
+        case .detailFilter(let filterId):
+            return "/filters/\(filterId)"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .hotTrend, .todayFilter, .filters:
+        case .hotTrend, .todayFilter, .filters, .detailFilter:
             return .get
         case .like:
             return .post
@@ -42,7 +45,7 @@ enum FilterRouter: APITarget{
     
     var parameters: Parameters?{
         switch self {
-        case .todayFilter, .hotTrend:
+        case .todayFilter, .hotTrend, .detailFilter:
             return nil
         case .filters(let next, let limit, let category, let orderBy):
             var parms = ["order_by": orderBy]
@@ -59,7 +62,7 @@ enum FilterRouter: APITarget{
         switch self {
         case .todayFilter, .hotTrend, .filters:
             return URLEncoding.default
-        case .like:
+        case .like, .detailFilter:
             return JSONEncoding.default
         }
     }
