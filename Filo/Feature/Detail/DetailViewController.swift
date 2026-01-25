@@ -194,6 +194,94 @@ final class DetailViewController: BaseViewController {
         return btn
     }()
     
+    private let secondDivider: UIView = {
+        let view = UIView()
+        view.backgroundColor = Brand.deepTurquoise.color
+        return view
+    }()
+    
+    private let authorIntroductionStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 20
+        return view
+    }()
+    
+    private let authorProfileBox: UIView = {
+        let view = UIView()
+        return view
+    }()
+    
+    private let authorProfileImage: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .scaleAspectFill
+        view.layer.cornerRadius = 36
+        view.layer.borderWidth = 1.0
+        view.layer.borderColor = GrayStyle.gray75.color?.withAlphaComponent(0.5).cgColor
+        view.clipsToBounds = true
+        return view
+    }()
+    
+    private let authorNameStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 8
+        return view
+    }()
+    
+    private let authorName: UILabel = {
+        let label = UILabel()
+        label.font = .Mulggeol.body1
+        label.textColor = GrayStyle.gray30.color
+        return label
+    }()
+    
+    private let authorNickname: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.body1
+        label.textColor = GrayStyle.gray75.color
+        return label
+    }()
+    
+    private let sendMessageButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.image = UIImage(named: "message")
+        config.baseForegroundColor = GrayStyle.gray30.color
+        config.baseBackgroundColor = Brand.deepTurquoise.color
+        config.background.cornerRadius = 12
+        config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+        
+        let button = UIButton(configuration: config)
+        return button
+    }()
+    
+    private lazy var hashtagCollectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .horizontal
+        layout.minimumLineSpacing = 4
+        layout.estimatedItemSize = UICollectionViewFlowLayout.automaticSize
+
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.register(TodayAuthorHashtagCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorHashtagCollectionViewCell.identifier)
+        view.showsHorizontalScrollIndicator = false
+        return view
+    }()
+    
+    private let authorDescriptionLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.numberOfLines = 0
+        return label
+    }()
+    
+    private var hashtagCollectionHeight: CGFloat {
+        guard let font = UIFont.Pretendard.caption1 else {
+            return 0
+        }
+        return font.lineHeight + 8
+    }
+    
     let viewModel: DetailViewModel
     
     init(viewModel: DetailViewModel) {
@@ -238,6 +326,18 @@ final class DetailViewController: BaseViewController {
         filterValuesLockStack.addArrangedSubview(filterValuesLockLabel)
         
         detailStackView.addArrangedSubview(buyButton)
+        
+        detailStackView.addArrangedSubview(secondDivider)
+        
+        detailStackView.addArrangedSubview(authorIntroductionStackView)
+        authorIntroductionStackView.addArrangedSubview(authorProfileBox)
+        authorProfileBox.addSubview(authorProfileImage)
+        authorProfileBox.addSubview(authorNameStackView)
+        authorNameStackView.addArrangedSubview(authorName)
+        authorNameStackView.addArrangedSubview(authorNickname)
+        authorProfileBox.addSubview(sendMessageButton)
+        authorIntroductionStackView.addArrangedSubview(hashtagCollectionView)
+        authorIntroductionStackView.addArrangedSubview(authorDescriptionLabel)
     }
     
     override func configureLayout() {
@@ -329,6 +429,45 @@ final class DetailViewController: BaseViewController {
             make.horizontalEdges.equalToSuperview().inset(20)
             make.height.equalTo(46)
         }
+        
+        secondDivider.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+            make.height.equalTo(1)
+        }
+        
+        authorIntroductionStackView.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+            make.bottom.equalToSuperview()
+        }
+        
+        authorProfileBox.snp.makeConstraints { make in
+            make.top.horizontalEdges.equalToSuperview()
+        }
+        
+        authorProfileImage.snp.makeConstraints { make in
+            make.verticalEdges.leading.equalToSuperview()
+            make.size.equalTo(72)
+        }
+        
+        authorNameStackView.snp.makeConstraints { make in
+            make.centerY.equalToSuperview()
+            make.leading.equalTo(authorProfileImage.snp.trailing).offset(20)
+            make.trailing.lessThanOrEqualTo(sendMessageButton.snp.leading).inset(-20)
+        }
+        
+        sendMessageButton.snp.makeConstraints { make in
+            make.centerY.equalToSuperview()
+            make.trailing.equalToSuperview()
+        }
+        
+        hashtagCollectionView.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview()
+            make.height.equalTo(hashtagCollectionHeight)
+        }
+        
+        authorDescriptionLabel.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview()
+        }
     }
     
     override func configureView() {
@@ -355,6 +494,23 @@ final class DetailViewController: BaseViewController {
                     owner.metadataView.showEmptyMetadata()
                 }
                 owner.downloadCheck(data.isDownloaded)
+                //creator
+                if let urlString = data.creator.profileImage{
+                    owner.authorProfileImage.setKFImage(urlString: urlString)
+                }
+                
+                owner.authorName.text = data.creator.name
+                owner.authorNickname.text = data.creator.nick
+                owner.authorDescriptionLabel.text = data.creator.introduction
+            }
+            .disposed(by: disposeBag)
+        
+        output.creatorHashTags
+            .drive(hashtagCollectionView.rx.items(
+                cellIdentifier: TodayAuthorHashtagCollectionViewCell.identifier,
+                cellType: TodayAuthorHashtagCollectionViewCell.self
+            )) { _, element, cell in
+                cell.configure(element)
             }
             .disposed(by: disposeBag)
 
@@ -470,7 +626,6 @@ final class DetailViewController: BaseViewController {
             buyButton.setTitleColor(GrayStyle.gray30.color, for: .normal)
         }
         buyButton.isUserInteractionEnabled = !isDownload
-//        filterValuesBlurView.alpha = isDownload ? 0.0 : 0.9
     }
 
     private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
