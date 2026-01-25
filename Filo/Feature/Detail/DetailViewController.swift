@@ -145,6 +145,55 @@ final class DetailViewController: BaseViewController {
         return view
     }()
     
+    private let filterValuesBlurView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterialLight))
+        view.isHidden = false
+        view.alpha = 0.96
+        view.scalesLargeContentImage = true
+        return view
+    }()
+
+    private let filterValuesOverlayView: UIView = {
+        let view = UIView()
+        view.backgroundColor = UIColor(red: 0.176, green: 0.188, blue: 0.192, alpha: 0.9)
+        return view
+    }()
+    
+    private let filterValuesLockStack: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 16
+        view.alignment = .center
+        return view
+    }()
+    
+    private let filterValuesLockIcon: UIImageView = {
+        let view = UIImageView()
+        view.image = UIImage(systemName: "lock.fill")
+        view.tintColor = GrayStyle.gray45.color
+        return view
+    }()
+    
+    private let filterValuesLockLabel: UILabel = {
+        let label = UILabel()
+        label.text = "결제가 필요한 유료 필터입니다"
+        label.font = .Pretendard.body1
+        label.textColor = GrayStyle.gray45.color
+        label.textAlignment = .center
+        return label
+    }()
+    
+    private let buyButton: UIButton = {
+        let btn = UIButton()
+        btn.setTitle("결제하기", for: .normal)
+        btn.titleLabel?.font = .Pretendard.title1
+        btn.backgroundColor = Brand.brightTurquoise.color
+        btn.layer.cornerRadius = 12
+        btn.clipsToBounds = true
+        btn.setTitleColor(.white, for: .normal)
+        return btn
+    }()
+    
     let viewModel: DetailViewModel
     
     init(viewModel: DetailViewModel) {
@@ -182,6 +231,13 @@ final class DetailViewController: BaseViewController {
         filterPresetHeader.addSubview(filterPresetTitleLabel)
         filterPresetHeader.addSubview(lutTitleLable)
         filterPresetContainer.addSubview(filterValuesCollectionView)
+        filterPresetContainer.addSubview(filterValuesBlurView)
+        filterValuesBlurView.contentView.addSubview(filterValuesOverlayView)
+        filterValuesBlurView.contentView.addSubview(filterValuesLockStack)
+        filterValuesLockStack.addArrangedSubview(filterValuesLockIcon)
+        filterValuesLockStack.addArrangedSubview(filterValuesLockLabel)
+        
+        detailStackView.addArrangedSubview(buyButton)
     }
     
     override func configureLayout() {
@@ -256,6 +312,23 @@ final class DetailViewController: BaseViewController {
             make.bottom.equalToSuperview()
             filterValuesHeightConstraint = make.height.equalTo(0).constraint
         }
+        
+        filterValuesBlurView.snp.makeConstraints { make in
+            make.edges.equalTo(filterValuesCollectionView)
+        }
+
+        filterValuesOverlayView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+        
+        filterValuesLockStack.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+        }
+        
+        buyButton.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+            make.height.equalTo(46)
+        }
     }
     
     override func configureView() {
@@ -281,6 +354,7 @@ final class DetailViewController: BaseViewController {
                 }else{
                     owner.metadataView.showEmptyMetadata()
                 }
+                owner.downloadCheck(data.isDownloaded)
             }
             .disposed(by: disposeBag)
 
@@ -382,6 +456,21 @@ final class DetailViewController: BaseViewController {
         let rows = ceil(CGFloat(filterValueItemsRelay.value.count) / columns)
         let totalHeight = rows * itemHeight + max(0, rows - 1) * layout.minimumLineSpacing + (2 * padding)
         filterValuesHeightConstraint?.update(offset: totalHeight)
+    }
+
+    private func downloadCheck(_ isDownload: Bool) {
+        filterValuesBlurView.isHidden = isDownload
+        if isDownload{
+            buyButton.setTitle("구매완료", for: .normal)
+            buyButton.backgroundColor = GrayStyle.gray90.color
+            buyButton.setTitleColor(GrayStyle.gray75.color, for: .normal)
+        }else{
+            buyButton.setTitle("결제하기", for: .normal)
+            buyButton.backgroundColor = Brand.brightTurquoise.color
+            buyButton.setTitleColor(GrayStyle.gray30.color, for: .normal)
+        }
+        buyButton.isUserInteractionEnabled = !isDownload
+//        filterValuesBlurView.alpha = isDownload ? 0.0 : 0.9
     }
 
     private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
