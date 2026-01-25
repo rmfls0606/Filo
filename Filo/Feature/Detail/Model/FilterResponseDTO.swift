@@ -107,6 +107,30 @@ struct FilterValuesDTO: Decodable, Sendable{
     }
 }
 
+extension FilterValuesDTO {
+    func text(_ value: Double?) -> String {
+        guard let value else { return "-" }
+        return String(format: "%.1f", value)
+    }
+    
+    func toEntity() -> [FilterValuesEntity] {
+        return [
+            FilterValuesEntity(iconName: "brightness", valueText: text(brightness)),
+            FilterValuesEntity(iconName: "exposure", valueText: text(exposure)),
+            FilterValuesEntity(iconName: "contrast", valueText: text(contrast)),
+            FilterValuesEntity(iconName: "saturation", valueText: text(saturation)),
+            FilterValuesEntity(iconName: "sharpness", valueText: text(sharpness)),
+            FilterValuesEntity(iconName: "blur", valueText: text(blur)),
+            FilterValuesEntity(iconName: "vignette", valueText: text(vignette)),
+            FilterValuesEntity(iconName: "noise", valueText: text(noiseReduction)),
+            FilterValuesEntity(iconName: "highlights", valueText: text(highlights)),
+            FilterValuesEntity(iconName: "shadows", valueText: text(shadows)),
+            FilterValuesEntity(iconName: "temperature", valueText: text(temperature)),
+            FilterValuesEntity(iconName: "blackPoint", valueText: text(blackPoint))
+        ]
+    }
+}
+
 struct FilterCommentResponseDTO: Decodable, Sendable{
     let commentId: String
     let content: String
