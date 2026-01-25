@@ -66,7 +66,7 @@ final class DetailViewController: BaseViewController {
     
     private let coinLabel: UILabel = {
         let label = UILabel()
-        label.text = "2000".formattedDecimal() //수정
+        label.text = "-"
         label.font = .Mulggeol.title1
         label.textColor = GrayStyle.gray30.color
         return label
@@ -93,6 +93,22 @@ final class DetailViewController: BaseViewController {
         view.distribution = .fillEqually
         view.alignment = .center
         return view
+    }()
+
+    private let downloadCountLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.title1
+        label.textColor = GrayStyle.gray30.color
+        label.text = "0"
+        return label
+    }()
+
+    private let likeCountLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.title1
+        label.textColor = GrayStyle.gray30.color
+        label.text = "0"
+        return label
     }()
     
     private let metadataView = FilterImageRegisterView()
@@ -309,8 +325,8 @@ final class DetailViewController: BaseViewController {
         
         detailStackView.addArrangedSubview(filterInfoContainer)
         filterInfoContainer.addSubview(filterInfoStackView)
-        filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "다운로드", count: 2400))
-        filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "찜하기", count: 800))
+        filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "다운로드", countLabel: downloadCountLabel))
+        filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "찜하기", countLabel: likeCountLabel))
         
         detailStackView.addArrangedSubview(metadataView)
         
@@ -494,11 +510,14 @@ final class DetailViewController: BaseViewController {
                     owner.metadataView.showEmptyMetadata()
                 }
                 owner.downloadCheck(data.isDownloaded)
+                owner.downloadCountLabel.text = owner.formattedCount(data.buyerCount)
+                owner.likeCountLabel.text = owner.formattedCount(data.likeCount)
                 //creator
                 if let urlString = data.creator.profileImage{
                     owner.authorProfileImage.setKFImage(urlString: urlString)
                 }
                 
+                owner.coinLabel.text = data.price.formattedDecimal()
                 owner.authorName.text = data.creator.name
                 owner.authorNickname.text = data.creator.nick
                 owner.authorDescriptionLabel.text = data.creator.introduction
@@ -537,7 +556,7 @@ final class DetailViewController: BaseViewController {
             .disposed(by: disposeBag)
     }
     
-    private func makeFilterInfoBoxView(title: String, count: Int = 0) -> UIView{
+    private func makeFilterInfoBoxView(title: String, countLabel: UILabel) -> UIView{
         let infoContainer: UIView = {
             let view = UIView()
             view.backgroundColor = Brand.blackTurquoise.color
@@ -561,17 +580,9 @@ final class DetailViewController: BaseViewController {
             return label
         }()
         
-        let contentCountLabel: UILabel = {
-            let label = UILabel()
-            label.text = formattedCount(count)
-            label.font = .Pretendard.title1
-            label.textColor = GrayStyle.gray30.color
-            return label
-        }()
-        
         infoContainer.addSubview(infoStackView)
         infoStackView.addArrangedSubview(contentTitleLabel)
-        infoStackView.addArrangedSubview(contentCountLabel)
+        infoStackView.addArrangedSubview(countLabel)
 
         infoStackView.snp.makeConstraints { make in
             make.verticalEdges.equalToSuperview().inset(8)
