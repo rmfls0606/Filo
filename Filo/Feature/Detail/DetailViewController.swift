@@ -97,11 +97,64 @@ final class DetailViewController: BaseViewController {
     
     private let metadataView = FilterImageRegisterView()
     
+    private var filterValuesHeightConstraint: Constraint?
+    private let filterValueItemsRelay = BehaviorRelay<[FilterValuesEntity]>(value: [])
+    
+    private let filterPresetContainer: UIView = {
+        let view = UIView()
+        view.backgroundColor = Brand.blackTurquoise.color
+        view.layer.borderWidth = 2.0
+        view.layer.borderColor = Brand.blackTurquoise.color?.cgColor
+        view.layer.cornerRadius = 12
+        view.clipsToBounds = true
+        return view
+    }()
+    
+    private let filterPresetHeader: UIView = {
+        let view = UIView()
+        view.backgroundColor = GrayStyle.gray100.color
+        return view
+    }()
+    
+    private let filterPresetTitleLabel: UILabel = {
+        let label = UILabel()
+        label.text = "Filter Presets"
+        label.font = .Pretendard.caption1
+        label.textColor = Brand.deepTurquoise.color
+        return label
+    }()
+    
+    private let lutTitleLable: UILabel = {
+        let label = UILabel()
+        label.text = "LUT"
+        label.font = .Pretendard.caption1
+        label.textColor = Brand.deepTurquoise.color
+        return label
+    }()
+    
+    private lazy var filterValuesCollectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .vertical
+        layout.minimumInteritemSpacing = 20
+        layout.minimumLineSpacing = 16
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.backgroundColor = .clear
+        view.isScrollEnabled = false
+        view.contentInset = UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+        view.register(FilterValueCollectionViewCell.self, forCellWithReuseIdentifier: FilterValueCollectionViewCell.identifier)
+        return view
+    }()
+    
     let viewModel: DetailViewModel
     
     init(viewModel: DetailViewModel) {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateFilterValuesLayout()
     }
     
     override func configureHierarchy() {
@@ -123,6 +176,12 @@ final class DetailViewController: BaseViewController {
         filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "찜하기", count: 800))
         
         detailStackView.addArrangedSubview(metadataView)
+        
+        detailStackView.addArrangedSubview(filterPresetContainer)
+        filterPresetContainer.addSubview(filterPresetHeader)
+        filterPresetHeader.addSubview(filterPresetTitleLabel)
+        filterPresetHeader.addSubview(lutTitleLable)
+        filterPresetContainer.addSubview(filterValuesCollectionView)
     }
     
     override func configureLayout() {
@@ -172,6 +231,31 @@ final class DetailViewController: BaseViewController {
         metadataView.snp.makeConstraints { make in
             make.horizontalEdges.equalToSuperview().inset(20)
         }
+        
+        filterPresetContainer.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+        }
+        
+        filterPresetHeader.snp.makeConstraints { make in
+            make.top.horizontalEdges.equalToSuperview()
+        }
+        
+        filterPresetTitleLabel.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview().inset(8)
+            make.leading.equalToSuperview().inset(12)
+        }
+        
+        lutTitleLable.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview().inset(8)
+            make.trailing.equalToSuperview().inset(12)
+        }
+        
+        filterValuesCollectionView.snp.makeConstraints { make in
+            make.top.equalTo(filterPresetHeader.snp.bottom)
+            make.horizontalEdges.bottom.equalToSuperview()
+            make.bottom.equalToSuperview()
+            filterValuesHeightConstraint = make.height.equalTo(0).constraint
+        }
     }
     
     override func configureView() {
@@ -197,6 +281,22 @@ final class DetailViewController: BaseViewController {
                 }else{
                     owner.metadataView.showEmptyMetadata()
                 }
+            }
+            .disposed(by: disposeBag)
+
+        output.filterValueItems
+            .drive(with: self) { owner, items in
+                owner.filterValueItemsRelay.accept(items)
+                owner.updateFilterValuesLayout()
+            }
+            .disposed(by: disposeBag)
+
+        output.filterValueItems
+            .drive(filterValuesCollectionView.rx.items(
+                cellIdentifier: FilterValueCollectionViewCell.identifier,
+                cellType: FilterValueCollectionViewCell.self
+            )) { _, item, cell in
+                cell.configure(iconName: item.iconName, valueText: item.valueText)
             }
             .disposed(by: disposeBag)
         
@@ -267,6 +367,21 @@ final class DetailViewController: BaseViewController {
             let jo = count / 1_000_000_000_000
             return "\(jo)조+"
         }
+    }
+
+    private func updateFilterValuesLayout() {
+        guard let layout = filterValuesCollectionView.collectionViewLayout as? UICollectionViewFlowLayout else { return }
+        let columns: CGFloat = 6
+        let padding: CGFloat = 20.0
+        let totalSpacing = layout.minimumInteritemSpacing * (columns - 1)
+        let availableWidth = filterValuesCollectionView.bounds.width - totalSpacing - (2 * padding)
+        let itemWidth = floor(availableWidth / columns)
+        let labelHeight = UIFont.Pretendard.body2?.lineHeight ?? 16
+        let itemHeight = 32 + 6 + labelHeight
+        layout.itemSize = CGSize(width: itemWidth, height: itemHeight)
+        let rows = ceil(CGFloat(filterValueItemsRelay.value.count) / columns)
+        let totalHeight = rows * itemHeight + max(0, rows - 1) * layout.minimumLineSpacing + (2 * padding)
+        filterValuesHeightConstraint?.update(offset: totalHeight)
     }
 
     private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
