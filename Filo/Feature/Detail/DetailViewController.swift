@@ -33,15 +33,77 @@ final class DetailViewController: BaseViewController {
     
     private let filterImageContainer: UIView = {
         let view = UIView()
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 12
         return view
     }()
     
-    private let filterImageView: UIImageView = {
+    private let originalImageView: UIImageView = {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
-        view.layer.cornerRadius = 12
         view.clipsToBounds = true
         return view
+    }()
+    
+    private let filteredImageView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .scaleAspectFill
+        view.clipsToBounds = true
+        return view
+    }()
+    
+    private let compareHandleStackView: UIStackView = {
+        let view = UIStackView()
+        view.backgroundColor = .clear
+        view.spacing = 8
+        view.axis = .horizontal
+        view.alignment = .center
+        return view
+    }()
+    
+    private let compareAfterLabelBox: UIView = {
+        let view = UIView()
+        view.backgroundColor = GrayStyle.gray75.color?.withAlphaComponent(0.5)
+        view.layer.cornerRadius = 12
+        return view
+    }()
+    
+    private let compareAfterLabel: UILabel = {
+        let label = UILabel()
+        label.text = "After"
+        label.font = .Pretendard.caption2
+        label.textAlignment = .center
+        label.textColor = GrayStyle.gray60.color
+        return label
+    }()
+    
+    private let compareBeforeBox: UIView = {
+        let view = UIView()
+        view.backgroundColor = GrayStyle.gray75.color?.withAlphaComponent(0.5)
+        view.layer.cornerRadius = 12
+        return view
+    }()
+    
+    private let compareBeforeLabel: UILabel = {
+        let label = UILabel()
+        label.text = "Before"
+        label.font = .Pretendard.caption2
+        label.textAlignment = .center
+        label.textColor = GrayStyle.gray60.color
+        return label
+    }()
+    
+    private let compareDragButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.cornerStyle = .capsule
+        config.image = UIImage(named: "arrowtriangle.up.fill")
+        config.baseForegroundColor = GrayStyle.gray60.color
+        config.baseBackgroundColor = GrayStyle.gray75.color?.withAlphaComponent(0.5)
+        config.cornerStyle = .capsule
+        config.background.strokeWidth = 2.0
+        config.background.strokeColor = GrayStyle.gray75.color
+        let button = UIButton(configuration: config)
+        return button
     }()
     
     private let dividerView: UIView = {
@@ -94,7 +156,7 @@ final class DetailViewController: BaseViewController {
         view.alignment = .center
         return view
     }()
-
+    
     private let downloadCountLabel: UILabel = {
         let label = UILabel()
         label.font = .Pretendard.title1
@@ -102,7 +164,7 @@ final class DetailViewController: BaseViewController {
         label.text = "0"
         return label
     }()
-
+    
     private let likeCountLabel: UILabel = {
         let label = UILabel()
         label.font = .Pretendard.title1
@@ -115,6 +177,9 @@ final class DetailViewController: BaseViewController {
     
     private var filterValuesHeightConstraint: Constraint?
     private let filterValueItemsRelay = BehaviorRelay<[FilterValuesEntity]>(value: [])
+    
+    private var compareHandleCenterXConstraint: Constraint?
+    private var compareProgress: CGFloat = 0.5
     
     private let filterPresetContainer: UIView = {
         let view = UIView()
@@ -168,7 +233,7 @@ final class DetailViewController: BaseViewController {
         view.scalesLargeContentImage = true
         return view
     }()
-
+    
     private let filterValuesOverlayView: UIView = {
         let view = UIView()
         view.backgroundColor = UIColor(red: 0.176, green: 0.188, blue: 0.192, alpha: 0.9)
@@ -276,7 +341,7 @@ final class DetailViewController: BaseViewController {
         layout.scrollDirection = .horizontal
         layout.minimumLineSpacing = 4
         layout.estimatedItemSize = UICollectionViewFlowLayout.automaticSize
-
+        
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.register(TodayAuthorHashtagCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorHashtagCollectionViewCell.identifier)
         view.showsHorizontalScrollIndicator = false
@@ -298,6 +363,7 @@ final class DetailViewController: BaseViewController {
         return font.lineHeight + 8
     }
     
+    let comparePan = UIPanGestureRecognizer()
     let viewModel: DetailViewModel
     
     init(viewModel: DetailViewModel) {
@@ -308,13 +374,21 @@ final class DetailViewController: BaseViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateFilterValuesLayout()
+        updateCompareMask()
     }
     
     override func configureHierarchy() {
         view.addSubview(detailScrollView)
         detailScrollView.addSubview(detailStackView)
         detailStackView.addArrangedSubview(filterImageContainer)
-        filterImageContainer.addSubview(filterImageView)
+        filterImageContainer.addSubview(originalImageView)
+        filterImageContainer.addSubview(filteredImageView)
+        filterImageContainer.addSubview(compareHandleStackView)
+        compareHandleStackView.addArrangedSubview(compareAfterLabelBox)
+        compareAfterLabelBox.addSubview(compareAfterLabel)
+        compareHandleStackView.addArrangedSubview(compareDragButton)
+        compareHandleStackView.addArrangedSubview(compareBeforeBox)
+        compareBeforeBox.addSubview(compareBeforeLabel)
         
         detailStackView.addArrangedSubview(dividerView)
         
@@ -370,10 +444,46 @@ final class DetailViewController: BaseViewController {
             make.horizontalEdges.equalToSuperview()
         }
         
-        filterImageView.snp.makeConstraints { make in
+        originalImageView.snp.makeConstraints { make in
             make.top.horizontalEdges.equalToSuperview().inset(20)
-            make.height.equalTo(filterImageView.snp.width)
-            make.bottom.equalToSuperview() //수정해야함
+            make.size.equalTo(originalImageView.snp.width)
+        }
+        
+        filteredImageView.snp.makeConstraints { make in
+            make.edges.equalTo(originalImageView)
+        }
+        
+        compareHandleStackView.snp.makeConstraints { make in
+            make.top.equalTo(originalImageView.snp.bottom).offset(16)
+            compareHandleCenterXConstraint = make.centerX.equalTo(originalImageView).constraint
+            make.height.equalTo(24)
+            make.bottom.equalToSuperview()
+        }
+        
+        compareAfterLabel.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview().inset(2)
+            make.horizontalEdges.equalToSuperview().inset(8)
+        }
+        
+        compareDragButton.snp.makeConstraints { make in
+            make.size.equalTo(24)
+        }
+        
+        compareBeforeLabel.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview().inset(2)
+            make.horizontalEdges.equalToSuperview().inset(8)
+        }
+        
+        compareAfterLabelBox.snp.makeConstraints { make in
+            make.height.equalTo(24)
+        }
+        
+        compareBeforeBox.snp.makeConstraints { make in
+            make.height.equalTo(24)
+        }
+        
+        compareAfterLabelBox.snp.makeConstraints { make in
+            make.width.equalTo(compareBeforeBox)
         }
         
         dividerView.snp.makeConstraints { make in
@@ -432,7 +542,7 @@ final class DetailViewController: BaseViewController {
         filterValuesBlurView.snp.makeConstraints { make in
             make.edges.equalTo(filterValuesCollectionView)
         }
-
+        
         filterValuesOverlayView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
@@ -491,6 +601,7 @@ final class DetailViewController: BaseViewController {
         navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
         navigationItem.leftBarButtonItem = UIBarButtonItem(image: .chevron)
         navigationItem.leftBarButtonItem?.tintColor = GrayStyle.gray75.color
+        compareDragButton.addGestureRecognizer(comparePan)
         metadataView.setReadOnlyMetadataMode()
     }
     
@@ -502,7 +613,10 @@ final class DetailViewController: BaseViewController {
         output.filterDetailData
             .drive(with: self){ owner, data in
                 owner.navigationItem.title = data.title
-                owner.filterImageView.setKFImage(urlString: data.files[0])
+                let originalURL = data.files[0]
+                let filteredURL = data.files[1]
+                owner.originalImageView.setKFImage(urlString: originalURL)
+                owner.filteredImageView.setKFImage(urlString: filteredURL)
                 owner.coinLabel.text = "\(data.price)".formattedDecimal()
                 if let metadata = owner.makeMetadata(from: data) {
                     owner.metadataView.applyMetadata(metadata)
@@ -521,6 +635,7 @@ final class DetailViewController: BaseViewController {
                 owner.authorName.text = data.creator.name
                 owner.authorNickname.text = data.creator.nick
                 owner.authorDescriptionLabel.text = data.creator.introduction
+                owner.updateCompareMask()
             }
             .disposed(by: disposeBag)
         
@@ -547,6 +662,18 @@ final class DetailViewController: BaseViewController {
             )) { _, item, cell in
                 cell.configure(iconName: item.iconName, valueText: item.valueText)
             }
+            .disposed(by: disposeBag)
+
+        comparePan.rx.event
+            .observe(on: MainScheduler.instance)
+            .subscribe(with: self, onNext: { owner, gesture in
+                let location = gesture.location(in: owner.originalImageView)
+                let width = owner.originalImageView.bounds.width
+                guard width > 0 else { return }
+                let clampedX = min(max(location.x, 0), width)
+                owner.compareProgress = clampedX / width
+                owner.updateCompareMask()
+            })
             .disposed(by: disposeBag)
         
         navigationItem.leftBarButtonItem?.rx.tap
@@ -624,7 +751,35 @@ final class DetailViewController: BaseViewController {
         let totalHeight = rows * itemHeight + max(0, rows - 1) * layout.minimumLineSpacing + (2 * padding)
         filterValuesHeightConstraint?.update(offset: totalHeight)
     }
+    
+    private func updateCompareMask() {
+        let width = originalImageView.bounds.width
+        let height = originalImageView.bounds.height
+        guard width > 0 && height > 0 else { return }
 
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        let x = width * compareProgress
+        let maskLayer: CALayer
+        if let existing = filteredImageView.layer.mask {
+            maskLayer = existing
+        } else {
+            maskLayer = CALayer()
+            maskLayer.backgroundColor = UIColor.black.cgColor
+            filteredImageView.layer.mask = maskLayer
+        }
+        maskLayer.frame = CGRect(x: 0, y: 0, width: x, height: height)
+        
+        let halfHandle = max(compareDragButton.bounds.width / 2.0, 0)
+        let clampedHandleX = min(max(x, halfHandle), width - halfHandle)
+        let offset = clampedHandleX - (width / 2.0)
+        compareHandleCenterXConstraint?.update(offset: offset)
+        filterImageContainer.layoutIfNeeded()
+
+        CATransaction.commit()
+    }
+    
     private func downloadCheck(_ isDownload: Bool) {
         filterValuesBlurView.isHidden = isDownload
         if isDownload{
@@ -638,7 +793,7 @@ final class DetailViewController: BaseViewController {
         }
         buyButton.isUserInteractionEnabled = !isDownload
     }
-
+    
     private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
         guard let meta = dto.photometadata else { return nil }
         let (make, model) = splitCamera(meta.camera)
