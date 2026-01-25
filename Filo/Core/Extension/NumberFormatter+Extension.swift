@@ -27,3 +27,9 @@ extension String {
         return NumberFormatter.decimalFormatter.string(from: NSNumber(value: value)) ?? digits
     }
 }
+
+extension Int{
+    func formattedDecimal() -> String{
+        return NumberFormatter.decimalFormatter.string(from: NSNumber(value: self)) ?? "\(self)"
+    }
+}
