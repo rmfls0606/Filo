@@ -38,7 +38,6 @@ final class DetailViewController: BaseViewController {
     
     private let filterImageView: UIImageView = {
         let view = UIImageView()
-        view.backgroundColor = .orange
         view.contentMode = .scaleAspectFill
         view.layer.cornerRadius = 12
         view.clipsToBounds = true
@@ -51,11 +50,17 @@ final class DetailViewController: BaseViewController {
         return view
     }()
     
+    private let coinContainer: UIView = {
+        let view = UIView()
+        return view
+    }()
+    
     private let coinStackView: UIStackView = {
         let view = UIStackView()
         view.axis = .horizontal
         view.spacing = 8
         view.alignment = .bottom
+        view.distribution = .fill
         return view
     }()
     
@@ -90,6 +95,8 @@ final class DetailViewController: BaseViewController {
         return view
     }()
     
+    private let metadataView = FilterImageRegisterView()
+    
     let viewModel: DetailViewModel
     
     init(viewModel: DetailViewModel) {
@@ -105,14 +112,17 @@ final class DetailViewController: BaseViewController {
         
         detailStackView.addArrangedSubview(dividerView)
         
-        detailStackView.addArrangedSubview(coinStackView)
+        detailStackView.addArrangedSubview(coinContainer)
+        coinContainer.addSubview(coinStackView)
         coinStackView.addArrangedSubview(coinLabel)
         coinStackView.addArrangedSubview(coinUnitLabel)
         
         detailStackView.addArrangedSubview(filterInfoContainer)
         filterInfoContainer.addSubview(filterInfoStackView)
-        filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "다운로드", count: 100000000))
+        filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "다운로드", count: 2400))
         filterInfoStackView.addArrangedSubview(makeFilterInfoBoxView(title: "찜하기", count: 800))
+        
+        detailStackView.addArrangedSubview(metadataView)
     }
     
     override func configureLayout() {
@@ -121,7 +131,7 @@ final class DetailViewController: BaseViewController {
         }
         
         detailStackView.snp.makeConstraints { make in
-            make.height.equalTo(detailScrollView.contentLayoutGuide)
+            make.edges.equalTo(detailScrollView.contentLayoutGuide)
             make.width.equalTo(detailScrollView.frameLayoutGuide)
         }
         
@@ -140,11 +150,13 @@ final class DetailViewController: BaseViewController {
             make.height.equalTo(1)
         }
         
-        coinStackView.snp.makeConstraints { make in
+        coinContainer.snp.makeConstraints { make in
             make.horizontalEdges.equalToSuperview().inset(20)
         }
         
-        coinUnitLabel.snp.makeConstraints { make in
+        coinStackView.snp.makeConstraints { make in
+            make.verticalEdges.equalToSuperview()
+            make.leading.equalToSuperview()
             make.trailing.lessThanOrEqualToSuperview()
         }
         
@@ -156,17 +168,44 @@ final class DetailViewController: BaseViewController {
             make.verticalEdges.leading.equalToSuperview()
             make.trailing.lessThanOrEqualToSuperview()
         }
+        
+        metadataView.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+        }
     }
     
     override func configureView() {
-        navigationItem.title = "청록새록" //수정
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: .likeEmpty)
         navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
         navigationItem.leftBarButtonItem = UIBarButtonItem(image: .chevron)
         navigationItem.leftBarButtonItem?.tintColor = GrayStyle.gray75.color
+        metadataView.setReadOnlyMetadataMode()
     }
     
-    override func configureBind() {}
+    override func configureBind() {
+        let input = DetailViewModel.Input()
+        
+        let output = viewModel.transform(input: input)
+        
+        output.filterDetailData
+            .drive(with: self){ owner, data in
+                owner.navigationItem.title = data.title
+                owner.filterImageView.setKFImage(urlString: data.files[0])
+                owner.coinLabel.text = "\(data.price)".formattedDecimal()
+                if let metadata = owner.makeMetadata(from: data) {
+                    owner.metadataView.applyMetadata(metadata)
+                }else{
+                    owner.metadataView.showEmptyMetadata()
+                }
+            }
+            .disposed(by: disposeBag)
+        
+        navigationItem.leftBarButtonItem?.rx.tap
+            .bind(with: self, onNext: { owner, _ in
+                owner.navigationController?.popViewController(animated: true)
+            })
+            .disposed(by: disposeBag)
+    }
     
     private func makeFilterInfoBoxView(title: String, count: Int = 0) -> UIView{
         let infoContainer: UIView = {
@@ -228,5 +267,47 @@ final class DetailViewController: BaseViewController {
             let jo = count / 1_000_000_000_000
             return "\(jo)조+"
         }
+    }
+
+    private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
+        guard let meta = dto.photometadata else { return nil }
+        let (make, model) = splitCamera(meta.camera)
+        let lensModel = meta.lensInfo.isEmpty ? nil : meta.lensInfo
+        let megaPixel: Double?
+        if let width = meta.pixelWidth, let height = meta.pixelHeight {
+            megaPixel = Double(width * height) / 1_000_000.0
+        } else {
+            megaPixel = nil
+        }
+        let fileSizeMB = meta.fileSize.map { fileSizeString(fromBytes: Int($0)) }
+        return FilterImageMetadata(
+            make: make,
+            model: model,
+            lensModel: lensModel,
+            focalLength: meta.focalLength,
+            fNumber: meta.aperture,
+            iso: meta.iso,
+            megaPixel: megaPixel,
+            width: meta.pixelWidth,
+            height: meta.pixelHeight,
+            fileSizeMB: fileSizeMB,
+            latitude: meta.latitude,
+            longitude: meta.longitude,
+            address: nil
+        )
+    }
+    
+    private func splitCamera(_ camera: String?) -> (String?, String?) {
+        guard let camera, !camera.isEmpty else { return (nil, nil) }
+        if let space = camera.firstIndex(of: " ") {
+            let make = String(camera[..<space])
+            let model = String(camera[camera.index(after: space)...])
+            return (make, model)
+        }
+        return (nil, camera)
+    }
+    
+    private func fileSizeString(fromBytes byteCount: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(byteCount), countStyle: .file)
     }
 }

@@ -311,6 +311,11 @@ final class FilterImageRegisterView: BaseView {
     func setImage(_ image: UIImage){
         stateRelay.accept(.filled(image))
     }
+
+    func setReadOnlyMetadataMode() {
+        tapButton.isHidden = true
+        containerView.isHidden = true
+    }
     
     func applyMetadata(_ metadata: FilterImageMetadata?) {
         guard let metadata else {
@@ -362,6 +367,14 @@ final class FilterImageRegisterView: BaseView {
             mapPlaceholderStack.isHidden = false
             locationLabel.text = "위치 정보 없음"
         }
+        metadataContainer.isHidden = false
+    }
+
+    func showEmptyMetadata() {
+        deviceLabel.text = "카메라 정보 없음"
+        cameraLabel.text = "렌즈 정보 없음"
+        detailLabel.text = "메타데이터 없음"
+        mapImageView.image = nil
         metadataContainer.isHidden = false
     }
 
