@@ -14,6 +14,10 @@ final class HotTrendView: BaseView {
     //MARK: - Properties
     private let disposeBag = DisposeBag()
     
+    var hotTrendValueRelay: ControlEvent<FilterSummaryResponseEntity>{
+        return collectionView.rx.modelSelected(FilterSummaryResponseEntity.self)
+    }
+    
     //MARK: - UI
     private let hotTrendTitle: UILabel = {
         let label = UILabel()
