@@ -25,12 +25,14 @@ final class DetailViewModel: ViewModelType {
     struct Output{
         let filterDetailData: Driver<FilterResponseDTO>
         let filterValueItems: Driver<[FilterValuesEntity]>
+        let creatorHashTags: Driver<[String]>
     }
     
     func transform(input: Input) -> Output {
         let filterDetailDataRelay = PublishRelay<FilterResponseDTO>()
         let networkErrorRelay = PublishRelay<NetworkError>()
         let filterValueItemsRelay = PublishRelay<[FilterValuesEntity]>()
+        let creatorHashTagsRelay = PublishRelay<[String]>()
         
         filterIdRelay
             .subscribe(onNext: { filterId in
@@ -39,6 +41,7 @@ final class DetailViewModel: ViewModelType {
                         let dto: FilterResponseDTO = try await NetworkManager.shared.request(FilterRouter.detailFilter(filterId: filterId))
                         filterDetailDataRelay.accept(dto)
                         filterValueItemsRelay.accept(dto.filterValues.toEntity())
+                        creatorHashTagsRelay.accept(dto.creator.hashTags)
                     }catch(let error as NetworkError){
                         print(error)
                         networkErrorRelay.accept(error)
@@ -51,7 +54,8 @@ final class DetailViewModel: ViewModelType {
         
         return Output(
             filterDetailData: filterDetailDataRelay.asDriver(onErrorDriveWith: .empty()),
-            filterValueItems: filterValueItemsRelay.asDriver(onErrorDriveWith: .empty())
+            filterValueItems: filterValueItemsRelay.asDriver(onErrorDriveWith: .empty()),
+            creatorHashTags: creatorHashTagsRelay.asDriver(onErrorDriveWith: .empty())
         )
     }
 }
