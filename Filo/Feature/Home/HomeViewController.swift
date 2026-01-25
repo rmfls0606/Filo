@@ -219,14 +219,14 @@ final class HomeViewController: BaseViewController {
     }
     
     override func configureView() {
-        navigationController?.navigationBar.isHidden = true
-        
         gradientView.frame = todayFilterImageView.bounds
         gradientView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     }
     
     override func configureBind() {
-        let input = HomeViewModel.Input()
+        let input = HomeViewModel.Input(
+            selectedHotTrendItem: hotTrendView.hotTrendValueRelay
+        )
         let output = viewModel.transform(input: input)
         
         output.filterCategories
@@ -246,6 +246,14 @@ final class HomeViewController: BaseViewController {
         bannerView.bind(items: output.bannerItems)
 
         hotTrendView.bind(items: output.hotTrendItems)
+        
+        output.hotTrendItem
+            .drive(with: self){ owenr, filterId in
+                let vm = DetailViewModel(filterId: filterId)
+                let vc = DetailViewController(viewModel: vm)
+                owenr.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
         
         todayAuthorView.bind(items: output.todayAuthorData)
     }
