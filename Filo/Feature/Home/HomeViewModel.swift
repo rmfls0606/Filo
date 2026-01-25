@@ -14,7 +14,7 @@ final class HomeViewModel: ViewModelType{
     private let disposeBag = DisposeBag()
     
     struct Input{
-        
+        let selectedHotTrendItem: ControlEvent<FilterSummaryResponseEntity>
     }
     
     struct Output{
@@ -23,6 +23,7 @@ final class HomeViewModel: ViewModelType{
         let hotTrendItems: Driver<[FilterSummaryResponseEntity]>
         let todayAuthorData: Driver<TodayAuthorResponseEntity>
         let bannerItems: Driver<BannerListResponseEntity>
+        let hotTrendItem: Driver<String>
     }
     
     func transform(input: Input) -> Output {
@@ -32,6 +33,7 @@ final class HomeViewModel: ViewModelType{
         let todayAuthorRelay = PublishRelay<TodayAuthorResponseEntity>()
         let bannerRelay = PublishRelay<BannerListResponseEntity>()
         let networkErrorRelay = PublishRelay<NetworkError>()
+        let selectedHotTrendItemRelay = PublishRelay<String>()
         
         Task{
             do{
@@ -77,12 +79,18 @@ final class HomeViewModel: ViewModelType{
             }
         }
         
+        input.selectedHotTrendItem
+            .map{ $0.filterId }
+            .bind(to: selectedHotTrendItemRelay)
+            .disposed(by: disposeBag)
+        
         return Output(
             filterCategories: filterCategoriesRelay.asDriver(),
             todayFilterData: todayFilterRelay.asDriver(onErrorDriveWith: .empty()),
             hotTrendItems: hotTrendRelay.asDriver(onErrorDriveWith: .empty()),
             todayAuthorData: todayAuthorRelay.asDriver(onErrorDriveWith: .empty()),
-            bannerItems: bannerRelay.asDriver(onErrorDriveWith: .empty())
+            bannerItems: bannerRelay.asDriver(onErrorDriveWith: .empty()),
+            hotTrendItem: selectedHotTrendItemRelay.asDriver(onErrorDriveWith: .empty())
         )
     }
 }
