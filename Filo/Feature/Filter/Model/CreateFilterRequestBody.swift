@@ -15,35 +15,45 @@ struct CreateFilterRequestBody: Encodable{
     let files: [String]
     let photo_metadata: CreateFilterMetadata
     let filter_values: CreateFilterValues
+
+    private enum CodingKeys: String, CodingKey {
+        case category
+        case title
+        case price
+        case description
+        case files
+        case photo_metadata = "photo_metadata"
+        case filter_values = "filter_values"
+    }
 }
 
 struct CreateFilterMetadata: Encodable{
     let camera: String?
-    let lens_info: String?
-    let focal_length: Double?
+    let lensInfo: String?
+    let focalLength: Double?
     let aperture: Double?
     let iso: Int?
     let shutterSpeed: String?
-    let pixel_width: Int?
-    let pixel_height: Int?
-    let file_size: Double?
+    let pixelWidth: Int?
+    let pixelHeight: Int?
+    let fileSize: Double?
     let format: String?
-    let date_title_original: String
+    let dateTimeOriginal: String?
     let latitude: Double?
     let longitude: Double?
 
     private enum CodingKeys: String, CodingKey {
         case camera
-        case lens_info
-        case focal_length
+        case lensInfo = "lens_info"
+        case focalLength = "focal_length"
         case aperture
         case iso
         case shutterSpeed = "shutter_speed"
-        case pixel_width
-        case pixel_height
-        case file_size
+        case pixelWidth = "pixel_width"
+        case pixelHeight = "pixel_height"
+        case fileSize = "file_size"
         case format
-        case date_title_original
+        case dateTimeOriginal = "date_time_original"
         case latitude
         case longitude
     }
