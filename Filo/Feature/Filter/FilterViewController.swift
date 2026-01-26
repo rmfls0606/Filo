@@ -166,6 +166,7 @@ final class FilterViewController: BaseViewController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(named: "save"))
         navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
         view.backgroundColor = .black
+        filterViewTapGesture.cancelsTouchesInView = false
         
         filterPriceTextField.rightView = priceUnitView
         filterPriceTextField.rightViewMode = .always
@@ -184,7 +185,11 @@ final class FilterViewController: BaseViewController {
             imageSelected: imageSelectedRelay.asObservable(),
             editResult: editResultRelay.asObservable(),
             assetIdentifier: assetIdentifierRelay.asObservable(),
-            priceInputText: filterPriceTextField.rx.text.orEmpty
+            filterNameText: filterNameTextField.rx.text.orEmpty,
+            filterIntroduceText: filterIntroduceTextField.rx.text.orEmpty,
+            priceInputText: filterPriceTextField.rx.text.orEmpty,
+            saveButtonTapped: navigationItem.rightBarButtonItem?
+                .rx.tap
         )
         
         let output = viewModel.transform(input: input)
@@ -215,6 +220,15 @@ final class FilterViewController: BaseViewController {
 
         output.priceNumberText
             .drive(filterPriceTextField.rx.text)
+            .disposed(by: disposeBag)
+
+        output.saveEnabled
+            .drive(with: self) { owner, isEnabled in
+                owner.navigationItem.rightBarButtonItem?.isEnabled = isEnabled
+                owner.navigationItem.rightBarButtonItem?.tintColor = isEnabled
+                ? GrayStyle.gray75.color
+                : GrayStyle.gray60.color?.withAlphaComponent(0.4)
+            }
             .disposed(by: disposeBag)
 
         filterNameTextField.rx.controlEvent(.editingDidEndOnExit)
