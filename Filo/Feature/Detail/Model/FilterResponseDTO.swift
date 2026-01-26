@@ -15,7 +15,7 @@ struct FilterResponseDTO: Decodable, Sendable{
     let files: [String]
     let price: Int
     let creator: UserInfoResponseDTO
-    let photometadata: PhotoMetadataDTO?
+    let photoMetadata: PhotoMetadataDTO?
     let filterValues: FilterValuesDTO
     let isLiked: Bool
     let isDownloaded: Bool
@@ -33,7 +33,7 @@ struct FilterResponseDTO: Decodable, Sendable{
         case files
         case price
         case creator
-        case photometadata
+        case photoMetadata
         case filterValues
         case isLiked = "is_liked"
         case isDownloaded = "is_downloaded"
@@ -47,7 +47,7 @@ struct FilterResponseDTO: Decodable, Sendable{
 
 struct PhotoMetadataDTO: Decodable, Sendable{
     let camera: String?
-    let lensInfo: String
+    let lensInfo: String?
     let focalLength: Double?
     let aperture: Double?
     let iso: Int?
