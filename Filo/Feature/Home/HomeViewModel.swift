@@ -60,8 +60,11 @@ final class HomeViewModel: ViewModelType{
         Task{
             do{
                 let dto: FilterSummaryListResponseDTO = try await NetworkManager.shared.request(FilterRouter.hotTrend)
-                
-                hotTrendRelay.accept(dto.data.map{ $0.toEntity() })
+                let entities = dto.data.map { $0.toEntity() }
+                entities.forEach { item in
+                    LikeStore.shared.setLiked(id: item.filterId, liked: item.isLiked, count: item.likeCount)
+                }
+                hotTrendRelay.accept(entities)
             }catch(let error as NetworkError){
                 print(error)
                 networkErrorRelay.accept(error)
