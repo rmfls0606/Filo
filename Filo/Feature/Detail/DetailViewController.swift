@@ -609,7 +609,9 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     }
     
     override func configureBind() {
-        let input = DetailViewModel.Input()
+        let input = DetailViewModel.Input(
+            likeTapped: navigationItem.rightBarButtonItem?.rx.tap
+        )
         
         let output = viewModel.transform(input: input)
         
@@ -639,6 +641,18 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.authorNickname.text = data.creator.nick
                 owner.authorDescriptionLabel.text = data.creator.introduction
                 owner.updateCompareMask()
+            }
+            .disposed(by: disposeBag)
+
+        output.likeState
+            .drive(with: self) { owner, state in
+                owner.navigationItem.rightBarButtonItem?.image = state ? UIImage(named: "like_Fill") : UIImage(named: "like_Empty")
+            }
+            .disposed(by: disposeBag)
+
+        output.likeCount
+            .drive(with: self) { owner, count in
+                owner.likeCountLabel.text = owner.formattedCount(count)
             }
             .disposed(by: disposeBag)
         
