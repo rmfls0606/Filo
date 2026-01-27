@@ -124,6 +124,19 @@ final class FeedBlockCollectionViewCell: BaseCollectionViewCell {
         thumbnailImageView.setKFImage(urlString: item.files[1])
         titleLabel.text = item.title
         nicknameLabel.text = item.creator.nick
+
+        Observable
+            .combineLatest(LikeStore.shared.likedIds, LikeStore.shared.likeCounts)
+            .compactMap { likedIds, counts -> (Bool, Int)? in
+                guard let count = counts[item.filterId] else { return nil }
+                let liked = likedIds.contains(item.filterId)
+                return (liked, count)
+            }
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] liked, count in
+                self?.setLiked(liked, count)
+            })
+            .disposed(by: disposeBag)
     }
     
     func setLiked(_ isLiked: Bool, _ likeCount: Int) {

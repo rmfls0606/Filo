@@ -150,6 +150,18 @@ final class FeedListTableViewCell: BaseTableViewCell {
         }
         nicknameLabel.text = item.creator.nick
         descriptionLabel.text = item.description
+
+        Observable
+            .combineLatest(LikeStore.shared.likedIds, LikeStore.shared.likeCounts)
+            .compactMap { likedIds, counts -> Bool? in
+                guard counts[item.filterId] != nil else { return nil }
+                return likedIds.contains(item.filterId)
+            }
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] liked in
+                self?.setLiked(liked)
+            })
+            .disposed(by: disposeBag)
     }
 
     func setLiked(_ isLiked: Bool) {
