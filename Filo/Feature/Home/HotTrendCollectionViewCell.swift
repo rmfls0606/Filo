@@ -7,8 +7,11 @@
 
 import UIKit
 import SnapKit
+import RxSwift
 
 final class HotTrendCollectionViewCell: BaseCollectionViewCell {
+    private var disposeBag = DisposeBag()
+    
     //MARK: - UI
     private let imageView: UIImageView = {
         let view = UIImageView()
@@ -48,6 +51,11 @@ final class HotTrendCollectionViewCell: BaseCollectionViewCell {
         return label
     }()
     
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        disposeBag = DisposeBag()
+    }
+    
     override func configureHierarchy() {
         contentView.addSubview(imageView)
         contentView.addSubview(titleLabel)
@@ -80,6 +88,19 @@ final class HotTrendCollectionViewCell: BaseCollectionViewCell {
     func configure(_ item: FilterSummaryResponseEntity) {
         imageView.setKFImage(urlString: item.files[1])
         titleLabel.text = item.title
-        likeCountText.text = "\(item.likeCount)"
+        
+        Observable
+            .combineLatest(LikeStore.shared.likedIds, LikeStore.shared.likeCounts)
+            .map { likedIds, counts -> (Bool, Int) in
+                let liked = likedIds.contains(item.filterId)
+                let count = counts[item.filterId] ?? item.likeCount
+                return (liked, count)
+            }
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] liked, count in
+                self?.likeIcon.image = UIImage(named: liked ? "like_Fill" : "like_Empty")
+                self?.likeCountText.text = "\(count)"
+            })
+            .disposed(by: disposeBag)
     }
 }
