@@ -19,6 +19,10 @@ final class LikeStore {
     var likedIds: Observable<Set<String>> {
         return likedIdsRelay.asObservable()
     }
+
+    var likeCounts: Observable<[String: Int]> {
+        return likeCountsRelay.asObservable()
+    }
     
     func setLiked(id: String, liked: Bool, count: Int) {
         var ids = likedIdsRelay.value
