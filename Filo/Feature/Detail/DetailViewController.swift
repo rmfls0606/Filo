@@ -10,7 +10,7 @@ import SnapKit
 import RxSwift
 import RxCocoa
 
-final class DetailViewController: BaseViewController {
+final class DetailViewController: BaseViewController, UICollectionViewDelegateFlowLayout {
     //MARK: - Properties
     private let disposeBag = DisposeBag()
     override var prefersCustomTabBarHidden: Bool{
@@ -344,7 +344,7 @@ final class DetailViewController: BaseViewController {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.minimumLineSpacing = 4
-        layout.estimatedItemSize = UICollectionViewFlowLayout.automaticSize
+        layout.estimatedItemSize = .zero
         
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.register(TodayAuthorHashtagCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorHashtagCollectionViewCell.identifier)
@@ -361,11 +361,10 @@ final class DetailViewController: BaseViewController {
     }()
     
     private var hashtagCollectionHeight: CGFloat {
-        guard let font = UIFont.Pretendard.caption1 else {
-            return 0
-        }
+        let font = UIFont.Pretendard.caption1 ?? UIFont.systemFont(ofSize: 12)
         return font.lineHeight + 8
     }
+    private var currentHashTags: [String] = []
     
     let comparePan = UIPanGestureRecognizer()
     let viewModel: DetailViewModel
@@ -644,6 +643,17 @@ final class DetailViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         output.creatorHashTags
+            .drive(with: self) { owner, tags in
+                owner.currentHashTags = tags
+                owner.hashtagCollectionView.collectionViewLayout.invalidateLayout()
+                owner.hashtagCollectionView.reloadData()
+            }
+            .disposed(by: disposeBag)
+
+        hashtagCollectionView.rx.setDelegate(self)
+            .disposed(by: disposeBag)
+
+        output.creatorHashTags
             .drive(hashtagCollectionView.rx.items(
                 cellIdentifier: TodayAuthorHashtagCollectionViewCell.identifier,
                 cellType: TodayAuthorHashtagCollectionViewCell.self
@@ -743,11 +753,14 @@ final class DetailViewController: BaseViewController {
 
     private func updateFilterValuesLayout() {
         guard let layout = filterValuesCollectionView.collectionViewLayout as? UICollectionViewFlowLayout else { return }
+        let boundsWidth = filterValuesCollectionView.bounds.width
+        guard boundsWidth > 0 else { return }
         let columns: CGFloat = 6
         let padding: CGFloat = 20.0
         let totalSpacing = layout.minimumInteritemSpacing * (columns - 1)
-        let availableWidth = filterValuesCollectionView.bounds.width - totalSpacing - (2 * padding)
+        let availableWidth = max(0, boundsWidth - totalSpacing - (2 * padding))
         let itemWidth = floor(availableWidth / columns)
+        guard itemWidth > 0 else { return }
         let labelHeight = UIFont.Pretendard.body2?.lineHeight ?? 16
         let itemHeight = 32 + 6 + labelHeight
         layout.itemSize = CGSize(width: itemWidth, height: itemHeight)
@@ -794,7 +807,22 @@ final class DetailViewController: BaseViewController {
     private func clamp(_ value: CGFloat) -> CGFloat {
         min(max(value, 0.0), 1.0)
     }
-    
+
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+        guard collectionView === hashtagCollectionView else { return .zero }
+        let font = UIFont.Pretendard.caption1 ?? UIFont.systemFont(ofSize: 12)
+        guard indexPath.item < currentHashTags.count else {
+            return CGSize(width: 44, height: hashtagCollectionHeight)
+        }
+        let raw = currentHashTags[indexPath.item]
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let display = normalized.isEmpty ? "#" : "#\(normalized)"
+        let width = (display as NSString).size(withAttributes: [.font: font]).width
+        return CGSize(width: ceil(width) + 32, height: hashtagCollectionHeight)
+    }
+
     private func downloadCheck(_ isDownload: Bool) {
         filterValuesBlurView.isHidden = isDownload
         if isDownload{
@@ -810,9 +838,9 @@ final class DetailViewController: BaseViewController {
     }
     
     private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
-        guard let meta = dto.photometadata else { return nil }
+        guard let meta = dto.photoMetadata else { return nil }
         let (make, model) = splitCamera(meta.camera)
-        let lensModel = meta.lensInfo.isEmpty ? nil : meta.lensInfo
+        let lensModel = ((meta.lensInfo?.isEmpty) != nil) ? nil : meta.lensInfo
         let megaPixel: Double?
         if let width = meta.pixelWidth, let height = meta.pixelHeight {
             megaPixel = Double(width * height) / 1_000_000.0
@@ -831,6 +859,10 @@ final class DetailViewController: BaseViewController {
             width: meta.pixelWidth,
             height: meta.pixelHeight,
             fileSizeMB: fileSizeMB,
+            fileSizeBytes: meta.fileSize,
+            format: meta.format,
+            dateTimeOriginal: meta.dateTimeOriginal,
+            shutterSpeed: meta.shutterSpeed,
             latitude: meta.latitude,
             longitude: meta.longitude,
             address: nil
