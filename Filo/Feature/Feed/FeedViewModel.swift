@@ -19,6 +19,7 @@ final class FeedViewModel: ViewModelType {
     
     struct Input{
         let orderByItemSelected: Observable<OrderByItem>
+        let feedCellTapped: Observable<FilterSummaryResponseEntity>
         let feedFilterModeSelected: ControlEvent<Void>
         let likeTapped: Observable<LikeInputTap>
     }
@@ -28,6 +29,7 @@ final class FeedViewModel: ViewModelType {
         let filtersData: Driver<FilterSummaryPaginationListResponseEntity>
         let feedFilterMode: Driver<Bool>
         let likeUIUpdate: Driver<OutputLikeUpdate>
+        let selectedFilterId: Driver<String>
     }
     
     func transform(input: Input) -> Output {
@@ -37,6 +39,7 @@ final class FeedViewModel: ViewModelType {
         let categoryRelay = BehaviorRelay<String>(value: category)
         let feedFileterModeRelay = BehaviorRelay<Bool>(value: true) //true: listMode, false: blockMode
         let likeUIUpdateRelay = PublishRelay<OutputLikeUpdate>()
+        let selectedFilterIdRelay = PublishRelay<String>()
         
         input.orderByItemSelected
             .bind(to: selectedOrderRelay)
@@ -146,6 +149,12 @@ final class FeedViewModel: ViewModelType {
             }
             .bind(to: likeUIUpdateRelay)
             .disposed(by: disposeBag)
+
+        input.feedCellTapped
+            .throttle(.milliseconds(500), scheduler: MainScheduler.instance)
+            .map { $0.filterId }
+            .bind(to: selectedFilterIdRelay)
+            .disposed(by: disposeBag)
         
         input.feedFilterModeSelected
             .withLatestFrom(feedFileterModeRelay)
@@ -157,7 +166,8 @@ final class FeedViewModel: ViewModelType {
             selectedOrder: selectedOrderRelay.asDriver(),
             filtersData: filtersDataRelay.asDriver(onErrorDriveWith: .empty()),
             feedFilterMode: feedFileterModeRelay.asDriver(),
-            likeUIUpdate: likeUIUpdateRelay.asDriver(onErrorDriveWith: .empty())
+            likeUIUpdate: likeUIUpdateRelay.asDriver(onErrorDriveWith: .empty()),
+            selectedFilterId: selectedFilterIdRelay.asDriver(onErrorDriveWith: .empty())
         )
     }
 }
