@@ -8,10 +8,13 @@
 import Alamofire
 
 enum UserRouter: APITarget{
+    case login(email: String, password: String)
     case todayAuthor
     
     var path: String{
         switch self {
+        case .login:
+            return "/users/login"
         case .todayAuthor:
             return "/users/today-author"
         }
@@ -19,6 +22,8 @@ enum UserRouter: APITarget{
     
     var method: HTTPMethod{
         switch self {
+        case .login:
+            return .post
         case .todayAuthor:
             return .get
         }
@@ -31,6 +36,10 @@ enum UserRouter: APITarget{
     
     var parameters: Parameters?{
         switch self {
+        case .login(let email, let password):
+            return ["email": email,
+                    "password": password,
+                    "deviceToken": NetworkConfig.apiKey]
         case .todayAuthor:
             return nil
         }
@@ -38,6 +47,8 @@ enum UserRouter: APITarget{
     
     var encoding: ParameterEncoding{
         switch self {
+        case .login:
+            return JSONEncoding.default
         case .todayAuthor:
             return URLEncoding.default
         }
