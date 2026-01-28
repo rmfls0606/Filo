@@ -226,8 +226,19 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
             }
         )
         
+        let selectedCell = Observable.merge(
+            rankingCollectionView.rx
+                .modelSelected((item: FilterSummaryResponseEntity, rank: Int).self)
+                .map{$0.item}
+                .asObservable(),
+            listTableView.rx.modelSelected(FilterSummaryResponseEntity.self).asObservable(),
+            blockCollectionView.rx.modelSelected(FilterSummaryResponseEntity.self).asObservable()
+        )
+        .share(replay: 1)
+        
         let input = FeedViewModel.Input(
             orderByItemSelected: orderByItemSelected,
+            feedCellTapped: selectedCell,
             feedFilterModeSelected: filterFeedModeText.rx.tap,
             likeTapped: likeTappedRelay.asObservable()
         )
@@ -296,6 +307,14 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
         output.likeUIUpdate
             .drive(with: self) { owner, update in
                 owner.applyLikeUpdate(update)
+            }
+            .disposed(by: disposeBag)
+
+        output.selectedFilterId
+            .drive(with: self) { owner, filterId in
+                let vm = DetailViewModel(filterId: filterId)
+                let vc = DetailViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
 
