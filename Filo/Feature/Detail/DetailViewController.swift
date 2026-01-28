@@ -618,10 +618,20 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         output.filterDetailData
             .drive(with: self){ owner, data in
                 owner.navigationItem.title = data.title
-                let originalURL = data.files[0]
-                let filteredURL = data.files[1]
-                owner.originalImageView.setKFImage(urlString: originalURL)
-                owner.filteredImageView.setKFImage(urlString: filteredURL)
+                owner.filterImageContainer.alpha = 0
+                let group = DispatchGroup()
+                group.enter()
+                owner.originalImageView.setKFImage(urlString: data.files[0]) { _ in
+                    group.leave()
+                }
+                group.enter()
+                owner.filteredImageView.setKFImage(urlString: data.files[1]) { _ in
+                    group.leave()
+                }
+                group.notify(queue: .main) {
+                    owner.filterImageContainer.alpha = 1
+                    owner.updateCompareMask()
+                }
                 owner.coinLabel.text = "\(data.price)".formattedDecimal()
                 if let metadata = owner.makeMetadata(from: data) {
                     owner.metadataView.applyMetadata(metadata)
@@ -640,7 +650,6 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.authorName.text = data.creator.name
                 owner.authorNickname.text = data.creator.nick
                 owner.authorDescriptionLabel.text = data.creator.introduction
-                owner.updateCompareMask()
             }
             .disposed(by: disposeBag)
 
