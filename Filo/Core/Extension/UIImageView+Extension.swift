@@ -38,4 +38,24 @@ extension UIImageView{
         kf.cancelDownloadTask()
         kf.setImage(with: resource, options: options)
     }
+
+    func setKFImage(urlString: String, completion: ((Result<RetrieveImageResult, KingfisherError>) -> Void)?){
+        guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
+
+        let targetSize = bounds.size == .zero ? frame.size : bounds.size
+        let processor = DownsamplingImageProcessor(size: targetSize)
+        let options: KingfisherOptionsInfo = [
+            .scaleFactor(UIScreen.main.scale),
+            .processor(processor),
+            .transition(.fade(0.3)),
+            .cacheOriginalImage,
+            .requestModifier(RequestModifier.modifer)
+        ]
+
+        let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
+        kf.cancelDownloadTask()
+        kf.setImage(with: resource, options: options) { result in
+            completion?(result)
+        }
+    }
 }
