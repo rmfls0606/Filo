@@ -49,6 +49,7 @@ final class RankingCollectionViewCell: BaseCollectionViewCell {
         label.textColor = GrayStyle.gray30.color
         label.textAlignment = .center
         label.numberOfLines = 2
+        label.lineBreakMode = .byClipping
         return label
     }()
 

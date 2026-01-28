@@ -53,7 +53,7 @@ final class FeedViewModel: ViewModelType {
             .subscribe(onNext: { parm in
                 Task{
                     do{
-                        let dto: FilterSummaryPaginationListResponseDTO = try await NetworkManager.shared.request(FilterRouter.filters(next: "", limit: "", category: parm.category, orderBy: parm.selected.orderByName))
+                        let dto: FilterSummaryPaginationListResponseDTO = try await NetworkManager.shared.request(FilterRouter.filters(next: "", limit: "30", category: parm.category, orderBy: parm.selected.orderByName))
                         let entity = dto.toEntity()
                         entity.data.forEach { item in
                             LikeStore.shared.setLiked(id: item.filterId, liked: item.isLiked, count: item.likeCount)

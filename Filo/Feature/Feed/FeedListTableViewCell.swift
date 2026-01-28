@@ -33,11 +33,8 @@ final class FeedListTableViewCell: BaseTableViewCell {
         return view
     }()
     
-    private let titleAndCategorykView: UIStackView = {
-        let view = UIStackView()
-        view.axis = .horizontal
-        view.spacing = 8
-        view.alignment = .center
+    private let titleAndCategorykView: UIView = {
+        let view = UIView()
         return view
     }()
     
@@ -45,6 +42,8 @@ final class FeedListTableViewCell: BaseTableViewCell {
         let label = UILabel()
         label.font = .Mulggeol.body1
         label.textColor = GrayStyle.gray30.color
+        label.numberOfLines = 1
+        label.lineBreakMode = .byClipping
         return label
     }()
     
@@ -95,8 +94,8 @@ final class FeedListTableViewCell: BaseTableViewCell {
         contentView.addSubview(textView)
         
         textView.addArrangedSubview(titleAndCategorykView)
-        titleAndCategorykView.addArrangedSubview(titleLabel)
-        titleAndCategorykView.addArrangedSubview(categoryLabelbox)
+        titleAndCategorykView.addSubview(titleLabel)
+        titleAndCategorykView.addSubview(categoryLabelbox)
         categoryLabelbox.addSubview(categoryLabel)
         textView.addArrangedSubview(nicknameLabel)
         textView.addArrangedSubview(descriptionLabel)
@@ -123,11 +122,17 @@ final class FeedListTableViewCell: BaseTableViewCell {
         }
         
         titleAndCategorykView.snp.makeConstraints { make in
-            make.leading.equalToSuperview()
-            make.trailing.lessThanOrEqualToSuperview()
+            make.top.equalToSuperview()
+            make.horizontalEdges.equalToSuperview()
+        }
+        
+        titleLabel.snp.makeConstraints { make in
+            make.verticalEdges.leading.equalToSuperview()
         }
         
         categoryLabelbox.snp.makeConstraints { make in
+            make.leading.equalTo(titleLabel.snp.trailing).offset(8)
+            make.verticalEdges.equalToSuperview()
             make.trailing.lessThanOrEqualToSuperview()
         }
         
