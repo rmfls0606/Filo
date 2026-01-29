@@ -48,8 +48,17 @@ final class LoginViewModel: ViewModelType {
                         let dto: LoginDTO = try await NetworkManager.shared.request(
                             UserRouter.login(email: trimmedEmail, password: password)
                         )
+                        try await TokenStorage.shared.save(
+                            access: dto.accessToken,
+                            refresh: dto.refreshToken,
+                            userId: dto.userId
+                        )
                         loginSuccessRelay.accept(())
                     } catch let error as NetworkError {
+                        loginErrorRelay.accept(error.localizedDescription)
+                    }catch let error as KeychainError{
+                        loginErrorRelay.accept(error.localizedDescription)
+                    } catch {
                         loginErrorRelay.accept(error.localizedDescription)
                     }
                 }
