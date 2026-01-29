@@ -21,9 +21,33 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         NavigationBarAppearance.configure()
         
         window = UIWindow(windowScene: uiWindowScene)
+        window?.rootViewController = UIViewController()
+        window?.makeKeyAndVisible()
         
-        let vc = MainTabBarController()
-        window?.rootViewController = vc
+        Task {
+            let refreshToken = await TokenStorage.shared.refreshToken()
+            if let refreshToken, !refreshToken.isEmpty {
+                do {
+                    _ = try await AuthService.shared.refreshAccessToken()
+                    await MainActor.run {
+                        self.setRootViewController(MainTabBarController())
+                    }
+                } catch {
+                    await TokenStorage.shared.clear()
+                    await MainActor.run {
+                        self.setRootViewController(LoginViewController())
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    self.setRootViewController(LoginViewController())
+                }
+            }
+        }
+    }
+
+    func setRootViewController(_ viewController: UIViewController) {
+        window?.rootViewController = viewController
         window?.makeKeyAndVisible()
     }
 
@@ -57,4 +81,3 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 
 }
-
