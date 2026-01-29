@@ -73,7 +73,7 @@ extension NetworkError{
     }
 }
 
-enum StatusCodeError: LocalizedError{
+enum StatusCodeError: LocalizedError, Equatable{
     case badRequest //400
     case unauthorized //401 - 유효하지 않은 accessToken일 경우
     case forbidden //403 - user_id 조회를 할 수 없는 경우
