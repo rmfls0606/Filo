@@ -11,6 +11,7 @@ enum UserRouter: APITarget{
     case login(email: String, password: String)
     case auth(refresh: String)
     case todayAuthor
+    case apple(idToken: String, deviceToken: String)
     
     var path: String{
         switch self {
@@ -20,12 +21,14 @@ enum UserRouter: APITarget{
             return "/auth/refresh"
         case .todayAuthor:
             return "/users/today-author"
+        case .apple:
+            return "/users/login/apple"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .login:
+        case .login, .apple:
             return .post
         case .auth, .todayAuthor:
             return .get
@@ -33,8 +36,15 @@ enum UserRouter: APITarget{
     }
     
     var headers: HTTPHeaders{
-        return ["Authorization": NetworkConfig.authorization,
-                "SeSACKey": NetworkConfig.apiKey]
+        switch self{
+        case .auth(let refresh):
+            return ["RefreshToken": refresh,
+                    "Authorization": NetworkConfig.authorization,
+                    "SeSACKey": NetworkConfig.apiKey]
+        default:
+            return ["Authorization": NetworkConfig.authorization,
+                    "SeSACKey": NetworkConfig.apiKey]
+        }
     }
     
     var parameters: Parameters?{
@@ -43,16 +53,17 @@ enum UserRouter: APITarget{
             return ["email": email,
                     "password": password,
                     "deviceToken": NetworkConfig.apiKey]
-        case .auth(let refresh):
-            return ["RefreshToken": refresh]
-        case .todayAuthor:
+        case .auth, .todayAuthor:
             return nil
+        case .apple(let idToken, let deviceToken):
+            return ["idToken": idToken,
+                    "deviceToken": deviceToken]
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .login, .auth:
+        case .login, .auth, .apple:
             return JSONEncoding.default
         case .todayAuthor:
             return URLEncoding.default
