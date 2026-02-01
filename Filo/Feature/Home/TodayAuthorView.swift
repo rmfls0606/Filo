@@ -13,6 +13,12 @@ import RxCocoa
 final class TodayAuthorView: BaseView {
     //MARK: - Properties
     private let disposeBag = DisposeBag()
+    private let tapGesture = UITapGestureRecognizer()
+    private let authorProfileTapRelay = PublishRelay<Void>()
+    
+    var authorProfileTap: Signal<Void> {
+        authorProfileTapRelay.asSignal()
+    }
     
     //MARK: - UI
     private let todayAuthorTitle: UILabel = {
@@ -191,6 +197,17 @@ final class TodayAuthorView: BaseView {
             make.horizontalEdges.equalToSuperview().inset(20)
             make.bottom.equalToSuperview()
         }
+    }
+
+    override func configureView() {
+        authorProfileBox.addGestureRecognizer(tapGesture)
+    }
+    
+    override func configureBind() {
+        tapGesture.rx.event
+            .map { _ in () }
+            .bind(to: authorProfileTapRelay)
+            .disposed(by: disposeBag)
     }
     
     func bind(items: Driver<TodayAuthorResponseEntity>){
