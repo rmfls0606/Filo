@@ -256,6 +256,13 @@ final class HomeViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         todayAuthorView.bind(items: output.todayAuthorData)
+
+        todayAuthorView.authorProfileTap
+            .emit(with: self) { owner, _ in
+                let vc = UserProfileViewController()
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
     }
     
     //MARK: - function
