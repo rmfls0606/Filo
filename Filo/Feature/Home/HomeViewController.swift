@@ -258,8 +258,10 @@ final class HomeViewController: BaseViewController {
         todayAuthorView.bind(items: output.todayAuthorData)
 
         todayAuthorView.authorProfileTap
-            .emit(with: self) { owner, _ in
-                let vc = UserProfileViewController()
+            .withLatestFrom(output.todayAuthorData)
+            .emit(with: self) { owner, data in
+                let vm = UserProfileViewModel(userId: data.author.userId)
+                let vc = UserProfileViewController(viewModel: vm)
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
