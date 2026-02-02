@@ -14,6 +14,8 @@ final class UserProfileViewController: BaseViewController {
     private let scrollView: UIScrollView = {
         let view = UIScrollView()
         view.showsVerticalScrollIndicator = true
+        view.contentInset.bottom = CustomTabBarView.height + 20
+        view.verticalScrollIndicatorInsets.bottom = CustomTabBarView.height + 20
         return view
     }()
     
@@ -48,7 +50,6 @@ final class UserProfileViewController: BaseViewController {
     
     private let userName: UILabel = {
         let label = UILabel()
-//        label.text = "윤새싹"
         label.font = .Mulggeol.body1
         label.textColor = GrayStyle.gray30.color
         return label
@@ -56,7 +57,6 @@ final class UserProfileViewController: BaseViewController {
     
     private let userNickname: UILabel = {
         let label = UILabel()
-//        label.text = "SESAC YOON"
         label.font = .Pretendard.body1
         label.textColor = GrayStyle.gray75.color
         return label
@@ -72,10 +72,76 @@ final class UserProfileViewController: BaseViewController {
         view.register(TodayAuthorHashtagCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorHashtagCollectionViewCell.identifier)
         return view
     }()
+
+    private let segmentContainerView: UIView = {
+        let view = UIView()
+        return view
+    }()
+
+    private let segmentStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .horizontal
+        view.distribution = .fillEqually
+        view.spacing = 0
+        return view
+    }()
+
+    private let leftSegmentButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("필터", for: .normal)
+        button.titleLabel?.font = .Pretendard.body1
+        button.tag = 0
+        return button
+    }()
+
+    private let rightSegmentButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("게시글", for: .normal)
+        button.titleLabel?.font = .Pretendard.body1
+        button.tag = 1
+        return button
+    }()
+
+    private let segmentBottomBorderView: UIView = {
+        let view = UIView()
+        view.backgroundColor = Brand.deepTurquoise.color
+        return view
+    }()
+
+    private let segmentIndicatorView: UIView = {
+        let view = UIView()
+        view.backgroundColor = Brand.brightTurquoise.color
+        return view
+    }()
+
+    private let filterCollectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .vertical
+        layout.minimumLineSpacing = 8
+        layout.minimumInteritemSpacing = 8
+        let width = (UIScreen.main.bounds.width - (2 * 8.0) - (2 * 20.0)) / 3
+        layout.itemSize = CGSize(width: width, height: width)
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.isScrollEnabled = false
+        view.register(TodayAuthorImageCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorImageCollectionViewCell.identifier)
+        return view
+    }()
+
+    private let emptyBackgroundLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        return label
+    }()
     
     //MARK: - Properties
     private let viewModel: UserProfileViewModel
     private let disposeBag = DisposeBag()
+    private var filterCollectionHeightConstraint: Constraint?
+    private var currentSelectedIndex: Int = 0
+    private var segmentIndicatorLeadingConstraint: Constraint?
     
     init(viewModel: UserProfileViewModel) {
         self.viewModel = viewModel
@@ -92,6 +158,13 @@ final class UserProfileViewController: BaseViewController {
         userNameStackView.addArrangedSubview(userNickname)
         
         userIntroductionStackView.addArrangedSubview(hashTagCollectionView)
+        userIntroductionStackView.addArrangedSubview(segmentContainerView)
+        segmentContainerView.addSubview(segmentStackView)
+        segmentStackView.addArrangedSubview(leftSegmentButton)
+        segmentStackView.addArrangedSubview(rightSegmentButton)
+        segmentContainerView.addSubview(segmentBottomBorderView)
+        segmentContainerView.addSubview(segmentIndicatorView)
+        scrollView.addSubview(filterCollectionView)
     }
     
     override func configureLayout() {
@@ -123,14 +196,50 @@ final class UserProfileViewController: BaseViewController {
             make.horizontalEdges.equalToSuperview().inset(20)
             make.height.equalTo(24)
         }
+
+        segmentContainerView.snp.makeConstraints { make in
+            make.horizontalEdges.equalToSuperview().inset(20)
+            make.height.equalTo(44)
+        }
+
+        segmentStackView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        segmentBottomBorderView.snp.makeConstraints { make in
+            make.horizontalEdges.bottom.equalToSuperview()
+            make.height.equalTo(1)
+        }
+
+        segmentIndicatorView.snp.makeConstraints { make in
+            make.bottom.equalToSuperview()
+            make.height.equalTo(2)
+            make.width.equalTo(segmentContainerView.snp.width).multipliedBy(0.5)
+            segmentIndicatorLeadingConstraint = make.leading.equalToSuperview().constraint
+        }
+
+        filterCollectionView.snp.makeConstraints { make in
+            make.top.equalTo(segmentContainerView.snp.bottom).offset(20)
+            make.horizontalEdges.equalToSuperview().inset(20)
+            filterCollectionHeightConstraint = make.height.equalTo(0).constraint
+            make.bottom.equalToSuperview()
+        }
+
     }
     
     override func configureView() {
         navigationItem.title = "PROFILE"
+        updateSegmentSelection(selectedIndex: 0, animated: false)
     }
     
     override func configureBind() {
-        let input = UserProfileViewModel.Input()
+        let selectedSegment = Observable.merge(
+            leftSegmentButton.rx.tap.map { 0 },
+            rightSegmentButton.rx.tap.map { 1 }
+        )
+        .distinctUntilChanged()
+
+        let input = UserProfileViewModel.Input(selectedSegment: selectedSegment)
         
         let output = viewModel.transform(input: input)
         
@@ -151,5 +260,85 @@ final class UserProfileViewController: BaseViewController {
                 cell.configure(element)
             }
             .disposed(by: disposeBag)
+
+        output.selectedSegment
+            .drive(with: self) { owner, index in
+                owner.currentSelectedIndex = index
+                owner.updateSegmentSelection(selectedIndex: index, animated: true)
+            }
+            .disposed(by: disposeBag)
+
+        let visibleItems = Driver.combineLatest(output.userFilterItems, output.selectedSegment) { items, selected in
+            return selected == 0 ? items : []
+        }
+
+        visibleItems
+            .drive(filterCollectionView.rx.items(
+                cellIdentifier: TodayAuthorImageCollectionViewCell.identifier,
+                cellType: TodayAuthorImageCollectionViewCell.self
+            )) { _, element, cell in
+                if element.files.count > 1 {
+                    cell.configure(urlString: element.files[1])
+                } else if let urlString = element.files.first {
+                    cell.configure(urlString: urlString)
+                }
+            }
+            .disposed(by: disposeBag)
+
+        Driver.combineLatest(output.userFilterItems, output.selectedSegment)
+            .drive(with: self) { owner, pair in
+                let items = pair.0
+                let selected = pair.1
+                if selected == 0 {
+                    owner.emptyBackgroundLabel.text = "사용자가 만든 필터가 존재하지 않습니다."
+                    owner.filterCollectionView.backgroundView = items.isEmpty ? owner.emptyBackgroundLabel : nil
+                    owner.filterCollectionView.isHidden = false
+                } else {
+                    owner.emptyBackgroundLabel.text = "사용자가 작성한 게시글이 존재하지 않습니다."
+                    owner.filterCollectionView.backgroundView = owner.emptyBackgroundLabel
+                    owner.filterCollectionView.isHidden = false
+                }
+            }
+            .disposed(by: disposeBag)
+
+        filterCollectionView.rx
+            .observe(CGSize.self, "contentSize")
+            .compactMap { $0?.height }
+            .distinctUntilChanged()
+            .subscribe(with: self) { owner, height in
+                let minHeight = owner.minimumFilterHeight()
+                owner.filterCollectionHeightConstraint?.update(offset: max(height, minHeight))
+            }
+            .disposed(by: disposeBag)
+    }
+
+    private func minimumFilterHeight() -> CGFloat {
+        let segmentFrame = segmentContainerView.convert(segmentContainerView.bounds, to: view)
+        let available = view.bounds.height - segmentFrame.maxY - 20 - scrollView.contentInset.bottom
+        return max(available, 0)
+    }
+
+    private func updateSegmentSelection(selectedIndex: Int, animated: Bool) {
+        let selectedText = GrayStyle.gray30.color
+        let normalText = GrayStyle.gray75.color
+
+        let buttons = [leftSegmentButton, rightSegmentButton]
+        for (index, button) in buttons.enumerated() {
+            let isSelected = index == selectedIndex
+            button.setTitleColor(isSelected ? selectedText : normalText, for: .normal)
+        }
+
+        let containerWidth = segmentContainerView.bounds.width
+        guard containerWidth > 0 else { return }
+        let indicatorX = (containerWidth / 2) * CGFloat(selectedIndex)
+        segmentIndicatorLeadingConstraint?.update(offset: indicatorX)
+
+        if animated {
+            UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
+                self.segmentContainerView.layoutIfNeeded()
+            }
+        } else {
+            segmentContainerView.layoutIfNeeded()
+        }
     }
 }
