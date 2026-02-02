@@ -231,6 +231,17 @@ final class UserProfileViewController: BaseViewController {
         navigationItem.title = "PROFILE"
         updateSegmentSelection(selectedIndex: 0, animated: false)
     }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateSegmentSelection(selectedIndex: currentSelectedIndex, animated: false)
+        if filterCollectionView.backgroundView != nil {
+            let minHeight = minimumFilterHeight()
+            let contentHeight = filterCollectionView.collectionViewLayout.collectionViewContentSize.height
+            filterCollectionHeightConstraint?.update(offset: max(contentHeight, minHeight))
+            filterCollectionView.backgroundView?.frame = filterCollectionView.bounds
+        }
+    }
     
     override func configureBind() {
         let selectedSegment = Observable.merge(
@@ -262,43 +273,51 @@ final class UserProfileViewController: BaseViewController {
             .disposed(by: disposeBag)
 
         output.selectedSegment
-            .drive(with: self) { owner, index in
-                owner.currentSelectedIndex = index
-                owner.updateSegmentSelection(selectedIndex: index, animated: true)
-            }
+            .drive(onNext: { [weak self] index in
+                guard let self else { return }
+                self.currentSelectedIndex = index
+                self.updateSegmentSelection(selectedIndex: index, animated: true)
+            })
             .disposed(by: disposeBag)
-
-        let visibleItems = Driver.combineLatest(output.userFilterItems, output.selectedSegment) { items, selected in
-            return selected == 0 ? items : []
-        }
-
+        
+        let visibleItems = Driver
+            .combineLatest(output.userFilterItems, output.userCommunityItems, output.selectedSegment)
+            .map { (filterItems: [FilterSummaryResponseDTO], communityItems: [PostSummaryResponseDTO], selected: Int) -> [String] in
+                if selected == 0 {
+                    return filterItems.compactMap { $0.files.count > 1 ? $0.files[1] : $0.files.first }
+                } else {
+                    return communityItems.compactMap { $0.files.count > 1 ? $0.files[1] : $0.files.first }
+                }
+            }
+        
         visibleItems
             .drive(filterCollectionView.rx.items(
                 cellIdentifier: TodayAuthorImageCollectionViewCell.identifier,
                 cellType: TodayAuthorImageCollectionViewCell.self
             )) { _, element, cell in
-                if element.files.count > 1 {
-                    cell.configure(urlString: element.files[1])
-                } else if let urlString = element.files.first {
-                    cell.configure(urlString: urlString)
-                }
+                cell.configure(urlString: element)
             }
             .disposed(by: disposeBag)
-
-        Driver.combineLatest(output.userFilterItems, output.selectedSegment)
-            .drive(with: self) { owner, pair in
-                let items = pair.0
-                let selected = pair.1
-                if selected == 0 {
-                    owner.emptyBackgroundLabel.text = "사용자가 만든 필터가 존재하지 않습니다."
-                    owner.filterCollectionView.backgroundView = items.isEmpty ? owner.emptyBackgroundLabel : nil
-                    owner.filterCollectionView.isHidden = false
-                } else {
-                    owner.emptyBackgroundLabel.text = "사용자가 작성한 게시글이 존재하지 않습니다."
-                    owner.filterCollectionView.backgroundView = owner.emptyBackgroundLabel
-                    owner.filterCollectionView.isHidden = false
+        
+        Driver
+            .combineLatest(output.userFilterItems, output.userCommunityItems, output.selectedSegment)
+            .drive(onNext: { [weak self] (filterItems, communityItems, selected) in
+                guard let self else { return }
+                let isFilterTab = selected == 0
+                let currentItemsCount = isFilterTab ? filterItems.count : communityItems.count
+                self.emptyBackgroundLabel.text = isFilterTab
+                    ? "사용자가 만든 필터가 존재하지 않습니다."
+                    : "사용자가 작성한 게시글이 존재하지 않습니다."
+                self.filterCollectionView.backgroundView =
+                    currentItemsCount == 0 ? self.emptyBackgroundLabel : nil
+                self.filterCollectionView.isHidden = false
+                if currentItemsCount == 0 {
+                    let minHeight = self.minimumFilterHeight()
+                    self.filterCollectionHeightConstraint?.update(offset: minHeight)
+                    self.filterCollectionView.layoutIfNeeded()
+                    self.filterCollectionView.backgroundView?.frame = self.filterCollectionView.bounds
                 }
-            }
+            })
             .disposed(by: disposeBag)
 
         filterCollectionView.rx
@@ -311,10 +330,14 @@ final class UserProfileViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
     }
+    
 
     private func minimumFilterHeight() -> CGFloat {
-        let segmentFrame = segmentContainerView.convert(segmentContainerView.bounds, to: view)
-        let available = view.bounds.height - segmentFrame.maxY - 20 - scrollView.contentInset.bottom
+        let segmentFrame = segmentContainerView.convert(segmentContainerView.bounds, to: scrollView)
+        let available = scrollView.bounds.height
+            - segmentFrame.maxY
+            - 20
+            - scrollView.adjustedContentInset.bottom
         return max(available, 0)
     }
 
