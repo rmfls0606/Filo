@@ -24,6 +24,7 @@ final class UserProfileViewModel: ViewModelType{
     struct Output{
         let profileItem: Driver<UserInfoResponseDTO?>
         let userFilterItems: Driver<[FilterSummaryResponseDTO]>
+        let userCommunityItems: Driver<[PostSummaryResponseDTO]>
         let selectedSegment: Driver<Int>
     }
     
@@ -31,6 +32,7 @@ final class UserProfileViewModel: ViewModelType{
         let networkErrorRelay = PublishRelay<NetworkError>()
         let otherProfileDataRelay = BehaviorRelay<UserInfoResponseDTO?>(value: nil)
         let userFilterItemsRelay = BehaviorRelay<[FilterSummaryResponseDTO]>(value: [])
+        let userCommunityItemsRelay = BehaviorRelay<[PostSummaryResponseDTO]>(value: [])
         let selectedSegmentRelay = BehaviorRelay<Int>(value: 0)
         
         Task{
@@ -55,14 +57,25 @@ final class UserProfileViewModel: ViewModelType{
             }
         }
         
+        Task{
+            do{
+                let dto: PostSummaryPaginationResponseDTO = try await NetworkManager.shared.request(CommunityRouter.user(category: "", limit: "", next: "", userId: userId))
+                userCommunityItemsRelay.accept(dto.data)
+            }catch let error as NetworkError{
+                print(error)
+                networkErrorRelay.accept(error)
+            }
+        }
+        
         input.selectedSegment
             .distinctUntilChanged()
-            .bind(to: selectedSegmentRelay)
+            .bind(to:selectedSegmentRelay)
             .disposed(by: disposeBag)
         
         return Output(
             profileItem: otherProfileDataRelay.asDriver(),
             userFilterItems: userFilterItemsRelay.asDriver(),
+            userCommunityItems: userCommunityItemsRelay.asDriver(),
             selectedSegment: selectedSegmentRelay.asDriver()
         )
     }
