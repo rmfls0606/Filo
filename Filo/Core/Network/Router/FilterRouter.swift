@@ -15,6 +15,7 @@ enum FilterRouter: APITarget{
     case detailFilter(filterId: String)
     case createFilter(requestBody: CreateFilterRequestBody)
     case files
+    case user(userId: String, next: String, limit: String, category: String)
 
     var path: String{
         switch self {
@@ -32,12 +33,14 @@ enum FilterRouter: APITarget{
             return "/filters"
         case .files:
             return "/filters/files"
+        case .user(let userId, _, _, _):
+            return "/filters/users/\(userId)"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .hotTrend, .todayFilter, .filters, .detailFilter:
+        case .hotTrend, .todayFilter, .filters, .detailFilter, .user:
             return .get
         case .like, .createFilter, .files:
             return .post
@@ -63,12 +66,18 @@ enum FilterRouter: APITarget{
             return ["like_status": liked]
         case .createFilter(let requestBody):
             return requestBody.asParameters()
+        case .user(_, let next, let limit, let category):
+            var parms = [String: Any]()
+            if !next.isEmpty { parms["next"] = next }
+            if !limit.isEmpty { parms["limit"] = limit }
+            if !category.isEmpty { parms["category"] = category }
+            return parms
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .todayFilter, .hotTrend, .filters:
+        case .todayFilter, .hotTrend, .filters, .user:
             return URLEncoding.default
         case .like, .detailFilter, .createFilter, .files:
             return JSONEncoding.default
