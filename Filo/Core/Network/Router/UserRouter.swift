@@ -12,6 +12,7 @@ enum UserRouter: APITarget{
     case auth(refresh: String)
     case todayAuthor
     case apple(idToken: String, deviceToken: String)
+    case otherProfile(userId: String)
     
     var path: String{
         switch self {
@@ -23,6 +24,8 @@ enum UserRouter: APITarget{
             return "/users/today-author"
         case .apple:
             return "/users/login/apple"
+        case .otherProfile(let userId):
+            return "/users/\(userId)/profile"
         }
     }
     
@@ -30,7 +33,7 @@ enum UserRouter: APITarget{
         switch self {
         case .login, .apple:
             return .post
-        case .auth, .todayAuthor:
+        case .auth, .todayAuthor, .otherProfile:
             return .get
         }
     }
@@ -53,7 +56,7 @@ enum UserRouter: APITarget{
             return ["email": email,
                     "password": password,
                     "deviceToken": NetworkConfig.apiKey]
-        case .auth, .todayAuthor:
+        case .auth, .todayAuthor, .otherProfile:
             return nil
         case .apple(let idToken, let deviceToken):
             return ["idToken": idToken,
@@ -63,7 +66,7 @@ enum UserRouter: APITarget{
     
     var encoding: ParameterEncoding{
         switch self {
-        case .login, .auth, .apple:
+        case .login, .auth, .apple, .otherProfile:
             return JSONEncoding.default
         case .todayAuthor:
             return URLEncoding.default
