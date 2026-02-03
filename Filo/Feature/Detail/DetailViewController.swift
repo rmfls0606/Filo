@@ -297,6 +297,11 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         return view
     }()
     
+    private let authorBox: UIView = {
+        let view = UIView()
+        return view
+    }()
+    
     private let authorProfileImage: UIImageView = {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
@@ -344,7 +349,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.minimumLineSpacing = 4
-        layout.estimatedItemSize = .zero
+        layout.estimatedItemSize = UICollectionViewFlowLayout.automaticSize
         
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.register(TodayAuthorHashtagCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorHashtagCollectionViewCell.identifier)
@@ -367,6 +372,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     private var currentHashTags: [String] = []
     
     let comparePan = UIPanGestureRecognizer()
+    let tapGesutre = UITapGestureRecognizer()
     let viewModel: DetailViewModel
     
     init(viewModel: DetailViewModel) {
@@ -424,8 +430,9 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         
         detailStackView.addArrangedSubview(authorIntroductionStackView)
         authorIntroductionStackView.addArrangedSubview(authorProfileBox)
-        authorProfileBox.addSubview(authorProfileImage)
-        authorProfileBox.addSubview(authorNameStackView)
+        authorProfileBox.addSubview(authorBox)
+        authorBox.addSubview(authorProfileImage)
+        authorBox.addSubview(authorNameStackView)
         authorNameStackView.addArrangedSubview(authorName)
         authorNameStackView.addArrangedSubview(authorNickname)
         authorProfileBox.addSubview(sendMessageButton)
@@ -573,6 +580,11 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
             make.top.horizontalEdges.equalToSuperview()
         }
         
+        authorBox.snp.makeConstraints { make in
+            make.verticalEdges.leading.equalToSuperview()
+            make.trailing.lessThanOrEqualTo(sendMessageButton.snp.leading).inset(-20)
+        }
+        
         authorProfileImage.snp.makeConstraints { make in
             make.verticalEdges.leading.equalToSuperview()
             make.size.equalTo(72)
@@ -581,7 +593,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         authorNameStackView.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
             make.leading.equalTo(authorProfileImage.snp.trailing).offset(20)
-            make.trailing.lessThanOrEqualTo(sendMessageButton.snp.leading).inset(-20)
+            make.trailing.equalToSuperview()
         }
         
         sendMessageButton.snp.makeConstraints { make in
@@ -606,6 +618,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         navigationItem.leftBarButtonItem?.tintColor = GrayStyle.gray75.color
         compareDragButton.addGestureRecognizer(comparePan)
         metadataView.setReadOnlyMetadataMode()
+        authorBox.addGestureRecognizer(tapGesutre)
     }
     
     override func configureBind() {
@@ -717,6 +730,16 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
             .bind(with: self, onNext: { owner, _ in
                 owner.navigationController?.popViewController(animated: true)
             })
+            .disposed(by: disposeBag)
+        
+        tapGesutre.rx.event
+            .withLatestFrom(output.filterDetailData)
+            .map{ $0.creator.userID }
+            .bind(with: self) { owner, userId in
+                let vm = UserProfileViewModel(userId: userId)
+                let vc = UserProfileViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
             .disposed(by: disposeBag)
 
         output.networkError
