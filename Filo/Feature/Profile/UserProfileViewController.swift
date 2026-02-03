@@ -62,6 +62,18 @@ final class UserProfileViewController: BaseViewController {
         return label
     }()
     
+    private let chatButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.image = UIImage(named: "message")
+        config.baseForegroundColor = GrayStyle.gray30.color
+        config.baseBackgroundColor = Brand.deepTurquoise.color
+        config.background.cornerRadius = 12
+        config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+        
+        let button = UIButton(configuration: config)
+        return button
+    }()
+    
     private let hashTagCollectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
@@ -156,6 +168,7 @@ final class UserProfileViewController: BaseViewController {
         userProfileBox.addSubview(userNameStackView)
         userNameStackView.addArrangedSubview(userName)
         userNameStackView.addArrangedSubview(userNickname)
+        userProfileBox.addSubview(chatButton)
         
         userIntroductionStackView.addArrangedSubview(hashTagCollectionView)
         userIntroductionStackView.addArrangedSubview(segmentContainerView)
@@ -189,7 +202,13 @@ final class UserProfileViewController: BaseViewController {
         userNameStackView.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
             make.leading.equalTo(userProfileImage.snp.trailing).offset(20)
-            make.trailing.lessThanOrEqualToSuperview()
+//            make.trailing.lessThanOrEqualToSuperview()
+        }
+        
+        chatButton.snp.makeConstraints { make in
+            make.centerY.equalToSuperview()
+            make.leading.greaterThanOrEqualTo(userNameStackView.snp.trailing).offset(20)
+            make.trailing.equalToSuperview().inset(20)
         }
         
         hashTagCollectionView.snp.makeConstraints { make in
