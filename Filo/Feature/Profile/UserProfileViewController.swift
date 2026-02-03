@@ -279,6 +279,12 @@ final class UserProfileViewController: BaseViewController {
                 self.updateSegmentSelection(selectedIndex: index, animated: true)
             })
             .disposed(by: disposeBag)
+
+        output.networkError
+            .emit(onNext: { [weak self] error in
+                self?.showAlert(title: "오류", message: error.errorDescription)
+            })
+            .disposed(by: disposeBag)
         
         let visibleItems = Driver
             .combineLatest(output.userFilterItems, output.userCommunityItems, output.selectedSegment)

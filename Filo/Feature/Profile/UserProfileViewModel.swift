@@ -26,6 +26,7 @@ final class UserProfileViewModel: ViewModelType{
         let userFilterItems: Driver<[FilterSummaryResponseDTO]>
         let userCommunityItems: Driver<[PostSummaryResponseDTO]>
         let selectedSegment: Driver<Int>
+        let networkError: Signal<NetworkError>
     }
     
     func transform(input: Input) -> Output {
@@ -40,8 +41,9 @@ final class UserProfileViewModel: ViewModelType{
                 let dto: UserInfoResponseDTO = try await NetworkManager.shared.request(UserRouter.otherProfile(userId: userId))
                 otherProfileDataRelay.accept(dto)
             }catch let error as NetworkError{
-                print(error)
                 networkErrorRelay.accept(error)
+            }catch(let error){
+                networkErrorRelay.accept(NetworkError.unknown(error))
             }
         }
 
@@ -52,8 +54,9 @@ final class UserProfileViewModel: ViewModelType{
                 )
                 userFilterItemsRelay.accept(dto.data)
             }catch let error as NetworkError{
-                print(error)
                 networkErrorRelay.accept(error)
+            }catch(let error){
+                networkErrorRelay.accept(NetworkError.unknown(error))
             }
         }
         
@@ -62,8 +65,9 @@ final class UserProfileViewModel: ViewModelType{
                 let dto: PostSummaryPaginationResponseDTO = try await NetworkManager.shared.request(CommunityRouter.user(category: "", limit: "", next: "", userId: userId))
                 userCommunityItemsRelay.accept(dto.data)
             }catch let error as NetworkError{
-                print(error)
                 networkErrorRelay.accept(error)
+            }catch(let error){
+                networkErrorRelay.accept(NetworkError.unknown(error))
             }
         }
         
@@ -76,7 +80,8 @@ final class UserProfileViewModel: ViewModelType{
             profileItem: otherProfileDataRelay.asDriver(),
             userFilterItems: userFilterItemsRelay.asDriver(),
             userCommunityItems: userCommunityItemsRelay.asDriver(),
-            selectedSegment: selectedSegmentRelay.asDriver()
+            selectedSegment: selectedSegmentRelay.asDriver(),
+            networkError: networkErrorRelay.asSignal()
         )
     }
 }

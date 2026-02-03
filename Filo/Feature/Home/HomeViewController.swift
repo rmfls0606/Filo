@@ -265,6 +265,12 @@ final class HomeViewController: BaseViewController {
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
+
+        output.networkError
+            .emit(onNext: { [weak self] error in
+                self?.showAlert(title: "오류", message: error.errorDescription)
+            })
+            .disposed(by: disposeBag)
     }
     
     //MARK: - function

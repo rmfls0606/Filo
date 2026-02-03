@@ -13,8 +13,8 @@ extension UIViewController {
             .setCustomTabBarHidden(hidden, animated: animated)
     }
     
-    func showAlert(title: String, message: String){
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    func showAlert(title: String, message: String?){
+        let alert = UIAlertController(title: title, message: message ?? "알 수 없는 오류가 발생했습니다.", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "확인", style: .default))
         present(alert, animated: true)
     }

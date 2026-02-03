@@ -35,6 +35,7 @@ final class FilterViewModel: ViewModelType{
         let metadata: Driver<FilterImageMetadata?>
         let priceNumberText: Driver<String>
         let saveEnabled: Driver<Bool>
+        let networkError: Signal<NetworkError>
     }
     
     private let metadataQueue = DispatchQueue(label: "com.filo.filter.metadata", qos: .userInitiated)
@@ -172,8 +173,9 @@ final class FilterViewModel: ViewModelType{
                             FilterRouter.createFilter(requestBody: requestBody)
                         )
                     } catch(let error as NetworkError) {
-                        print(error)
                         networkErrorRelay.accept(error)
+                    }catch(let error){
+                        networkErrorRelay.accept(NetworkError.unknown(error))
                     }
                 }
             })
@@ -205,7 +207,8 @@ final class FilterViewModel: ViewModelType{
                 return imageData != nil && originalData != nil
             }
             .distinctUntilChanged()
-            .asDriver(onErrorJustReturn: false)
+            .asDriver(onErrorJustReturn: false),
+            networkError: networkErrorRelay.asSignal()
         )
     }
 

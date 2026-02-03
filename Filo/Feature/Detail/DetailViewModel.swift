@@ -28,6 +28,7 @@ final class DetailViewModel: ViewModelType {
         let creatorHashTags: Driver<[String]>
         let likeState: Driver<Bool>
         let likeCount: Driver<Int>
+        let networkError: Signal<NetworkError>
     }
     
     func transform(input: Input) -> Output {
@@ -49,8 +50,9 @@ final class DetailViewModel: ViewModelType {
                         LikeStore.shared.setLiked(id: dto.filterId, liked: dto.isLiked, count: dto.likeCount)
                         likeStateRelay.accept(dto.isLiked)
                     }catch(let error as NetworkError){
-                        print(error)
                         networkErrorRelay.accept(error)
+                    }catch(let error){
+                        networkErrorRelay.accept(NetworkError.unknown(error))
                     }
                 }
             })
@@ -131,7 +133,8 @@ final class DetailViewModel: ViewModelType {
             filterValueItems: filterValueItemsRelay.asDriver(onErrorDriveWith: .empty()),
             creatorHashTags: creatorHashTagsRelay.asDriver(onErrorDriveWith: .empty()),
             likeState: likeStateRelay.asDriver(onErrorDriveWith: .empty()),
-            likeCount: likeCountRelay.asDriver(onErrorDriveWith: .empty())
+            likeCount: likeCountRelay.asDriver(onErrorDriveWith: .empty()),
+            networkError: networkErrorRelay.asSignal()
         )
     }
 }

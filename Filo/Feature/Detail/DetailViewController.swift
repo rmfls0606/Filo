@@ -718,6 +718,12 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.navigationController?.popViewController(animated: true)
             })
             .disposed(by: disposeBag)
+
+        output.networkError
+            .emit(onNext: { [weak self] error in
+                self?.showAlert(title: "오류", message: error.errorDescription)
+            })
+            .disposed(by: disposeBag)
     }
     
     private func makeFilterInfoBoxView(title: String, countLabel: UILabel) -> UIView{

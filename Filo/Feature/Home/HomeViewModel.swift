@@ -24,6 +24,7 @@ final class HomeViewModel: ViewModelType{
         let todayAuthorData: Driver<TodayAuthorResponseEntity>
         let bannerItems: Driver<BannerListResponseEntity>
         let hotTrendItem: Driver<String>
+        let networkError: Signal<NetworkError>
     }
     
     func transform(input: Input) -> Output {
@@ -41,8 +42,9 @@ final class HomeViewModel: ViewModelType{
                 
                 todayFilterRelay.accept(dto.toEntity())
             }catch(let error as NetworkError){
-                print(error)
                 networkErrorRelay.accept(error)
+            }catch(let error){
+                networkErrorRelay.accept(NetworkError.unknown(error))
             }
         }
         
@@ -52,8 +54,9 @@ final class HomeViewModel: ViewModelType{
                 
                 bannerRelay.accept(dto.toEntity())
             }catch(let error as NetworkError){
-                print(error)
                 networkErrorRelay.accept(error)
+            }catch(let error){
+                networkErrorRelay.accept(NetworkError.unknown(error))
             }
         }
         
@@ -66,8 +69,9 @@ final class HomeViewModel: ViewModelType{
                 }
                 hotTrendRelay.accept(entities)
             }catch(let error as NetworkError){
-                print(error)
                 networkErrorRelay.accept(error)
+            }catch(let error){
+                networkErrorRelay.accept(NetworkError.unknown(error))
             }
         }
         
@@ -77,8 +81,9 @@ final class HomeViewModel: ViewModelType{
                 
                 todayAuthorRelay.accept(dto.toEntity())
             }catch(let error as NetworkError){
-                print(error)
                 networkErrorRelay.accept(error)
+            }catch(let error){
+                networkErrorRelay.accept(NetworkError.unknown(error))
             }
         }
         
@@ -93,7 +98,8 @@ final class HomeViewModel: ViewModelType{
             hotTrendItems: hotTrendRelay.asDriver(onErrorDriveWith: .empty()),
             todayAuthorData: todayAuthorRelay.asDriver(onErrorDriveWith: .empty()),
             bannerItems: bannerRelay.asDriver(onErrorDriveWith: .empty()),
-            hotTrendItem: selectedHotTrendItemRelay.asDriver(onErrorDriveWith: .empty())
+            hotTrendItem: selectedHotTrendItemRelay.asDriver(onErrorDriveWith: .empty()),
+            networkError: networkErrorRelay.asSignal()
         )
     }
 }

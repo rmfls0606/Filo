@@ -30,6 +30,7 @@ final class FeedViewModel: ViewModelType {
         let feedFilterMode: Driver<Bool>
         let likeUIUpdate: Driver<OutputLikeUpdate>
         let selectedFilterId: Driver<String>
+        let networkError: Signal<NetworkError>
     }
     
     func transform(input: Input) -> Output {
@@ -60,8 +61,9 @@ final class FeedViewModel: ViewModelType {
                         }
                         filtersDataRelay.accept(entity)
                     }catch(let error as NetworkError){
-                        print(error)
                         networkErrorRelay.accept(error)
+                    }catch(let error){
+                        networkErrorRelay.accept(NetworkError.unknown(error))
                     }
                 }
             })
@@ -167,7 +169,8 @@ final class FeedViewModel: ViewModelType {
             filtersData: filtersDataRelay.asDriver(onErrorDriveWith: .empty()),
             feedFilterMode: feedFileterModeRelay.asDriver(),
             likeUIUpdate: likeUIUpdateRelay.asDriver(onErrorDriveWith: .empty()),
-            selectedFilterId: selectedFilterIdRelay.asDriver(onErrorDriveWith: .empty())
+            selectedFilterId: selectedFilterIdRelay.asDriver(onErrorDriveWith: .empty()),
+            networkError: networkErrorRelay.asSignal()
         )
     }
 }

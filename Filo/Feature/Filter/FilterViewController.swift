@@ -231,6 +231,12 @@ final class FilterViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
 
+        output.networkError
+            .emit(onNext: { [weak self] error in
+                self?.showAlert(title: "오류", message: error.errorDescription)
+            })
+            .disposed(by: disposeBag)
+
         filterNameTextField.rx.controlEvent(.editingDidEndOnExit)
             .bind(with: self) { owner, _ in
                 owner.view.endEditing(true)

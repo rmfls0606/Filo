@@ -318,6 +318,12 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
             }
             .disposed(by: disposeBag)
 
+        output.networkError
+            .emit(onNext: { [weak self] error in
+                self?.showAlert(title: "오류", message: error.errorDescription)
+            })
+            .disposed(by: disposeBag)
+
         feedItems
             .drive(blockCollectionView.rx.items(
                 cellIdentifier: FeedBlockCollectionViewCell.identifier,
