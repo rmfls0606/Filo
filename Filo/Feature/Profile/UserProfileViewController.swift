@@ -82,6 +82,8 @@ final class UserProfileViewController: BaseViewController {
         
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.register(TodayAuthorHashtagCollectionViewCell.self, forCellWithReuseIdentifier: TodayAuthorHashtagCollectionViewCell.identifier)
+        view.showsHorizontalScrollIndicator = false
+        view.contentInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
         return view
     }()
 
@@ -154,6 +156,15 @@ final class UserProfileViewController: BaseViewController {
     private var filterCollectionHeightConstraint: Constraint?
     private var currentSelectedIndex: Int = 0
     private var segmentIndicatorLeadingConstraint: Constraint?
+    private var currentHashTags: [String] = []
+    
+    private var hashtagCollectionHeight: CGFloat{
+        let fallback: CGFloat = 24
+        guard let font = UIFont.Pretendard.caption1 else {
+            return fallback
+        }
+        return max(font.lineHeight + 8, fallback)
+    }
     
     init(viewModel: UserProfileViewModel) {
         self.viewModel = viewModel
@@ -202,7 +213,6 @@ final class UserProfileViewController: BaseViewController {
         userNameStackView.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
             make.leading.equalTo(userProfileImage.snp.trailing).offset(20)
-//            make.trailing.lessThanOrEqualToSuperview()
         }
         
         chatButton.snp.makeConstraints { make in
@@ -212,8 +222,8 @@ final class UserProfileViewController: BaseViewController {
         }
         
         hashTagCollectionView.snp.makeConstraints { make in
-            make.horizontalEdges.equalToSuperview().inset(20)
-            make.height.equalTo(24)
+            make.horizontalEdges.equalToSuperview()
+            make.height.equalTo(hashtagCollectionHeight)
         }
 
         segmentContainerView.snp.makeConstraints { make in
@@ -284,9 +294,22 @@ final class UserProfileViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
 
-        output.profileItem
-            .compactMap{ $0?.hashTags }
-            .drive(hashTagCollectionView.rx.items(cellIdentifier: TodayAuthorHashtagCollectionViewCell.identifier, cellType: TodayAuthorHashtagCollectionViewCell.self)){ index, element, cell in
+        let hashTags = output.profileItem
+            .map { $0?.hashTags ?? [] }
+
+        hashTags
+            .drive(with: self) { owner, tags in
+                owner.currentHashTags = tags
+                owner.hashTagCollectionView.collectionViewLayout.invalidateLayout()
+                owner.hashTagCollectionView.reloadData()
+            }
+            .disposed(by: disposeBag)
+
+        hashTags
+            .drive(hashTagCollectionView.rx.items(
+                cellIdentifier: TodayAuthorHashtagCollectionViewCell.identifier,
+                cellType: TodayAuthorHashtagCollectionViewCell.self
+            )) { _, element, cell in
                 cell.configure(element)
             }
             .disposed(by: disposeBag)
@@ -354,6 +377,9 @@ final class UserProfileViewController: BaseViewController {
                 owner.filterCollectionHeightConstraint?.update(offset: max(height, minHeight))
             }
             .disposed(by: disposeBag)
+
+        hashTagCollectionView.rx.setDelegate(self)
+            .disposed(by: disposeBag)
     }
     
 
@@ -388,5 +414,27 @@ final class UserProfileViewController: BaseViewController {
         } else {
             segmentContainerView.layoutIfNeeded()
         }
+    }
+}
+
+extension UserProfileViewController: UICollectionViewDelegateFlowLayout {
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+        if collectionView === hashTagCollectionView {
+            let font = UIFont.Pretendard.caption1 ?? UIFont.systemFont(ofSize: 12)
+            guard indexPath.item < currentHashTags.count else {
+                return CGSize(width: 44, height: hashtagCollectionHeight)
+            }
+            let raw = currentHashTags[indexPath.item]
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let display = normalized.isEmpty ? "#" : "#\(normalized)"
+            let width = (display as NSString).size(withAttributes: [.font: font]).width
+            return CGSize(width: ceil(width) + 32, height: hashtagCollectionHeight)
+        }
+        let spacing: CGFloat = 8
+        let totalSpacing = spacing * 2
+        let width = (collectionView.bounds.width - totalSpacing) / 3
+        return CGSize(width: width, height: width)
     }
 }
