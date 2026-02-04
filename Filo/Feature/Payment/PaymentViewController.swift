@@ -9,6 +9,7 @@ import UIKit
 import SnapKit
 import RxSwift
 import RxCocoa
+import iamport_ios
 
 final class PaymentViewController: BaseViewController {
     //MARK: - UI
@@ -137,7 +138,7 @@ final class PaymentViewController: BaseViewController {
         config.baseBackgroundColor = Brand.brightTurquoise.color
         config.baseForegroundColor = GrayStyle.gray30.color
         config.cornerStyle = .capsule
-        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+        config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
         config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
             var outgoing = incoming
             outgoing.font = .Pretendard.body1
@@ -151,6 +152,10 @@ final class PaymentViewController: BaseViewController {
     private let viewModel: PaymentViewModel
     private let disposeBag = DisposeBag()
     private var orderListHeightConstraint: Constraint?
+    
+    override var prefersCustomTabBarHidden: Bool{
+        return true
+    }
     
     init(viewModel: PaymentViewModel) {
         self.viewModel = viewModel
@@ -232,7 +237,7 @@ final class PaymentViewController: BaseViewController {
         
         buyButton.snp.makeConstraints { make in
             make.horizontalEdges.equalToSuperview().inset(20)
-            make.bottom.equalToSuperview().inset(CustomTabBarView.height + 16)
+            make.bottom.equalToSuperview()
         }
     }
     
@@ -242,7 +247,9 @@ final class PaymentViewController: BaseViewController {
     }
     
     override func configureBind() {
-        let input = PaymentViewModel.Input()
+        let input = PaymentViewModel.Input(
+            buyButtonTapped: buyButton.rx.tap
+        )
         let output = viewModel.transform(input: input)
         
         output.orderItems
@@ -265,7 +272,30 @@ final class PaymentViewController: BaseViewController {
                 owner.orderPriceLabel.text = "\(total.formattedDecimal())원"
                 owner.productPriceLabel.text = "\(total.formattedDecimal())원"
                 owner.totalPriceLabel.text = "\(total.formattedDecimal())원"
-                owner.buyButton.configuration?.title = "\(total.formattedDecimal())원 결제하기"
+                var config = owner.buyButton.configuration
+                config?.title = "\(total.formattedDecimal())원 결제하기"
+                owner.buyButton.configuration = config
+            }
+            .disposed(by: disposeBag)
+        
+        output.paymentInfo
+            .drive(with: self){ owner, paymentInfo in
+                let payment = IamportPayment(
+                    pg: PG.html5_inicis.makePgRawName(pgId: "INIpayTest"),
+                    merchant_uid: paymentInfo.merchantUId,
+                    amount: paymentInfo.totalPrice)
+                payment.pay_method = PayMethod.card.rawValue
+                payment.name = paymentInfo.productName
+                payment.buyer_name = paymentInfo.buyerName
+                payment.app_scheme = PaymentConfig.appScheme
+                
+                Iamport.shared.payment(
+                    viewController: owner,
+                    userCode: PaymentConfig.userCode,
+                    payment: payment
+                ) { response in
+                    print(String(describing: response))
+                }
             }
             .disposed(by: disposeBag)
     }
