@@ -26,6 +26,7 @@ final class KeychainManager{
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case userId = "user_id"
+        case userName = "user_name"
     }
     
     //MARK: - Save
