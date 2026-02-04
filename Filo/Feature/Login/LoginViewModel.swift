@@ -53,6 +53,17 @@ final class LoginViewModel: ViewModelType {
                             refresh: dto.refreshToken,
                             userId: dto.userId
                         )
+                        do {
+                            let profile: UserInfoResponseDTO = try await NetworkManager.shared.request(
+                                UserRouter.otherProfile(userId: dto.userId)
+                            )
+                            let name = (profile.name ?? profile.nick).trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !name.isEmpty {
+                                try? await TokenStorage.shared.saveUserName(name)
+                            }
+                        } catch {
+                            // 프로필 조회 실패는 로그인 성공 흐름을 막지 않음
+                        }
                         loginSuccessRelay.accept(())
                     } catch let error as NetworkError {
                         loginErrorRelay.accept(error.localizedDescription)
