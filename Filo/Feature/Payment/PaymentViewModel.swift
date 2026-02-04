@@ -11,27 +11,66 @@ import RxCocoa
 
 final class PaymentViewModel: ViewModelType {
     let product: [FilterResponseDTO]
+    private let disposeBag = DisposeBag()
     
     init(product: [FilterResponseDTO]) {
         self.product = product
     }
     
     struct Input{
-        
+        let buyButtonTapped: ControlEvent<Void>
     }
     
     struct Output{
         let orderItems: Driver<[FilterResponseDTO]>
         let totalPrice: Driver<Int>
+        let paymentInfo: Driver<PaymentInfo>
+        let networkError: Signal<NetworkError>
     }
     
     func transform(input: Input) -> Output {
         let orderItemsRelay = BehaviorRelay<[FilterResponseDTO]>(value: product)
         let totalPriceRelay = BehaviorRelay<Int>(value: product.map{$0.price}.reduce(0, +))
+        let paymentInfoRelay = PublishRelay<PaymentInfo>()
+        let networkErrorRelay = PublishRelay<NetworkError>()
+
+        let orderItems = Observable.combineLatest(orderItemsRelay, totalPriceRelay)
+            .share(replay: 1)
+        
+        input.buyButtonTapped
+            .withLatestFrom(orderItems)
+            .subscribe(onNext: { product, totalPrice in
+                guard let first = product.first else { return }
+                Task{
+                    do{
+                        guard let buyerName = (await TokenStorage.shared.userName()).flatMap({
+                            let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                            return trimmed.isEmpty ? nil : trimmed
+                        }) else { return }
+                        let dto: OrderCreateResponseDTO = try await NetworkManager.shared.request(
+                            OrderRouter.order(filterId: first.filterId, totalPrice: totalPrice)
+                        )
+                        let info = PaymentInfo(
+                            merchantUId: dto.orderCode,
+                            totalPrice: "\(dto.totalPrice)",
+                            productName: first.title,
+                            buyerName: buyerName
+                        )
+                        paymentInfoRelay.accept(info)
+                    }catch let error as NetworkError{
+                        networkErrorRelay.accept(error)
+                    }catch let error{
+                        networkErrorRelay.accept(NetworkError.unknown(error))
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
         
         return Output(
             orderItems: orderItemsRelay.asDriver(),
-            totalPrice: totalPriceRelay.asDriver()
+            totalPrice: totalPriceRelay.asDriver(),
+            paymentInfo: paymentInfoRelay.asDriver(onErrorDriveWith: .empty()),
+            networkError: networkErrorRelay.asSignal()
         )
     }
 }
