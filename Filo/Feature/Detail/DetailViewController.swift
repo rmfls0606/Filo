@@ -747,6 +747,15 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 self?.showAlert(title: "오류", message: error.errorDescription)
             })
             .disposed(by: disposeBag)
+        
+        buyButton.rx.tap
+            .withLatestFrom(output.filterDetailData)
+            .bind(with: self) { owner, data in
+                let vm = PaymentViewModel(product: [data])
+                let vc = PaymentViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
     }
     
     private func makeFilterInfoBoxView(title: String, countLabel: UILabel) -> UIView{
