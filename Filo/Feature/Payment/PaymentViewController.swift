@@ -152,6 +152,7 @@ final class PaymentViewController: BaseViewController {
     private let viewModel: PaymentViewModel
     private let disposeBag = DisposeBag()
     private var orderListHeightConstraint: Constraint?
+    private var iamportResponseRelay = PublishRelay<String?>()
     
     override var prefersCustomTabBarHidden: Bool{
         return true
@@ -195,8 +196,8 @@ final class PaymentViewController: BaseViewController {
         
         orderTitle
             .snp.makeConstraints { make in
-            make.top.horizontalEdges.equalToSuperview().inset(20)
-        }
+                make.top.horizontalEdges.equalToSuperview().inset(20)
+            }
         
         orderListTableView.snp.makeConstraints { make in
             make.top.equalTo(orderTitle.snp.bottom).offset(20)
@@ -248,7 +249,8 @@ final class PaymentViewController: BaseViewController {
     
     override func configureBind() {
         let input = PaymentViewModel.Input(
-            buyButtonTapped: buyButton.rx.tap
+            buyButtonTapped: buyButton.rx.tap,
+            paymentValidationId: iamportResponseRelay
         )
         let output = viewModel.transform(input: input)
         
@@ -294,9 +296,26 @@ final class PaymentViewController: BaseViewController {
                     userCode: PaymentConfig.userCode,
                     payment: payment
                 ) { response in
-                    print(String(describing: response))
+                    guard let response else {
+                        owner.showAlert(title: "결제 실패", message: "결제 응답을 받지 못했습니다.")
+                        return
+                    }
+                    if response.success == true{
+                        owner.iamportResponseRelay.accept(response.imp_uid)
+                    } else {
+                        owner.showAlert(title: "결제 실패", message: response.error_msg)
+                    }
                 }
             }
             .disposed(by: disposeBag)
+
+        output.validationResult
+            .emit(onNext: { [weak self] result in
+                let vm = OrderValidationViewModel(receipt: result)
+                let vc = OrderValidationViewController(viewModel: vm)
+                self?.navigationController?.pushViewController(vc, animated: true)
+            })
+            .disposed(by: disposeBag)
+        
     }
 }
