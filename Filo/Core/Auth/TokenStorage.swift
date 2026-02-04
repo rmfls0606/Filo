@@ -23,14 +23,25 @@ final actor TokenStorage{
     func refreshToken() async -> String?{
         try? await KeychainManager.shared.read(key: .refreshToken)
     }
+
+    func userName() async -> String?{
+        try? await KeychainManager.shared.read(key: .userName)
+    }
     
     //MARK: - Save
-    func save(access: String, refresh: String, userId: String? = nil) async throws{
+    func save(access: String, refresh: String, userId: String? = nil, userName: String? = nil) async throws{
         try await KeychainManager.shared.save(access, key: .accessToken)
         try await KeychainManager.shared.save(refresh, key: .refreshToken)
         if let userId {
             try await KeychainManager.shared.save(userId, key: .userId)
         }
+        if let userName {
+            try await KeychainManager.shared.save(userName, key: .userName)
+        }
+    }
+
+    func saveUserName(_ userName: String) async throws{
+        try await KeychainManager.shared.save(userName, key: .userName)
     }
     
     //MARK: - Clear
