@@ -19,12 +19,14 @@ final class PaymentViewModel: ViewModelType {
     
     struct Input{
         let buyButtonTapped: ControlEvent<Void>
+        let paymentValidationId: PublishRelay<String?>
     }
     
     struct Output{
         let orderItems: Driver<[FilterResponseDTO]>
         let totalPrice: Driver<Int>
         let paymentInfo: Driver<PaymentInfo>
+        let validationResult: Signal<ReceiptOrderResponseDTO>
         let networkError: Signal<NetworkError>
     }
     
@@ -32,6 +34,7 @@ final class PaymentViewModel: ViewModelType {
         let orderItemsRelay = BehaviorRelay<[FilterResponseDTO]>(value: product)
         let totalPriceRelay = BehaviorRelay<Int>(value: product.map{$0.price}.reduce(0, +))
         let paymentInfoRelay = PublishRelay<PaymentInfo>()
+        let validationResultRelay = PublishRelay<ReceiptOrderResponseDTO>()
         let networkErrorRelay = PublishRelay<NetworkError>()
 
         let orderItems = Observable.combineLatest(orderItemsRelay, totalPriceRelay)
@@ -66,10 +69,27 @@ final class PaymentViewModel: ViewModelType {
             })
             .disposed(by: disposeBag)
         
+        input.paymentValidationId
+            .compactMap{ $0 }
+            .subscribe { impUId in
+                Task{
+                    do{
+                        let dto: ReceiptOrderResponseDTO = try await NetworkManager.shared.request(PaymentRouter.validation(impUId: impUId))
+                        validationResultRelay.accept(dto)
+                    }catch let error as NetworkError{
+                        networkErrorRelay.accept(error)
+                    }catch let error{
+                        networkErrorRelay.accept(NetworkError.unknown(error))
+                    }
+                }
+            }
+            .disposed(by: disposeBag)
+        
         return Output(
             orderItems: orderItemsRelay.asDriver(),
             totalPrice: totalPriceRelay.asDriver(),
             paymentInfo: paymentInfoRelay.asDriver(onErrorDriveWith: .empty()),
+            validationResult: validationResultRelay.asSignal(),
             networkError: networkErrorRelay.asSignal()
         )
     }
