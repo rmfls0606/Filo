@@ -19,12 +19,14 @@ final class OrderValidationViewModel: ViewModelType {
     struct Input { }
 
     struct Output {
-    
+        let receipt: Driver<ReceiptOrderResponseDTO>
+        let orderFilter: Driver<FilterSummaryResponseDTO_Order?>
     }
 
     func transform(input: Input) -> Output {
         return Output(
-          
+            receipt: Driver.just(receipt),
+            orderFilter: Driver.just(receipt.orderItem?.filter)
         )
     }
 }
