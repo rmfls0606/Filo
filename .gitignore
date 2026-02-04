@@ -111,3 +111,6 @@ GoogleService-Info.plist
 
 # API
 NetworkConfig.swift
+
+# Payment
+PaymentConfig.swift
