@@ -13,9 +13,14 @@ final class DetailViewModel: ViewModelType {
     private let disposeBag = DisposeBag()
     
     private let filterIdRelay: BehaviorRelay<String>
+    private let externalFilterValuesRelay = PublishRelay<FilterValuesDTO>()
     
     init(filterId: String) {
         self.filterIdRelay = BehaviorRelay(value: filterId)
+    }
+
+    func updateFilterValues(_ values: FilterValuesDTO) {
+        externalFilterValuesRelay.accept(values)
     }
     
     struct Input{
@@ -56,6 +61,11 @@ final class DetailViewModel: ViewModelType {
                     }
                 }
             })
+            .disposed(by: disposeBag)
+
+        externalFilterValuesRelay
+            .map { $0.toEntity() }
+            .bind(to: filterValueItemsRelay)
             .disposed(by: disposeBag)
 
         var requestId = 0
