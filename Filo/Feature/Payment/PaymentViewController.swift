@@ -153,6 +153,7 @@ final class PaymentViewController: BaseViewController {
     private let disposeBag = DisposeBag()
     private var orderListHeightConstraint: Constraint?
     private var iamportResponseRelay = PublishRelay<String?>()
+    var onPaymentValidated: ((ReceiptOrderResponseDTO) -> Void)?
     
     override var prefersCustomTabBarHidden: Bool{
         return true
@@ -311,11 +312,15 @@ final class PaymentViewController: BaseViewController {
 
         output.validationResult
             .emit(onNext: { [weak self] result in
-                let vm = OrderValidationViewModel(receipt: result)
-                let vc = OrderValidationViewController(viewModel: vm)
-                self?.navigationController?.pushViewController(vc, animated: true)
+                self?.onPaymentValidated?(result)
+                self?.navigationController?.popViewController(animated: true)
             })
             .disposed(by: disposeBag)
-        
+
+        output.networkError
+            .emit(onNext: { [weak self] error in
+                self?.showAlert(title: "영수증 검증 실패", message: error.errorDescription)
+            })
+            .disposed(by: disposeBag)
     }
 }
