@@ -23,6 +23,14 @@ extension DateFormatter {
         formatter.dateFormat = "yy.MM.dd"
         return formatter
     }()
+
+    static let chatSectionFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy년 M월 d일 EEEE"
+        return formatter
+    }()
 }
 
 extension String {
@@ -35,5 +43,13 @@ extension String {
             return DateFormatter.chatTimeFormatter.string(from: date)
         }
         return DateFormatter.chatDateFormatter.string(from: date)
+    }
+
+    func toChatSectionDate() -> String {
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = isoFormatter.date(from: self) ?? ISO8601DateFormatter().date(from: self)
+        guard let date else { return self }
+        return DateFormatter.chatSectionFormatter.string(from: date)
     }
 }
