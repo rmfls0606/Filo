@@ -84,15 +84,11 @@ final class BannerWebViewController: BaseViewController, WKScriptMessageHandler 
         case "click_attendance_button":
             Task { [weak self] in
                 guard let self else { return }
-                guard let accessToken = await TokenStorage.shared.accessToken(),
-                      !accessToken.isEmpty else {
-                    self.showAlert(title: "오류", message: "액세스 토큰이 없습니다.")
-                    return
-                }
-                let escapedToken = accessToken
-                    .replacingOccurrences(of: "\\", with: "\\\\")
-                    .replacingOccurrences(of: "'", with: "\\'")
                 do {
+                    let accessToken = try await BannerWebViewModel.validAccessToken()
+                    let escapedToken = accessToken
+                        .replacingOccurrences(of: "\\", with: "\\\\")
+                        .replacingOccurrences(of: "'", with: "\\'")
                     _ = try await self.webView.evaluateJavaScript("requestAttendance('\(escapedToken)')")
                 } catch {
                     self.showAlert(title: "오류", message: "웹뷰 통신에 실패했습니다.")
@@ -114,4 +110,5 @@ final class BannerWebViewController: BaseViewController, WKScriptMessageHandler 
             break
         }
     }
+
 }
