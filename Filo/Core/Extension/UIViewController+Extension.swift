@@ -18,4 +18,12 @@ extension UIViewController {
         alert.addAction(UIAlertAction(title: "확인", style: .default))
         present(alert, animated: true)
     }
+
+    func showAlert(title: String, message: String?, onConfirm: @escaping () -> Void){
+        let alert = UIAlertController(title: title, message: message ?? "....", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "확인", style: .default, handler: { _ in
+            onConfirm()
+        }))
+        present(alert, animated: true)
+    }
 }
