@@ -11,7 +11,6 @@ protocol ChatServiceProtocol {
     func fetchChatRooms() async throws -> [ChatRoomResponseDTO]
     func createOrFetchRoom(opponentId: String) async throws -> ChatRoomResponseDTO
     func fetchChats(roomId: String, next: String) async throws -> [ChatResponseDTO]
-    func uploadFiles(roomId: String, items: [ChatAttachmentItem]) async throws -> [String]
     func sendChat(roomId: String, content: String, files: [String]) async throws -> ChatResponseDTO
 }
 
@@ -32,14 +31,6 @@ final class ChatService: ChatServiceProtocol {
     func fetchChats(roomId: String, next: String) async throws -> [ChatResponseDTO] {
         let dto: ChatListResponseDTO = try await NetworkManager.shared.request(ChatRouter.fetchChats(roomId: roomId, next: next))
         return dto.data
-    }
-
-    func uploadFiles(roomId: String, items: [ChatAttachmentItem]) async throws -> [String] {
-        let files = items.map {
-            MultipartFile(data: $0.data, name: "files", fileName: $0.fileName, mimeType: $0.mimeType)
-        }
-        let dto: ChatFileResponseDTO = try await NetworkManager.shared.upload(ChatRouter.files(roomId: roomId, files: []), files: files)
-        return dto.files
     }
 
     func sendChat(roomId: String, content: String, files: [String]) async throws -> ChatResponseDTO {
