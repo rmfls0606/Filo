@@ -13,6 +13,7 @@ import RxCocoa
 final class HomeBannerView: BaseView {
     //MARK: - Properties
     private let disposeBag = DisposeBag()
+    let bannerSelected = PublishRelay<BannerDTO>()
 
     //MARK: - UI
     private lazy var collectionView: UICollectionView = {
@@ -91,6 +92,10 @@ final class HomeBannerView: BaseView {
             )) { _, item, cell in
                 cell.configure(urlString: item.imageUrl)
             }
+            .disposed(by: disposeBag)
+
+        collectionView.rx.modelSelected(BannerDTO.self)
+            .bind(to: bannerSelected)
             .disposed(by: disposeBag)
 
         let itemsCount = driverItems
