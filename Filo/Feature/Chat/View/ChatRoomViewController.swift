@@ -105,13 +105,13 @@ final class ChatRoomViewController: BaseViewController {
                         guard let cell = tableView.dequeueReusableCell(withIdentifier: ChatMyMessageCell.identifier) as? ChatMyMessageCell else {
                             return UITableViewCell()
                         }
-                        cell.bind(message: messageItem.message)
+                        cell.configure(message: messageItem.message)
                         return cell
                     } else {
                         guard let cell = tableView.dequeueReusableCell(withIdentifier: ChatOtherMessageCell.identifier) as? ChatOtherMessageCell else {
                             return UITableViewCell()
                         }
-                        cell.bind(message: messageItem.message)
+                        cell.configure(message: messageItem.message)
                         return cell
                     }
                 }
