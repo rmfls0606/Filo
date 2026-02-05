@@ -8,7 +8,7 @@
 import UIKit
 import SnapKit
 
-final class ChatMyMessageCell: UITableViewCell {
+final class ChatMyMessageCell: BaseTableViewCell {
 
     private let bubbleView: UIView = {
         let view = UIView()
@@ -31,17 +31,14 @@ final class ChatMyMessageCell: UITableViewCell {
         label.textColor = GrayStyle.gray60.color
         return label
     }()
-
-    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
-        super.init(style: style, reuseIdentifier: reuseIdentifier)
-        selectionStyle = .none
-        backgroundColor = .clear
-        contentView.backgroundColor = .clear
-
+    
+    override func configureHierarchy() {
         contentView.addSubview(timeLabel)
         contentView.addSubview(bubbleView)
         bubbleView.addSubview(messageLabel)
-
+    }
+    
+    override func configureLayout() {
         timeLabel.snp.makeConstraints { make in
             make.trailing.equalTo(bubbleView.snp.leading).offset(-8)
             make.bottom.equalTo(bubbleView.snp.bottom)
@@ -66,12 +63,13 @@ final class ChatMyMessageCell: UITableViewCell {
         }
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+    override func configureView() {
+        selectionStyle = .none
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
     }
 
-    func bind(message: ChatResponseDTO) {
+    func configure(message: ChatResponseDTO) {
         messageLabel.text = message.content
         timeLabel.text = message.createdAt.toChatTimestamp()
     }
