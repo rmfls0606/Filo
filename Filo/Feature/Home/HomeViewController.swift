@@ -245,6 +245,15 @@ final class HomeViewController: BaseViewController {
 
         bannerView.bind(items: output.bannerItems)
 
+        bannerView.bannerSelected
+            .bind(with: self) { owner, banner in
+                guard banner.payload.type.uppercased() == "WEBVIEW" else { return }
+                let vm = BannerWebViewModel(banner: banner)
+                let vc = BannerWebViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
+
         hotTrendView.bind(items: output.hotTrendItems)
         
         output.hotTrendItem
