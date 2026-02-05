@@ -16,7 +16,7 @@ final class ChatRoomViewModel: ViewModelType {
     private let localStore: ChatLocalStore
     private let disposeBag = DisposeBag()
 
-    private let currentUserId: String
+    private let currentUserIdValue: String
     private let socketService: ChatSocketService
     private var isSyncing = false
     private var pendingSocketMessages: [ChatResponseDTO] = []
@@ -32,7 +32,11 @@ final class ChatRoomViewModel: ViewModelType {
         self.service = service
         self.localStore = localStore
         self.socketService = socketService
-        self.currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+        self.currentUserIdValue = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+    }
+    
+    var currentUserId: String {
+        currentUserIdValue
     }
 
     struct Input {
@@ -130,7 +134,7 @@ final class ChatRoomViewModel: ViewModelType {
         let itemsDriver = messagesRelay
             .map { [weak self] messages -> [ChatMessageItem] in
                 guard let self else { return [] }
-                return messages.map { ChatMessageItem(message: $0, isMine: $0.sender.userID == self.currentUserId) }
+                return messages.map { ChatMessageItem(message: $0, isMine: $0.sender.userID == self.currentUserIdValue) }
             }
             .asDriver(onErrorJustReturn: [])
 

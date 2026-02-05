@@ -33,13 +33,15 @@ final class ChatRoomViewController: BaseViewController {
 
     //MARK: - Properties
     private let viewModel: ChatRoomViewModel
+    private let initialTitle: String?
     private let disposeBag = DisposeBag()
     private var listItems: [ChatListItem] = []
     
     override var prefersCustomTabBarHidden: Bool { true }
     
-    init(viewModel: ChatRoomViewModel) {
+    init(viewModel: ChatRoomViewModel, title: String? = nil) {
         self.viewModel = viewModel
+        self.initialTitle = title
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -70,6 +72,7 @@ final class ChatRoomViewController: BaseViewController {
         view.backgroundColor = GrayStyle.gray100.color
         inputViewContainer.textView.delegate = self
         inputBottomFillView.backgroundColor = inputViewContainer.backgroundColor
+        navigationItem.title = initialTitle ?? "채팅"
     }
 
     override func configureBind() {
@@ -117,6 +120,7 @@ final class ChatRoomViewController: BaseViewController {
 
         listItemsDriver
             .drive(with: self) { owner, _ in
+                owner.updateTitleIfNeeded()
                 owner.scrollToBottom()
             }
             .disposed(by: disposeBag)
@@ -146,6 +150,19 @@ final class ChatRoomViewController: BaseViewController {
         guard !listItems.isEmpty else { return }
         let indexPath = IndexPath(row: listItems.count - 1, section: 0)
         tableView.scrollToRow(at: indexPath, at: .bottom, animated: false)
+    }
+
+    private func updateTitleIfNeeded() {
+        guard navigationItem.title == "채팅" else { return }
+        let opponent = listItems.compactMap { item -> UserInfoResponseDTO? in
+            guard case .message(let messageItem) = item else { return nil }
+            return messageItem.message.sender
+        }
+        .first { $0.userID != viewModel.currentUserId }
+
+        if let opponent {
+            navigationItem.title = opponent.nick
+        }
     }
 }
 

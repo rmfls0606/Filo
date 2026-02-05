@@ -63,8 +63,9 @@ final class ChatRoomListViewController: BaseViewController {
         tableView.rx.modelSelected(ChatRoomResponseDTO.self)
             .subscribe(onNext: { [weak self] room in
                 guard let self else { return }
+                let opponent = room.participants.first(where: { $0.userID != self.viewModel.currentUserId })
                 let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: nil)
-                let vc = ChatRoomViewController(viewModel: vm)
+                let vc = ChatRoomViewController(viewModel: vm, title: opponent?.nick)
                 self.navigationController?.pushViewController(vc, animated: true)
             })
             .disposed(by: disposeBag)
