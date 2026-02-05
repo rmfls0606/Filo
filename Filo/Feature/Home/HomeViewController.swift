@@ -61,6 +61,8 @@ final class HomeViewController: BaseViewController {
         let button = UIButton(configuration: config)
         return button
     }()
+
+    private var filterUseButtonTopConstraint: Constraint?
     
     private let todayFilterIntroductionTitleBox: UIView = {
         let view = UIView()
@@ -123,6 +125,12 @@ final class HomeViewController: BaseViewController {
         let bottomInset = CustomTabBarView.height + view.safeAreaInsets.bottom
         homeScrollView.contentInset.bottom = bottomInset + 20
         homeScrollView.verticalScrollIndicatorInsets.bottom = bottomInset + 20
+
+        let statusHeight = view.window?.windowScene?.statusBarManager?.statusBarFrame.height ?? 0
+        let navHeight = navigationController?.navigationBar.frame.height ?? 44
+        let buttonHeight: CGFloat = 28
+        let top = statusHeight + max(0, (navHeight - buttonHeight) / 2)
+        filterUseButtonTopConstraint?.update(offset: top)
     }
     
     override func configureHierarchy() {
@@ -131,9 +139,8 @@ final class HomeViewController: BaseViewController {
         
         homeStacView.addArrangedSubview(todayFilterIntroductionView)
         todayFilterIntroductionView.addSubview(todayFilterImageView)
-        todayFilterIntroductionView.addSubview(filterUseButton)
-        
         todayFilterIntroductionView.addSubview(gradientView)
+        todayFilterIntroductionView.addSubview(filterUseButton)
         
         todayFilterIntroductionView.addSubview(todayFilterIntroductionTitleBox)
         todayFilterIntroductionTitleBox.addSubview(todayFilterIntroductionTitle)
@@ -178,8 +185,9 @@ final class HomeViewController: BaseViewController {
         }
         
         filterUseButton.snp.makeConstraints { make in
-            make.top.equalTo(view.safeAreaLayoutGuide).inset(12)
+            filterUseButtonTopConstraint = make.top.equalToSuperview().offset(0).constraint
             make.trailing.equalToSuperview().inset(20)
+            make.height.equalTo(28)
         }
         
         todayFilterIntroductionTitleBox.snp.makeConstraints { make in
@@ -221,6 +229,7 @@ final class HomeViewController: BaseViewController {
     override func configureView() {
         gradientView.frame = todayFilterImageView.bounds
         gradientView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        gradientView.isUserInteractionEnabled = false
     }
     
     override func configureBind() {
