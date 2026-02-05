@@ -21,6 +21,13 @@ final class ChatOtherMessageCell: BaseTableViewCell {
         return view
     }()
 
+    private let nameLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        return label
+    }()
+
     private let bubbleView: UIView = {
         let view = UIView()
         view.backgroundColor = GrayStyle.gray75.color?.withAlphaComponent(0.6)
@@ -42,26 +49,30 @@ final class ChatOtherMessageCell: BaseTableViewCell {
         label.textColor = GrayStyle.gray60.color
         return label
     }()
-
-    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
-        super.init(style: style, reuseIdentifier: reuseIdentifier)
-        selectionStyle = .none
-        backgroundColor = .clear
-        contentView.backgroundColor = .clear
-
+    
+    override func configureHierarchy() {
         contentView.addSubview(avatarImageView)
+        contentView.addSubview(nameLabel)
         contentView.addSubview(bubbleView)
         contentView.addSubview(timeLabel)
         bubbleView.addSubview(messageLabel)
-
+    }
+    
+    override func configureLayout() {
         avatarImageView.snp.makeConstraints { make in
             make.leading.equalToSuperview().inset(20)
-            make.bottom.equalTo(bubbleView.snp.bottom)
+            make.top.equalToSuperview().inset(4)
+            make.bottom.lessThanOrEqualTo(bubbleView.snp.bottom)
             make.size.equalTo(36)
         }
 
+        nameLabel.snp.makeConstraints { make in
+            make.leading.equalTo(avatarImageView.snp.trailing).offset(8)
+            make.top.equalToSuperview().inset(4)
+        }
+        
         bubbleView.snp.makeConstraints { make in
-            make.top.equalToSuperview().inset(6)
+            make.top.equalTo(nameLabel.snp.bottom).offset(4)
             make.leading.equalTo(avatarImageView.snp.trailing).offset(8)
             make.bottom.equalToSuperview().inset(6)
             make.width.lessThanOrEqualTo(UIScreen.main.bounds.width * 0.66)
@@ -73,19 +84,19 @@ final class ChatOtherMessageCell: BaseTableViewCell {
         }
 
         messageLabel.snp.makeConstraints { make in
-            make.top.equalToSuperview().inset(8)
-            make.horizontalEdges.equalToSuperview().inset(8)
-        }
-
-        messageLabel.snp.makeConstraints { make in
-            make.top.equalToSuperview().inset(8)
-            make.horizontalEdges.equalToSuperview().inset(8)
-            make.bottom.equalToSuperview().inset(8)
+            make.edges.equalToSuperview().inset(8)
         }
     }
 
-    func bind(message: ChatResponseDTO) {
+    override func configureView() {
+        selectionStyle = .none
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
+    }
+
+    func configure(message: ChatResponseDTO) {
         messageLabel.text = message.content
+        nameLabel.text = message.sender.nick
         timeLabel.text = message.createdAt.toChatTimestamp()
         if let url = message.sender.profileImage {
             avatarImageView.setKFImage(urlString: url)
