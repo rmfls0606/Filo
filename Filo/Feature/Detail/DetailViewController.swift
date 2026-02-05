@@ -370,6 +370,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         return font.lineHeight + 8
     }
     private var currentHashTags: [String] = []
+    private var currentBuyerCount: Int?
     
     let comparePan = UIPanGestureRecognizer()
     let tapGesutre = UITapGestureRecognizer()
@@ -652,6 +653,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                     owner.metadataView.showEmptyMetadata()
                 }
                 owner.downloadCheck(data.isDownloaded)
+                owner.currentBuyerCount = data.buyerCount
                 owner.downloadCountLabel.text = owner.formattedCount(data.buyerCount)
                 owner.likeCountLabel.text = owner.formattedCount(data.likeCount)
                 //creator
@@ -753,6 +755,9 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
             .bind(with: self) { owner, data in
                 let vm = PaymentViewModel(product: [data])
                 let vc = PaymentViewController(viewModel: vm)
+                vc.onPaymentValidated = { [weak owner] receipt in
+                    owner?.applyPurchasedFilterValues(from: receipt)
+                }
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
@@ -896,6 +901,19 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
             buyButton.setTitleColor(GrayStyle.gray30.color, for: .normal)
         }
         buyButton.isUserInteractionEnabled = !isDownload
+    }
+
+    private func applyPurchasedFilterValues(from receipt: ReceiptOrderResponseDTO) {
+        guard let filter = receipt.orderItem?.filter else { return }
+        if let values = filter.filterValues {
+            viewModel.updateFilterValues(values)
+        }
+        downloadCheck(true)
+        if let count = currentBuyerCount {
+            let next = count + 1
+            currentBuyerCount = next
+            downloadCountLabel.text = formattedCount(next)
+        }
     }
     
     private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
