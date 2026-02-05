@@ -6,24 +6,29 @@
 //
 
 import UIKit
+import RxSwift
+import RxCocoa
 
-class ProfileViewController: UIViewController {
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        // Do any additional setup after loading the view.
-    }
+final class ProfileViewController: BaseViewController {
+    private let disposeBag = DisposeBag()
     
-
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destination.
-        // Pass the selected object to the new view controller.
+    override func configureView() {
+        navigationItem.title = "PROFILE"
+        navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(named: "message"))
     }
-    */
 
+    override func configureBind() {
+        navigationItem.rightBarButtonItem?.rx.tap
+            .compactMap{ $0 }
+            .throttle(.milliseconds(500), scheduler: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+                let vm = ChatRoomListViewModel(currentUserId: currentUserId)
+                let vc = ChatRoomListViewController(viewModel: vm)
+                self.navigationController?.pushViewController(vc, animated: true)
+            })
+            .disposed(by: disposeBag)
+    }
 }
