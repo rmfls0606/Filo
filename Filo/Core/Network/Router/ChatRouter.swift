@@ -63,9 +63,9 @@ enum ChatRouter: APITarget{
     
     var encoding: ParameterEncoding{
         switch self {
-        case .chatRooms, .sendChats, .fetchChats, .files:
+        case .chatRooms, .sendChats, .files:
             return JSONEncoding.default
-        case .fetchChatRooms:
+        case .fetchChatRooms, .fetchChats:
             return URLEncoding.default
         }
     }
