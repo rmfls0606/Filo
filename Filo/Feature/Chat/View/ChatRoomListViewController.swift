@@ -60,6 +60,15 @@ final class ChatRoomListViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
 
+        tableView.rx.modelSelected(ChatRoomResponseDTO.self)
+            .subscribe(onNext: { [weak self] room in
+                guard let self else { return }
+                let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: nil)
+                let vc = ChatRoomViewController(viewModel: vm)
+                self.navigationController?.pushViewController(vc, animated: true)
+            })
+            .disposed(by: disposeBag)
+
         output.networkError
             .emit(with: self) { owner, error in
                 owner.showAlert(title: "오류", message: error.errorDescription)
