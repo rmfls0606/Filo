@@ -15,11 +15,13 @@ final class HomeViewModel: ViewModelType{
     
     struct Input{
         let selectedHotTrendItem: ControlEvent<FilterSummaryResponseEntity>
+        let filterUserButtonTapped: ControlEvent<Void>
     }
     
     struct Output{
         let filterCategories: Driver<[FilterCategoryType]>
         let todayFilterData: Driver<TodayFilterResponseEntity>
+        let moveTodayFilterDetail: Driver<String>
         let hotTrendItems: Driver<[FilterSummaryResponseEntity]>
         let todayAuthorData: Driver<TodayAuthorResponseEntity>
         let bannerItems: Driver<BannerListResponseEntity>
@@ -30,6 +32,7 @@ final class HomeViewModel: ViewModelType{
     func transform(input: Input) -> Output {
         let filterCategoriesRelay = BehaviorRelay<[FilterCategoryType]>(value: FilterCategoryType.allCases)
         let todayFilterRelay = PublishRelay<TodayFilterResponseEntity>()
+        let moveTodayFilterDetailRelay = PublishRelay<String>()
         let hotTrendRelay = PublishRelay<[FilterSummaryResponseEntity]>()
         let todayAuthorRelay = PublishRelay<TodayAuthorResponseEntity>()
         let bannerRelay = PublishRelay<BannerListResponseEntity>()
@@ -87,6 +90,12 @@ final class HomeViewModel: ViewModelType{
             }
         }
         
+        input.filterUserButtonTapped
+            .withLatestFrom(todayFilterRelay)
+            .map{ $0.filterId }
+            .bind(to: moveTodayFilterDetailRelay)
+            .disposed(by: disposeBag)
+        
         input.selectedHotTrendItem
             .map{ $0.filterId }
             .bind(to: selectedHotTrendItemRelay)
@@ -95,6 +104,7 @@ final class HomeViewModel: ViewModelType{
         return Output(
             filterCategories: filterCategoriesRelay.asDriver(),
             todayFilterData: todayFilterRelay.asDriver(onErrorDriveWith: .empty()),
+            moveTodayFilterDetail: moveTodayFilterDetailRelay.asDriver(onErrorDriveWith: .empty()),
             hotTrendItems: hotTrendRelay.asDriver(onErrorDriveWith: .empty()),
             todayAuthorData: todayAuthorRelay.asDriver(onErrorDriveWith: .empty()),
             bannerItems: bannerRelay.asDriver(onErrorDriveWith: .empty()),

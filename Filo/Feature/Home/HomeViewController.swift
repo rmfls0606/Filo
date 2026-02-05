@@ -234,7 +234,8 @@ final class HomeViewController: BaseViewController {
     
     override func configureBind() {
         let input = HomeViewModel.Input(
-            selectedHotTrendItem: hotTrendView.hotTrendValueRelay
+            selectedHotTrendItem: hotTrendView.hotTrendValueRelay,
+            filterUserButtonTapped: filterUseButton.rx.tap
         )
         let output = viewModel.transform(input: input)
         
@@ -264,6 +265,14 @@ final class HomeViewController: BaseViewController {
             .disposed(by: disposeBag)
 
         hotTrendView.bind(items: output.hotTrendItems)
+        
+        output.moveTodayFilterDetail
+            .drive(with: self){ owner, filterId in
+                let vm = DetailViewModel(filterId: filterId)
+                let vc = DetailViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
         
         output.hotTrendItem
             .drive(with: self){ owenr, filterId in
