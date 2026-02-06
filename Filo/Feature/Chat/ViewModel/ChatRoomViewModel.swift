@@ -44,8 +44,12 @@ final class ChatRoomViewModel: ViewModelType {
     struct Input {
         let viewWillAppear: Observable<Void>
         let viewWillDisappear: Observable<Void>
-        let sendTapped: ControlEvent<Void>
-        let textChanged: ControlProperty<String>
+        let sendTapped: Observable<Void>
+        let textChanged: Observable<String>
+        let addAttachments: Observable<[ChatAttachmentItem]>
+        let removeAttachment: Observable<UUID>
+        let attachMenuToggle: Observable<Void>
+        let attachMenuSelected: Observable<ChatAttachMenuItem>
     }
 
     struct Output {
@@ -53,6 +57,9 @@ final class ChatRoomViewModel: ViewModelType {
         let isSendEnabled: Driver<Bool>
         let sendCompleted: Signal<Void>
         let networkError: Signal<NetworkError>
+        let attachments: Driver<[ChatAttachmentItem]>
+        let attachMenuItems: Driver<[ChatAttachMenuItem]>
+        let isAttachMenuVisible: Driver<Bool>
     }
 
     func transform(input: Input) -> Output {
@@ -61,6 +68,10 @@ final class ChatRoomViewModel: ViewModelType {
         let sendEnabledRelay = BehaviorRelay<Bool>(value: false)
         let sendCompletedRelay = PublishRelay<Void>()
         let errorRelay = PublishRelay<NetworkError>()
+        let attachmentsRelay = BehaviorRelay<[ChatAttachmentItem]>(value: [])
+        let attachMenuVisibleRelay = BehaviorRelay<Bool>(value: false)
+        let attachMenuItemsRelay = BehaviorRelay<[ChatAttachMenuItem]>(value: ChatAttachMenuItem.allCases)
+        let maxAttachmentCount = 5
 
         let loadMessages: () -> Void = { [weak self] in
             guard let self else { return }
@@ -130,18 +141,57 @@ final class ChatRoomViewModel: ViewModelType {
             .bind(to: textRelay)
             .disposed(by: disposeBag)
 
+        input.attachMenuToggle
+            .subscribe(onNext: {
+                attachMenuVisibleRelay.accept(!attachMenuVisibleRelay.value)
+            })
+            .disposed(by: disposeBag)
+
+        input.attachMenuSelected
+            .subscribe(onNext: { _ in
+                attachMenuVisibleRelay.accept(false)
+            })
+            .disposed(by: disposeBag)
+
+        input.addAttachments
+            .subscribe(onNext: { items in
+                guard !items.isEmpty else { return }
+                var current = attachmentsRelay.value
+                let available = maxAttachmentCount - current.count
+                guard available > 0 else { return }
+                current.append(contentsOf: items.prefix(available))
+                attachmentsRelay.accept(current)
+            })
+            .disposed(by: disposeBag)
+
+        input.removeAttachment
+            .subscribe(onNext: { id in
+                let updated = attachmentsRelay.value.filter { $0.id != id }
+                attachmentsRelay.accept(updated)
+            })
+            .disposed(by: disposeBag)
+
+        let sendPayload = Observable
+            .combineLatest(textRelay, attachmentsRelay)
+
         input.sendTapped
-            .withLatestFrom(textRelay)
-            .subscribe(onNext: { [weak self] text in
+            .withLatestFrom(sendPayload)
+            .subscribe(onNext: { [weak self] text, attachments in
                 self?.sendMessage(text: text,
+                                  attachments: attachments,
+                                  attachmentsRelay: attachmentsRelay,
                                   messagesRelay: messagesRelay,
                                   sendCompletedRelay: sendCompletedRelay,
                                   errorRelay: errorRelay)
             })
             .disposed(by: disposeBag)
 
-        textRelay
-            .map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        Observable
+            .combineLatest(textRelay, attachmentsRelay)
+            .map { text, attachments in
+                let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                return hasText || !attachments.isEmpty
+            }
             .bind(to: sendEnabledRelay)
             .disposed(by: disposeBag)
 
@@ -156,7 +206,10 @@ final class ChatRoomViewModel: ViewModelType {
             messageItems: itemsDriver,
             isSendEnabled: sendEnabledRelay.asDriver(),
             sendCompleted: sendCompletedRelay.asSignal(),
-            networkError: errorRelay.asSignal()
+            networkError: errorRelay.asSignal(),
+            attachments: attachmentsRelay.asDriver(),
+            attachMenuItems: attachMenuItemsRelay.asDriver(),
+            isAttachMenuVisible: attachMenuVisibleRelay.asDriver()
         )
     }
 
@@ -200,6 +253,8 @@ final class ChatRoomViewModel: ViewModelType {
     }
 
     private func sendMessage(text: String,
+                             attachments: [ChatAttachmentItem],
+                             attachmentsRelay: BehaviorRelay<[ChatAttachmentItem]>,
                              messagesRelay: BehaviorRelay<[ChatResponseDTO]>,
                              sendCompletedRelay: PublishRelay<Void>,
                              errorRelay: PublishRelay<NetworkError>) {
@@ -212,13 +267,21 @@ final class ChatRoomViewModel: ViewModelType {
                     self.roomId = created.roomId
                 }
                 guard let roomId else { return }
-                let sent = try await self.service.sendChat(roomId: roomId, content: text, files: [])
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let uploadedFiles: [String]
+                if attachments.isEmpty {
+                    uploadedFiles = []
+                } else {
+                    uploadedFiles = try await self.service.uploadFiles(roomId: roomId, items: attachments)
+                }
+                let sent = try await self.service.sendChat(roomId: roomId, content: trimmed, files: uploadedFiles)
                 self.localStore.upsertMessages([sent])
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                 self.refreshUsersIfNeeded(senderIds: [sent.sender.userID], forceIds: []) { [weak self] updated in
                     guard let self, updated else { return }
                     messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                 }
+                attachmentsRelay.accept([])
                 self.connectSocket(messagesRelay: messagesRelay, errorRelay: errorRelay)
                 sendCompletedRelay.accept(())
             } catch let error as NetworkError {
