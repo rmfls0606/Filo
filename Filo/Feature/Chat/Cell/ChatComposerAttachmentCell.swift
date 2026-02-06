@@ -31,6 +31,17 @@ final class ChatComposerAttachmentCell: UICollectionViewCell {
         return label
     }()
 
+    private let fileIconView: UIImageView = {
+        let view = UIImageView()
+        let config = UIImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        view.image = UIImage(systemName: "doc.fill", withConfiguration: config)
+        view.tintColor = GrayStyle.gray30.color
+        view.clipsToBounds = true
+        view.contentMode = .center
+        view.isHidden = true
+        return view
+    }()
+
     private let removeButton: UIButton = {
         let button = UIButton(type: .system)
         button.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
@@ -44,6 +55,7 @@ final class ChatComposerAttachmentCell: UICollectionViewCell {
         super.init(frame: frame)
         contentView.addSubview(imageView)
         contentView.addSubview(fileBadge)
+        contentView.addSubview(fileIconView)
         contentView.addSubview(removeButton)
 
         imageView.snp.makeConstraints { make in
@@ -55,6 +67,11 @@ final class ChatComposerAttachmentCell: UICollectionViewCell {
             make.centerY.equalToSuperview()
             make.width.equalTo(44)
             make.height.equalTo(22)
+        }
+
+        fileIconView.snp.makeConstraints { make in
+            make.trailing.bottom.equalToSuperview().inset(6)
+            make.size.equalTo(14)
         }
 
         removeButton.snp.makeConstraints { make in
@@ -71,13 +88,28 @@ final class ChatComposerAttachmentCell: UICollectionViewCell {
     }
 
     func bind(item: ChatAttachmentItem) {
+        let isPDF = item.mimeType.lowercased() == "application/pdf" || item.fileName.lowercased().hasSuffix(".pdf")
         if item.isImage, let image = UIImage(data: item.data) {
             imageView.image = image
             fileBadge.isHidden = true
+            fileIconView.isHidden = true
+        } else if isPDF {
+            let target = imageView.bounds.size == .zero ? CGSize(width: 72, height: 72) : imageView.bounds.size
+            imageView.image = UIImage(systemName: "doc")
+            imageView.tintColor = GrayStyle.gray60.color
+            fileBadge.isHidden = true
+            fileIconView.isHidden = false
+            ThumbnailCache.shared.loadPDFThumbnail(data: item.data, size: target) { [weak self] thumbnail in
+                guard let self else { return }
+                guard let thumbnail else { return }
+                self.imageView.image = thumbnail
+                self.imageView.tintColor = nil
+            }
         } else {
             imageView.image = UIImage(systemName: "doc")
             imageView.tintColor = GrayStyle.gray60.color
             fileBadge.isHidden = false
+            fileIconView.isHidden = true
         }
     }
 
