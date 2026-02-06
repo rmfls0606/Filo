@@ -16,6 +16,10 @@ final class UserProfileViewModel: ViewModelType{
     init(userId: String){
         self.userId = userId
     }
+
+    var profileUserId: String {
+        userId
+    }
     
     struct Input{
         let selectedSegment: Observable<Int>

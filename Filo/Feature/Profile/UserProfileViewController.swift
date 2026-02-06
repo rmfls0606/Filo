@@ -327,6 +327,33 @@ final class UserProfileViewController: BaseViewController {
                 self?.showAlert(title: "오류", message: error.errorDescription)
             })
             .disposed(by: disposeBag)
+
+        chatButton.rx.tap
+            .throttle(.milliseconds(500), scheduler: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                let opponentId = self.viewModel.profileUserId
+                let opponentNick = self.userNickname.text
+                Task {
+                    do {
+                        let room = try await ChatService.shared.createOrFetchRoom(opponentId: opponentId)
+                        let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: opponentId)
+                        let vc = ChatRoomViewController(viewModel: vm, title: opponentNick)
+                        await MainActor.run {
+                            self.navigationController?.pushViewController(vc, animated: true)
+                        }
+                    } catch let error as NetworkError {
+                        await MainActor.run {
+                            self.showAlert(title: "오류", message: error.errorDescription)
+                        }
+                    } catch {
+                        await MainActor.run {
+                            self.showAlert(title: "오류", message: NetworkError.unknown(error).errorDescription)
+                        }
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
         
         let visibleItems = Driver
             .combineLatest(output.userFilterItems, output.userCommunityItems, output.selectedSegment)

@@ -744,6 +744,32 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
             }
             .disposed(by: disposeBag)
 
+        sendMessageButton.rx.tap
+            .throttle(.milliseconds(500), scheduler: MainScheduler.instance)
+            .withLatestFrom(output.filterDetailData)
+            .subscribe(onNext: { [weak self] detail in
+                guard let self else { return }
+                Task {
+                    do {
+                        let room = try await ChatService.shared.createOrFetchRoom(opponentId: detail.creator.userID)
+                        let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: detail.creator.userID)
+                        let vc = ChatRoomViewController(viewModel: vm, title: detail.creator.nick)
+                        await MainActor.run {
+                            self.navigationController?.pushViewController(vc, animated: true)
+                        }
+                    } catch let error as NetworkError {
+                        await MainActor.run {
+                            self.showAlert(title: "오류", message: error.errorDescription)
+                        }
+                    } catch {
+                        await MainActor.run {
+                            self.showAlert(title: "오류", message: NetworkError.unknown(error).errorDescription)
+                        }
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
+
         output.networkError
             .emit(onNext: { [weak self] error in
                 self?.showAlert(title: "오류", message: error.errorDescription)
