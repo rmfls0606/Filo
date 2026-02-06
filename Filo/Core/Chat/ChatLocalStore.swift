@@ -8,6 +8,38 @@
 import Foundation
 import RealmSwift
 
+final class ChatUserObject: Object {
+    @Persisted(primaryKey: true) var userId: String
+    @Persisted var nick: String
+    @Persisted var name: String?
+    @Persisted var introduction: String?
+    @Persisted var profileImage: String?
+    @Persisted var hashTags: List<String>
+    @Persisted var lastFetchedAt: Date
+
+    convenience init(dto: UserInfoResponseDTO, fetchedAt: Date = Date()) {
+        self.init()
+        userId = dto.userID
+        nick = dto.nick
+        name = dto.name
+        introduction = dto.introduction
+        profileImage = dto.profileImage
+        hashTags.append(objectsIn: dto.hashTags)
+        lastFetchedAt = fetchedAt
+    }
+
+    func toDTO() -> UserInfoResponseDTO {
+        UserInfoResponseDTO(
+            userID: userId,
+            nick: nick,
+            name: name,
+            introduction: introduction,
+            profileImage: profileImage,
+            hashTags: Array(hashTags)
+        )
+    }
+}
+
 final class ChatMessageObject: Object {
     @Persisted(primaryKey: true) var chatId: String
     @Persisted var roomId: String
@@ -74,7 +106,20 @@ final class ChatLocalStore {
             let results = realm.objects(ChatMessageObject.self)
                 .where { $0.roomId == roomId }
                 .sorted(byKeyPath: "createdAt", ascending: true)
-            return results.map { $0.toDTO() }
+            let dtos = results.map { $0.toDTO() }
+            let cached = fetchUserCache(ids: dtos.map { $0.sender.userID }, realm: realm)
+            return dtos.map { dto in
+                guard let sender = cached[dto.sender.userID] else { return dto }
+                return ChatResponseDTO(
+                    chatId: dto.chatId,
+                    roomId: dto.roomId,
+                    content: dto.content,
+                    createdAt: dto.createdAt,
+                    updatedAt: dto.updatedAt,
+                    sender: sender,
+                    files: dto.files
+                )
+            }
         }
     }
 
@@ -85,7 +130,20 @@ final class ChatLocalStore {
                 .where { $0.roomId == roomId }
                 .sorted(byKeyPath: "createdAt", ascending: false)
                 .first
-            return object?.toDTO()
+            guard let dto = object?.toDTO() else { return nil }
+            let cached = fetchUserCache(ids: [dto.sender.userID], realm: realm)
+            if let sender = cached[dto.sender.userID] {
+                return ChatResponseDTO(
+                    chatId: dto.chatId,
+                    roomId: dto.roomId,
+                    content: dto.content,
+                    createdAt: dto.createdAt,
+                    updatedAt: dto.updatedAt,
+                    sender: sender,
+                    files: dto.files
+                )
+            }
+            return dto
         }
     }
 
@@ -94,6 +152,25 @@ final class ChatLocalStore {
         queue.sync {
             guard let realm = try? Realm() else { return }
             let objects = messages.map { ChatMessageObject(dto: $0) }
+            let uniqueUsers = Dictionary(grouping: messages, by: { $0.sender.userID })
+                .compactMap { $0.value.first?.sender }
+                .map { ChatUserObject(dto: $0) }
+            do {
+                try realm.write {
+                    realm.add(objects, update: .modified)
+                    realm.add(uniqueUsers, update: .modified)
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    func upsertUsers(_ users: [UserInfoResponseDTO]) {
+        guard !users.isEmpty else { return }
+        queue.sync {
+            guard let realm = try? Realm() else { return }
+            let objects = users.map { ChatUserObject(dto: $0) }
             do {
                 try realm.write {
                     realm.add(objects, update: .modified)
@@ -102,5 +179,60 @@ final class ChatLocalStore {
                 return
             }
         }
+    }
+
+    func fetchUser(userId: String) -> UserInfoResponseDTO? {
+        queue.sync {
+            guard let realm = try? Realm() else { return nil }
+            guard let user = realm.object(ofType: ChatUserObject.self, forPrimaryKey: userId) else { return nil }
+            return user.toDTO()
+        }
+    }
+
+    func fetchUsers(userIds: [String]) -> [String: UserInfoResponseDTO] {
+        guard !userIds.isEmpty else { return [:] }
+        return queue.sync {
+            guard let realm = try? Realm() else { return [:] }
+            let results = realm.objects(ChatUserObject.self)
+                .filter("userId IN %@", Array(Set(userIds)))
+            var map: [String: UserInfoResponseDTO] = [:]
+            for user in results {
+                map[user.userId] = user.toDTO()
+            }
+            return map
+        }
+    }
+
+    func staleUserIds(_ ids: [String], ttl: TimeInterval) -> [String] {
+        guard !ids.isEmpty else { return [] }
+        return queue.sync {
+            guard let realm = try? Realm() else { return [] }
+            let now = Date()
+            let results = realm.objects(ChatUserObject.self)
+                .filter("userId IN %@", ids)
+            var stale: [String] = []
+            let existing = Set(results.map { $0.userId })
+
+            for id in ids where !existing.contains(id) {
+                stale.append(id)
+            }
+            for user in results {
+                if now.timeIntervalSince(user.lastFetchedAt) > ttl {
+                    stale.append(user.userId)
+                }
+            }
+            return Array(Set(stale))
+        }
+    }
+
+    private func fetchUserCache(ids: [String], realm: Realm) -> [String: UserInfoResponseDTO] {
+        guard !ids.isEmpty else { return [:] }
+        let results = realm.objects(ChatUserObject.self)
+            .filter("userId IN %@", Array(Set(ids)))
+        var map: [String: UserInfoResponseDTO] = [:]
+        for user in results {
+            map[user.userId] = user.toDTO()
+        }
+        return map
     }
 }
