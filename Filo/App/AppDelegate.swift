@@ -81,5 +81,58 @@ extension AppDelegate: MessagingDelegate{
         object: nil,
         userInfo: dataDict
       )
+
+      guard let token = fcmToken, !token.isEmpty else { return }
+      UserDefaults.standard.set(token, forKey: "fcmToken")
+      Task {
+          if let _ = await TokenStorage.shared.accessToken() {
+              do {
+                  try await NetworkManager.shared.requestEmpty(
+                      UserRouter.deviceToken(deviceToken: token)
+                  )
+                  debugPrint("Device token updated: \(token)")
+              } catch {
+                  debugPrint("Device token update failed: \(error)")
+              }
+          }
+      }
+    }
+}
+
+extension AppDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        let top = topViewController()
+        if top is ChatRoomListViewController || top is ChatRoomViewController {
+            completionHandler([])
+        } else {
+            completionHandler([.banner, .sound, .badge])
+        }
+    }
+}
+
+private extension AppDelegate {
+    func topViewController() -> UIViewController? {
+        let root = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }?
+            .rootViewController
+        return topViewController(from: root)
+    }
+
+    func topViewController(from root: UIViewController?) -> UIViewController? {
+        guard let root else { return nil }
+        if let presented = root.presentedViewController {
+            return topViewController(from: presented)
+        }
+        if let nav = root as? UINavigationController {
+            return topViewController(from: nav.visibleViewController)
+        }
+        if let tab = root as? UITabBarController {
+            return topViewController(from: tab.selectedViewController)
+        }
+        return root
     }
 }
