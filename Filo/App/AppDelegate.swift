@@ -83,6 +83,8 @@ extension AppDelegate: MessagingDelegate{
       )
 
       guard let token = fcmToken, !token.isEmpty else { return }
+      let previous = UserDefaults.standard.string(forKey: "fcmToken")
+      guard previous != token else { return }
       UserDefaults.standard.set(token, forKey: "fcmToken")
       Task {
           if let _ = await TokenStorage.shared.accessToken() {
