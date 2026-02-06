@@ -79,6 +79,18 @@ final class ChatRoomViewController: BaseViewController {
         navigationItem.title = initialTitle ?? "채팅"
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        CurrentChatRoom.shared.roomId = viewModel.currentRoomId
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if CurrentChatRoom.shared.roomId == viewModel.currentRoomId {
+            CurrentChatRoom.shared.roomId = nil
+        }
+    }
+
     override func configureBind() {
         let input = ChatRoomViewModel.Input(
             viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear)).map { _ in },

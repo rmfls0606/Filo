@@ -106,7 +106,13 @@ extension AppDelegate {
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let top = topViewController()
-        if top is ChatRoomListViewController || top is ChatRoomViewController {
+        let roomId = extractRoomId(from: notification.request.content.userInfo)
+        if top is ChatRoomListViewController {
+            completionHandler([])
+            return
+        }
+        if top is ChatRoomViewController,
+           (roomId == nil || roomId == CurrentChatRoom.shared.roomId) {
             completionHandler([])
         } else {
             completionHandler([.banner, .sound, .badge])
