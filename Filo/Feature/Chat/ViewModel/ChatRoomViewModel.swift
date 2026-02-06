@@ -21,6 +21,8 @@ final class ChatRoomViewModel: ViewModelType {
     private var isSyncing = false
     private var pendingSocketMessages: [ChatResponseDTO] = []
     private var pendingSocketIds = Set<String>()
+    private let userCacheTTL: TimeInterval = 60 * 60 * 24
+    private let maxUserRefreshCount = 10
 
     init(roomId: String?,
          opponentId: String?,
@@ -68,6 +70,10 @@ final class ChatRoomViewModel: ViewModelType {
 
             let localMessages = self.localStore.fetchMessages(roomId: roomId)
             messagesRelay.accept(localMessages)
+            self.refreshUsersIfNeeded(senderIds: localMessages.map { $0.sender.userID }, forceIds: opponentId.map { [$0] } ?? []) { [weak self] updated in
+                guard let self, updated else { return }
+                messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+            }
 
             let latest = self.localStore.latestMessage(roomId: roomId)
             let next = latest?.createdAt ?? ""
@@ -79,6 +85,10 @@ final class ChatRoomViewModel: ViewModelType {
                     if !serverMessages.isEmpty {
                         self.localStore.upsertMessages(serverMessages)
                         messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+                        self.refreshUsersIfNeeded(senderIds: serverMessages.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
+                            guard let self, updated else { return }
+                            messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+                        }
                     }
                     self.connectSocket(messagesRelay: messagesRelay, errorRelay: errorRelay)
                     let latestAfterSync = self.localStore.latestMessage(roomId: roomId)
@@ -87,6 +97,10 @@ final class ChatRoomViewModel: ViewModelType {
                     if !catchUp.isEmpty {
                         self.localStore.upsertMessages(catchUp)
                         messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+                        self.refreshUsersIfNeeded(senderIds: catchUp.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
+                            guard let self, updated else { return }
+                            messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+                        }
                     }
                     self.isSyncing = false
                     self.flushPendingMessages(roomId: roomId, messagesRelay: messagesRelay)
@@ -170,6 +184,10 @@ final class ChatRoomViewModel: ViewModelType {
         guard !pendingSocketMessages.isEmpty else { return }
         localStore.upsertMessages(pendingSocketMessages)
         messagesRelay.accept(localStore.fetchMessages(roomId: roomId))
+        refreshUsersIfNeeded(senderIds: pendingSocketMessages.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
+            guard let self, updated else { return }
+            messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+        }
         pendingSocketMessages.removeAll()
         pendingSocketIds.removeAll()
     }
@@ -197,12 +215,40 @@ final class ChatRoomViewModel: ViewModelType {
                 let sent = try await self.service.sendChat(roomId: roomId, content: text, files: [])
                 self.localStore.upsertMessages([sent])
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+                self.refreshUsersIfNeeded(senderIds: [sent.sender.userID], forceIds: []) { [weak self] updated in
+                    guard let self, updated else { return }
+                    messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
+                }
                 self.connectSocket(messagesRelay: messagesRelay, errorRelay: errorRelay)
                 sendCompletedRelay.accept(())
             } catch let error as NetworkError {
                 errorRelay.accept(error)
             } catch {
                 errorRelay.accept(NetworkError.unknown(error))
+            }
+        }
+    }
+
+    private func refreshUsersIfNeeded(senderIds: [String], forceIds: [String], completion: ((Bool) -> Void)? = nil) {
+        let ids = Array(Set(senderIds + forceIds))
+        var stale = localStore.staleUserIds(ids, ttl: userCacheTTL)
+        stale.append(contentsOf: forceIds)
+        stale = Array(Set(stale))
+        guard !stale.isEmpty else { return }
+
+        Task {
+            var updated = false
+            for userId in stale.prefix(maxUserRefreshCount) {
+                do {
+                    let dto: UserInfoResponseDTO = try await NetworkManager.shared.request(UserRouter.otherProfile(userId: userId))
+                    localStore.upsertUsers([dto])
+                    updated = true
+                } catch {
+                    continue
+                }
+            }
+            if updated {
+                completion?(true)
             }
         }
     }
