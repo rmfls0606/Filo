@@ -41,6 +41,10 @@ final class ChatRoomViewModel: ViewModelType {
         currentUserIdValue
     }
 
+    var currentRoomId: String? {
+        roomId
+    }
+
     struct Input {
         let viewWillAppear: Observable<Void>
         let viewWillDisappear: Observable<Void>
@@ -276,6 +280,16 @@ final class ChatRoomViewModel: ViewModelType {
                     uploadedFiles = try await self.service.uploadFiles(roomId: roomId, items: attachments)
                 }
                 let sent = try await self.service.sendChat(roomId: roomId, content: content, files: uploadedFiles)
+                if let opponentId {
+                    let pushBody = trimmed.isEmpty && !attachments.isEmpty ? "(첨부파일)" : trimmed
+                    let title = sent.sender.nick
+                    do {
+                        try await NetworkManager.shared.requestEmpty(
+                            PushRouter.push(userId: opponentId, title: title, subTitle: "", body: pushBody)
+                        )
+                    } catch{
+                    }
+                }
                 self.localStore.upsertMessages([sent])
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                 self.refreshUsersIfNeeded(senderIds: [sent.sender.userID], forceIds: []) { [weak self] updated in
