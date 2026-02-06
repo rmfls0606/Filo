@@ -9,6 +9,8 @@ import UIKit
 import SnapKit
 import RxSwift
 import RxCocoa
+import PhotosUI
+import UniformTypeIdentifiers
 
 final class ChatRoomViewController: BaseViewController {
     //MARK: - UI
@@ -36,6 +38,8 @@ final class ChatRoomViewController: BaseViewController {
     private let initialTitle: String?
     private let disposeBag = DisposeBag()
     private var listItems: [ChatListItem] = []
+    private var currentAttachments: [ChatAttachmentItem] = []
+    private let addAttachmentsRelay = PublishRelay<[ChatAttachmentItem]>()
     
     override var prefersCustomTabBarHidden: Bool { true }
     
@@ -79,8 +83,12 @@ final class ChatRoomViewController: BaseViewController {
         let input = ChatRoomViewModel.Input(
             viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear)).map { _ in },
             viewWillDisappear: rx.methodInvoked(#selector(UIViewController.viewWillDisappear)).map { _ in },
-            sendTapped: inputViewContainer.sendButton.rx.tap,
-            textChanged: inputViewContainer.inputText
+            sendTapped: inputViewContainer.sendButton.rx.tap.asObservable(),
+            textChanged: inputViewContainer.inputText.asObservable(),
+            addAttachments: addAttachmentsRelay.asObservable(),
+            removeAttachment: inputViewContainer.removeAttachment,
+            attachMenuToggle: inputViewContainer.attachButton.rx.tap.asObservable(),
+            attachMenuSelected: inputViewContainer.attachMenuSelected
         )
 
         let output = viewModel.transform(input: input)
@@ -139,10 +147,35 @@ final class ChatRoomViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
 
+        output.attachments
+            .drive(with: self) { owner, items in
+                owner.currentAttachments = items
+                owner.inputViewContainer.updateAttachments(items)
+            }
+            .disposed(by: disposeBag)
+
+        output.attachMenuItems
+            .drive(with: self) { owner, items in
+                owner.inputViewContainer.updateAttachMenuItems(items)
+            }
+            .disposed(by: disposeBag)
+
+        output.isAttachMenuVisible
+            .drive(with: self) { owner, visible in
+                owner.inputViewContainer.updateAttachMenuVisible(visible)
+            }
+            .disposed(by: disposeBag)
+
         output.networkError
             .emit(with: self) { owner, error in
                 owner.showAlert(title: "오류", message: error.errorDescription)
             }
+            .disposed(by: disposeBag)
+
+        inputViewContainer.attachMenuSelected
+            .subscribe(onNext: { [weak self] item in
+                self?.handleAttachMenuSelection(item)
+            })
             .disposed(by: disposeBag)
     }
 
@@ -169,6 +202,80 @@ final class ChatRoomViewController: BaseViewController {
 extension ChatRoomViewController: UITextViewDelegate {
     func textViewDidChange(_ textView: UITextView) {
         inputViewContainer.updateTextViewHeight()
+    }
+}
+
+extension ChatRoomViewController: PHPickerViewControllerDelegate, UIDocumentPickerDelegate {
+    private func handleAttachMenuSelection(_ item: ChatAttachMenuItem) {
+        let remaining = max(0, 5 - currentAttachments.count)
+        guard remaining > 0 else { return }
+        switch item {
+        case .photo:
+            presentPhotoPicker(limit: remaining)
+        case .file:
+            presentFilePicker()
+        }
+    }
+
+    private func presentPhotoPicker(limit: Int) {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = limit
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    private func presentFilePicker() {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.pdf])
+        picker.allowsMultipleSelection = true
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        dismiss(animated: true)
+        guard !results.isEmpty else { return }
+
+        let group = DispatchGroup()
+        var items: [ChatAttachmentItem] = []
+
+        for result in results {
+            let provider = result.itemProvider
+            let typeId = provider.registeredTypeIdentifiers.first ?? UTType.image.identifier
+            let utType = UTType(typeId)
+            group.enter()
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                defer { group.leave() }
+                guard let data else { return }
+                let mime = utType?.preferredMIMEType ?? "image/jpeg"
+                let ext = utType?.preferredFilenameExtension ?? "jpg"
+                let baseName = provider.suggestedName ?? "photo_\(UUID().uuidString)"
+                let fileName = baseName.contains(".") ? baseName : "\(baseName).\(ext)"
+                items.append(ChatAttachmentItem(data: data, fileName: fileName, mimeType: mime, isImage: true))
+            }
+        }
+
+        group.notify(queue: .main) { [weak self] in
+            self?.addAttachmentsRelay.accept(items)
+        }
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        let remaining = max(0, 5 - currentAttachments.count)
+        guard remaining > 0 else { return }
+        var items: [ChatAttachmentItem] = []
+        for url in urls.prefix(remaining) {
+            let canAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if canAccess { url.stopAccessingSecurityScopedResource() }
+            }
+            guard let data = try? Data(contentsOf: url) else { continue }
+            let fileName = url.lastPathComponent
+            items.append(ChatAttachmentItem(data: data, fileName: fileName, mimeType: "application/pdf", isImage: false))
+        }
+        addAttachmentsRelay.accept(items)
     }
 }
 
