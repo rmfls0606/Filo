@@ -64,6 +64,15 @@ final class LoginViewModel: ViewModelType {
                         } catch {
                             // 프로필 조회 실패는 로그인 성공 흐름을 막지 않음
                         }
+                        if let token = UserDefaults.standard.string(forKey: "fcmToken"), !token.isEmpty {
+                            do {
+                                try await NetworkManager.shared.requestEmpty(
+                                    UserRouter.deviceToken(deviceToken: token)
+                                )
+                            } catch {
+                                
+                            }
+                        }
                         loginSuccessRelay.accept(())
                     } catch let error as NetworkError {
                         loginErrorRelay.accept(error.localizedDescription)
