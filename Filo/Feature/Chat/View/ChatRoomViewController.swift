@@ -82,6 +82,9 @@ final class ChatRoomViewController: BaseViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         CurrentChatRoom.shared.roomId = viewModel.currentRoomId
+        if let roomId = viewModel.currentRoomId {
+            ChatLocalStore.shared.resetUnread(roomId: roomId)
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {

@@ -228,6 +228,7 @@ final class ChatRoomViewModel: ViewModelType {
                 }
             } else {
                 self.localStore.upsertMessages([message])
+                self.localStore.updateRoomSummary(with: message, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
             }
         }
@@ -291,6 +292,7 @@ final class ChatRoomViewModel: ViewModelType {
                     }
                 }
                 self.localStore.upsertMessages([sent])
+                self.localStore.updateRoomSummary(with: sent, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                 self.refreshUsersIfNeeded(senderIds: [sent.sender.userID], forceIds: []) { [weak self] updated in
                     guard let self, updated else { return }
