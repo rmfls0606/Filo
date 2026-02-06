@@ -259,6 +259,8 @@ final class UserProfileViewController: BaseViewController {
     override func configureView() {
         navigationItem.title = "PROFILE"
         updateSegmentSelection(selectedIndex: 0, animated: false)
+        let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+        chatButton.isHidden = (currentUserId == viewModel.profileUserId)
     }
 
     override func viewDidLayoutSubviews() {

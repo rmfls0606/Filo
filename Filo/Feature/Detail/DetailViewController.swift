@@ -665,6 +665,8 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.authorName.text = data.creator.name
                 owner.authorNickname.text = data.creator.nick
                 owner.authorDescriptionLabel.text = data.creator.introduction
+                let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+                owner.sendMessageButton.isHidden = (currentUserId == data.creator.userID)
             }
             .disposed(by: disposeBag)
 
