@@ -114,6 +114,19 @@ extension AppDelegate {
     }
 }
 
+extension AppDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        if let roomId = extractRoomId(from: response.notification.request.content.userInfo) {
+            DispatchQueue.main.async { [weak self] in
+                self?.openChatRoom(roomId: roomId)
+            }
+        }
+        completionHandler()
+    }
+}
+
 private extension AppDelegate {
     func topViewController() -> UIViewController? {
         let root = UIApplication.shared.connectedScenes
@@ -136,5 +149,59 @@ private extension AppDelegate {
             return topViewController(from: tab.selectedViewController)
         }
         return root
+    }
+
+    func extractRoomId(from userInfo: [AnyHashable: Any]) -> String? {
+        if let roomId = userInfo["room_id"] as? String, !roomId.isEmpty {
+            return roomId
+        }
+        if let roomId = userInfo["room_id"] as? NSNumber {
+            return roomId.stringValue
+        }
+        return nil
+    }
+
+    func openChatRoom(roomId: String) {
+        let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+
+        let listVM = ChatRoomListViewModel(currentUserId: currentUserId)
+        let listVC = ChatRoomListViewController(viewModel: listVM)
+        let roomVM = ChatRoomViewModel(roomId: roomId, opponentId: nil)
+        let roomVC = ChatRoomViewController(viewModel: roomVM)
+
+        if let tab = mainTabBarController() {
+            tab.setSelectedIndex(TabBarItem.profile.rawValue)
+            if let nav = tab.viewControllers?[4] as? UINavigationController,
+               let profileVC = nav.viewControllers.first {
+                nav.setViewControllers([profileVC, listVC, roomVC], animated: true)
+                return
+            }
+        }
+
+        let top = topViewController()
+        let navController = (top as? UINavigationController) ?? top?.navigationController
+        if let navController {
+            navController.setViewControllers([listVC, roomVC], animated: true)
+        } else if let top {
+            let nav = UINavigationController(rootViewController: listVC)
+            nav.pushViewController(roomVC, animated: false)
+            top.present(nav, animated: true)
+        }
+    }
+
+    func mainTabBarController() -> MainTabBarController? {
+        let root = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }?
+            .rootViewController
+        if let tab = root as? MainTabBarController {
+            return tab
+        }
+        if let nav = root as? UINavigationController,
+           let tab = nav.viewControllers.first as? MainTabBarController {
+            return tab
+        }
+        return nil
     }
 }
