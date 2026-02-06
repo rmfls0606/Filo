@@ -48,7 +48,8 @@ final class ChatRoomListViewController: BaseViewController {
 
     override func configureBind() {
         let input = ChatRoomListViewModel.Input(
-            viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear)).map { _ in }
+            viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear)).map { _ in },
+            viewWillDisappear: rx.methodInvoked(#selector(UIViewController.viewWillDisappear)).map { _ in }
         )
 
         let output = viewModel.transform(input: input)
@@ -56,17 +57,16 @@ final class ChatRoomListViewController: BaseViewController {
         output.chatRoomList
             .drive(tableView.rx.items(cellIdentifier: ChatRoomListTableViewCell.identifier, cellType: ChatRoomListTableViewCell.self)){ [weak self] _, element, cell in
                 guard let self else { return }
-                let opponentId = element.participants.first(where: { $0.userID != self.viewModel.currentUserId })?.userID
-                let cached = opponentId.flatMap { ChatLocalStore.shared.fetchUser(userId: $0) }
-                cell.configure(room: element, currentUserId: self.viewModel.currentUserId, cachedUser: cached)
+                let cached = element.opponentId.flatMap { ChatLocalStore.shared.fetchUser(userId: $0) }
+                cell.configure(summary: element, cachedUser: cached)
             }
             .disposed(by: disposeBag)
 
-        tableView.rx.modelSelected(ChatRoomResponseDTO.self)
+        tableView.rx.modelSelected(ChatRoomSummaryEntity.self)
             .subscribe(onNext: { [weak self] room in
                 guard let self else { return }
-                let opponent = room.participants.first(where: { $0.userID != self.viewModel.currentUserId })
-                let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: opponent?.userID)
+                let opponent = room.opponentId.flatMap { ChatLocalStore.shared.fetchUser(userId: $0) }
+                let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: room.opponentId)
                 let vc = ChatRoomViewController(viewModel: vm, title: opponent?.nick)
                 self.navigationController?.pushViewController(vc, animated: true)
             })

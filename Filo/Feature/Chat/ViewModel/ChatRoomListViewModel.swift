@@ -12,6 +12,7 @@ import RxCocoa
 final class ChatRoomListViewModel: ViewModelType {
     private let service: ChatServiceProtocol
     private let localStore: ChatLocalStore
+    private let socketService: ChatRoomListSocketService
     let currentUserId: String
 
     private let disposeBag = DisposeBag()
@@ -20,23 +21,26 @@ final class ChatRoomListViewModel: ViewModelType {
 
     init(currentUserId: String,
          service: ChatServiceProtocol = ChatService.shared,
-         localStore: ChatLocalStore = .shared) {
+         localStore: ChatLocalStore = .shared,
+         socketService: ChatRoomListSocketService = .shared) {
         self.currentUserId = currentUserId
         self.service = service
         self.localStore = localStore
+        self.socketService = socketService
     }
 
     struct Input {
         let viewWillAppear: Observable<Void>
+        let viewWillDisappear: Observable<Void>
     }
 
     struct Output {
-        let chatRoomList: Driver<[ChatRoomResponseDTO]>
+        let chatRoomList: Driver<[ChatRoomSummaryEntity]>
         let networkError: Signal<NetworkError>
     }
 
     func transform(input: Input) -> Output {
-        let roomsRelay = BehaviorRelay<[ChatRoomResponseDTO]>(value: [])
+        let roomsRelay = BehaviorRelay<[ChatRoomSummaryEntity]>(value: localStore.fetchRoomSummaries())
         let errorRelay = PublishRelay<NetworkError>()
 
         input.viewWillAppear
@@ -47,12 +51,15 @@ final class ChatRoomListViewModel: ViewModelType {
                         let rooms = try await self.service.fetchChatRooms()
                         let participants = rooms.flatMap { $0.participants }
                         self.localStore.upsertUsers(participants)
+                        self.localStore.upsertRoomSummaries(from: rooms, currentUserId: self.currentUserId)
                         self.refreshUsersIfNeeded(rooms: rooms) { updated in
                             if updated {
-                                roomsRelay.accept(roomsRelay.value)
+                                roomsRelay.accept(self.localStore.fetchRoomSummaries())
                             }
                         }
-                        roomsRelay.accept(rooms)
+                        roomsRelay.accept(self.localStore.fetchRoomSummaries())
+                        let roomIds = rooms.map { $0.roomId }
+                        self.socketService.connect(roomIds: roomIds)
                     } catch let error as NetworkError {
                         errorRelay.accept(error)
                     } catch {
@@ -61,6 +68,20 @@ final class ChatRoomListViewModel: ViewModelType {
                 }
             })
             .disposed(by: disposeBag)
+
+        input.viewWillDisappear
+            .subscribe(onNext: { [weak self] in
+                self?.socketService.disconnectAll()
+            })
+            .disposed(by: disposeBag)
+
+        socketService.onMessage = { [weak self] message in
+            guard let self else { return }
+            let isCurrentRoom = CurrentChatRoom.shared.roomId == message.roomId
+            self.localStore.upsertMessages([message])
+            self.localStore.updateRoomSummary(with: message, currentUserId: self.currentUserId, isCurrentRoom: isCurrentRoom)
+            roomsRelay.accept(self.localStore.fetchRoomSummaries())
+        }
 
         return Output(
             chatRoomList: roomsRelay.asDriver(),

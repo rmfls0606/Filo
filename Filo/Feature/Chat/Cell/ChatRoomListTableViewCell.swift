@@ -42,20 +42,44 @@ final class ChatRoomListTableViewCell: BaseTableViewCell {
         return label
     }()
 
+    private let unreadBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption2
+        label.textColor = GrayStyle.gray0.color
+        label.backgroundColor = .systemRed
+        label.textAlignment = .center
+        label.layer.cornerRadius = 10
+        label.clipsToBounds = true
+        label.isHidden = true
+        return label
+    }()
+
     private let contentStack: UIStackView = {
         let view = UIStackView()
         view.axis = .vertical
         view.spacing = 6
         return view
     }()
+
+    private let timeStack: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.alignment = .trailing
+        view.spacing = 6
+        return view
+    }()
+
+    private var unreadBadgeWidthConstraint: Constraint?
     
     override func configureHierarchy() {
         contentView.addSubview(avatarImageView)
         contentView.addSubview(contentStack)
-        contentView.addSubview(timeLabel)
+        contentView.addSubview(timeStack)
 
         contentStack.addArrangedSubview(nameLabel)
         contentStack.addArrangedSubview(lastMessageLabel)
+        timeStack.addArrangedSubview(timeLabel)
+        timeStack.addArrangedSubview(unreadBadgeLabel)
     }
     
     override func configureLayout() {
@@ -65,14 +89,19 @@ final class ChatRoomListTableViewCell: BaseTableViewCell {
             make.size.equalTo(44)
         }
 
-        timeLabel.snp.makeConstraints { make in
+        timeStack.snp.makeConstraints { make in
             make.trailing.equalToSuperview().inset(20)
             make.top.equalToSuperview().inset(18)
         }
 
+        unreadBadgeLabel.snp.makeConstraints { make in
+            make.height.equalTo(20)
+            unreadBadgeWidthConstraint = make.width.greaterThanOrEqualTo(20).constraint
+        }
+
         contentStack.snp.makeConstraints { make in
             make.leading.equalTo(avatarImageView.snp.trailing).offset(12)
-            make.trailing.lessThanOrEqualTo(timeLabel.snp.leading).offset(-12)
+            make.trailing.lessThanOrEqualTo(timeStack.snp.leading).offset(-12)
             make.centerY.equalToSuperview()
         }
     }
@@ -114,6 +143,27 @@ final class ChatRoomListTableViewCell: BaseTableViewCell {
             avatarImageView.setKFImage(urlString: url)
         } else {
             avatarImageView.image = nil
+        }
+    }
+
+    func configure(summary: ChatRoomSummaryEntity, cachedUser: UserInfoResponseDTO?) {
+        nameLabel.text = cachedUser?.nick ?? "알 수 없음"
+        lastMessageLabel.text = summary.lastMessage.isEmpty ? "대화를 시작해보세요" : summary.lastMessage
+        timeLabel.text = summary.lastMessageAt.isEmpty ? "" : summary.lastMessageAt.toChatTimestamp()
+        if let url = cachedUser?.profileImage {
+            avatarImageView.setKFImage(urlString: url)
+        } else {
+            avatarImageView.image = nil
+        }
+
+        if summary.unreadCount > 0 {
+            unreadBadgeLabel.isHidden = false
+            unreadBadgeLabel.text = summary.unreadCount >= 300 ? "300+" : "\(summary.unreadCount)"
+            unreadBadgeLabel.layoutIfNeeded()
+            let width = max(20, unreadBadgeLabel.intrinsicContentSize.width + 10)
+            unreadBadgeWidthConstraint?.update(offset: width)
+        } else {
+            unreadBadgeLabel.isHidden = true
         }
     }
 }
