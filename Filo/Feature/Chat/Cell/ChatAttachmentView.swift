@@ -1,5 +1,5 @@
 //
-//  ChatMessageAttachmentCell.swift
+//  ChatAttachmentView.swift
 //  Filo
 //
 //  Created by 이상민 on 2/6/26.
@@ -8,7 +8,7 @@
 import UIKit
 import SnapKit
 
-final class ChatMessageAttachmentCell: BaseCollectionViewCell {
+final class ChatAttachmentView: UIView {
     private let imageContainer: UIView = {
         let view = UIView()
         view.clipsToBounds = true
@@ -29,7 +29,7 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
         label.font = .Pretendard.caption1
         label.textColor = GrayStyle.gray15.color
         label.textAlignment = .left
-        label.lineBreakMode = .byCharWrapping
+        label.lineBreakMode = .byWordWrapping
         label.numberOfLines = 2
         label.isHidden = true
         return label
@@ -47,7 +47,7 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
         label.isHidden = true
         return label
     }()
-    
+
     private let fileIconView: UIImageView = {
         let view = UIImageView()
         let config = UIImage.SymbolConfiguration(pointSize: 9, weight: .regular)
@@ -59,51 +59,52 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
         return view
     }()
 
+    private var imageLeadingConstraint: Constraint?
+    private var imageTrailingConstraint: Constraint?
+    private var imageCenterXConstraint: Constraint?
+    private var labelLeadingToImage: Constraint?
+    private var labelTrailingToImage: Constraint?
+    private var labelTrailingConstraint: Constraint?
+    private var labelLeadingConstraint: Constraint?
+
     private var currentURLString: String?
     private var alignThumbnailOnLeft: Bool = true
-    private let contentStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.alignment = .top
-        stack.spacing = 8
-        stack.distribution = .fill
-        return stack
-    }()
 
-    private let rowStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.alignment = .top
-        stack.spacing = 0
-        stack.distribution = .fill
-        return stack
-    }()
-
-    private let spacerView: UIView = {
-        let view = UIView()
-        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return view
-    }()
-
-    override func configureHierarchy() {
-        contentView.addSubview(rowStack)
-        contentView.addSubview(fileBadge)
-        contentView.addSubview(fileIconView)
-        imageContainer.addSubview(imageView)
-        contentStack.addArrangedSubview(imageContainer)
-        contentStack.addArrangedSubview(fileNameLabel)
-        rowStack.addArrangedSubview(contentStack)
-        rowStack.addArrangedSubview(spacerView)
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        configureHierarchy()
+        configureLayout()
     }
-    
-    override func configureLayout() {
-        rowStack.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func configureHierarchy() {
+        addSubview(imageContainer)
+        addSubview(fileNameLabel)
+        addSubview(fileBadge)
+        addSubview(fileIconView)
+        imageContainer.addSubview(imageView)
+    }
+
+    private func configureLayout() {
+        imageContainer.snp.makeConstraints { make in
+            make.top.equalToSuperview()
+            make.size.equalTo(CGSize(width: 72, height: 72))
+            imageLeadingConstraint = make.leading.equalToSuperview().constraint
+            imageTrailingConstraint = make.trailing.equalToSuperview().constraint
+            imageCenterXConstraint = make.centerX.equalToSuperview().constraint
         }
 
-        imageContainer.snp.makeConstraints { make in
-            make.size.equalTo(CGSize(width: 72, height: 72))
+        fileNameLabel.snp.makeConstraints { make in
+            make.top.equalTo(imageContainer.snp.top)
+            make.bottom.lessThanOrEqualToSuperview()
+            labelLeadingToImage = make.leading.equalTo(imageContainer.snp.trailing).offset(8).constraint
+            labelTrailingToImage = make.trailing.equalTo(imageContainer.snp.leading).offset(-8).constraint
+            labelLeadingConstraint = make.leading.equalToSuperview().constraint
+            labelTrailingConstraint = make.trailing.equalToSuperview().constraint
         }
 
         imageView.snp.makeConstraints { make in
@@ -124,10 +125,6 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
 
         fileNameLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
         fileNameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        contentStack.setContentHuggingPriority(.required, for: .horizontal)
-        contentStack.setContentCompressionResistancePriority(.required, for: .horizontal)
-        spacerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        spacerView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 
     func bind(urlString: String, alignThumbnailOnLeft: Bool) {
@@ -169,40 +166,62 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let available = contentView.bounds.width - 72 - 8
-        fileNameLabel.preferredMaxLayoutWidth = max(0, available)
-        updateFileNameLineMode(availableWidth: max(0, available))
+        let available = max(0, bounds.width - 72 - 8)
+        fileNameLabel.preferredMaxLayoutWidth = available
+        updateFileNameLineMode(availableWidth: available)
         updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
     }
 
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        currentURLString = nil
-        fileNameLabel.text = nil
-        fileNameLabel.isHidden = true
-        fileBadge.isHidden = true
-        fileIconView.isHidden = true
-        imageView.image = nil
-        alignThumbnailOnLeft = true
-        updateLayout(alignThumbnailOnLeft: true)
+    private func updateFileNameLineMode(availableWidth: CGFloat) {
+        guard let text = fileNameLabel.text, !text.isEmpty, availableWidth > 0 else { return }
+        let font = fileNameLabel.font ?? UIFont.systemFont(ofSize: 12)
+        let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        let fitsSingleLine = textWidth <= availableWidth + 1
+        if fitsSingleLine {
+            fileNameLabel.numberOfLines = 1
+            fileNameLabel.lineBreakMode = .byTruncatingTail
+        } else {
+            fileNameLabel.numberOfLines = 2
+            fileNameLabel.lineBreakMode = .byWordWrapping
+        }
     }
 
-    override func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
-        super.apply(layoutAttributes)
-        updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
-    }
+    private func updateLayout(alignThumbnailOnLeft: Bool) {
+        fileNameLabel.isHidden = fileNameLabel.text?.isEmpty ?? true
+        let hasLabel = !fileNameLabel.isHidden
 
-    override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
-        let attributes = super.preferredLayoutAttributesFitting(layoutAttributes)
-        let targetHeight: CGFloat = 72
-        let targetSize = CGSize(width: UIView.layoutFittingCompressedSize.width, height: targetHeight)
-        let size = contentView.systemLayoutSizeFitting(
-            targetSize,
-            withHorizontalFittingPriority: .fittingSizeLevel,
-            verticalFittingPriority: .required
-        )
-        attributes.size = CGSize(width: ceil(size.width), height: targetHeight)
-        return attributes
+        imageCenterXConstraint?.deactivate()
+        if alignThumbnailOnLeft {
+            imageLeadingConstraint?.activate()
+            imageTrailingConstraint?.deactivate()
+            if hasLabel {
+                labelLeadingToImage?.activate()
+                labelTrailingToImage?.deactivate()
+                labelTrailingConstraint?.activate()
+                labelLeadingConstraint?.deactivate()
+                fileNameLabel.textAlignment = .left
+            } else {
+                labelLeadingToImage?.deactivate()
+                labelTrailingToImage?.deactivate()
+                labelLeadingConstraint?.deactivate()
+                labelTrailingConstraint?.deactivate()
+            }
+        } else {
+            imageTrailingConstraint?.activate()
+            imageLeadingConstraint?.deactivate()
+            if hasLabel {
+                labelTrailingToImage?.activate()
+                labelLeadingToImage?.deactivate()
+                labelLeadingConstraint?.activate()
+                labelTrailingConstraint?.deactivate()
+                fileNameLabel.textAlignment = .right
+            } else {
+                labelLeadingToImage?.deactivate()
+                labelTrailingToImage?.deactivate()
+                labelLeadingConstraint?.deactivate()
+                labelTrailingConstraint?.deactivate()
+            }
+        }
     }
 
     private func loadPDFThumbnail(urlString: String) {
@@ -220,7 +239,7 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
     }
 }
 
-private extension ChatMessageAttachmentCell {
+private extension ChatAttachmentView {
     static func resolveURL(from urlString: String) -> URL? {
         if let url = URL(string: urlString), url.scheme != nil {
             return url
@@ -248,16 +267,6 @@ private extension ChatMessageAttachmentCell {
         return urlString
     }
 
-    static func displayName(from urlString: String) -> String {
-        let name = fileName(from: urlString)
-        let trimmed = name.split(separator: "?").first.map(String.init) ?? name
-        if let dotIndex = trimmed.lastIndex(of: "."),
-           dotIndex > trimmed.startIndex {
-            return String(trimmed[..<dotIndex])
-        }
-        return trimmed
-    }
-
     static func fileExtension(from urlString: String) -> String {
         if let url = URL(string: urlString), !url.pathExtension.isEmpty {
             return url.pathExtension.lowercased()
@@ -277,47 +286,5 @@ private extension ChatMessageAttachmentCell {
             return true
         }
         return ["jpg", "jpeg", "png", "heic", "gif"].contains(ext)
-    }
-
-    func updateLayout(alignThumbnailOnLeft: Bool) {
-        if alignThumbnailOnLeft {
-            if contentStack.arrangedSubviews.first !== imageContainer {
-                contentStack.removeArrangedSubview(fileNameLabel)
-                contentStack.removeArrangedSubview(imageContainer)
-                contentStack.addArrangedSubview(imageContainer)
-                contentStack.addArrangedSubview(fileNameLabel)
-            }
-            rowStack.removeArrangedSubview(spacerView)
-            rowStack.removeArrangedSubview(contentStack)
-            rowStack.addArrangedSubview(contentStack)
-            rowStack.addArrangedSubview(spacerView)
-        } else {
-            if contentStack.arrangedSubviews.first === imageContainer {
-                contentStack.removeArrangedSubview(fileNameLabel)
-                contentStack.removeArrangedSubview(imageContainer)
-                contentStack.addArrangedSubview(fileNameLabel)
-                contentStack.addArrangedSubview(imageContainer)
-            }
-            rowStack.removeArrangedSubview(spacerView)
-            rowStack.removeArrangedSubview(contentStack)
-            rowStack.addArrangedSubview(spacerView)
-            rowStack.addArrangedSubview(contentStack)
-        }
-
-        fileNameLabel.isHidden = fileNameLabel.text?.isEmpty ?? true
-    }
-
-    private func updateFileNameLineMode(availableWidth: CGFloat) {
-        guard let text = fileNameLabel.text, !text.isEmpty, availableWidth > 0 else { return }
-        let font = fileNameLabel.font ?? UIFont.systemFont(ofSize: 12)
-        let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
-        let fitsSingleLine = textWidth <= availableWidth + 1
-        if fitsSingleLine {
-            fileNameLabel.numberOfLines = 1
-            fileNameLabel.lineBreakMode = .byTruncatingTail
-        } else {
-            fileNameLabel.numberOfLines = 2
-            fileNameLabel.lineBreakMode = .byCharWrapping
-        }
     }
 }
