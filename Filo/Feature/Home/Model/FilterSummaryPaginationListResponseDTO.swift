@@ -115,3 +115,19 @@ struct UserInfoResponseDTO: Decodable, Sendable{
         self.hashTags = try container.decode([String].self, forKey: .hashTags)
     }
 }
+
+extension UserInfoResponseDTO {
+    init(userID: String,
+         nick: String,
+         name: String?,
+         introduction: String?,
+         profileImage: String?,
+         hashTags: [String]) {
+        self.userID = userID
+        self.nick = nick
+        self.name = name
+        self.introduction = introduction
+        self.profileImage = profileImage
+        self.hashTags = hashTags
+    }
+}
