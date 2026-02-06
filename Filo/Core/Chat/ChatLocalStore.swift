@@ -166,6 +166,86 @@ final class ChatLocalStore {
         }
     }
 
+    func upsertRoomSummaries(from rooms: [ChatRoomResponseDTO], currentUserId: String) {
+        guard !rooms.isEmpty else { return }
+        queue.sync {
+            guard let realm = try? Realm() else { return }
+            do {
+                try realm.write {
+                    for room in rooms {
+                        let object = realm.object(ofType: ChatRoomSummaryObject.self, forPrimaryKey: room.roomId)
+                            ?? ChatRoomSummaryObject()
+                        if object.roomId.isEmpty {
+                            object.roomId = room.roomId
+                        }
+                        if object.opponentId == nil {
+                            object.opponentId = room.participants.first { $0.userID != currentUserId }?.userID
+                        }
+                        let incomingMessageAt = room.lastChat?.createdAt ?? room.updatedAt
+                        if incomingMessageAt > object.lastMessageAt {
+                            object.lastMessageAt = incomingMessageAt
+                            object.lastMessage = room.lastChat?.content ?? ""
+                        }
+                        realm.add(object, update: .modified)
+                    }
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    func updateRoomSummary(with message: ChatResponseDTO, currentUserId: String, isCurrentRoom: Bool) {
+        queue.sync {
+            guard let realm = try? Realm() else { return }
+            do {
+                try realm.write {
+                    let object = realm.object(ofType: ChatRoomSummaryObject.self, forPrimaryKey: message.roomId)
+                        ?? ChatRoomSummaryObject()
+                    if object.roomId.isEmpty {
+                        object.roomId = message.roomId
+                    }
+                    if object.opponentId == nil, message.sender.userID != currentUserId {
+                        object.opponentId = message.sender.userID
+                    }
+                    object.lastMessage = message.content
+                    object.lastMessageAt = message.createdAt
+                    if isCurrentRoom {
+                        object.unreadCount = 0
+                    } else if message.sender.userID != currentUserId {
+                        object.unreadCount = min(300, object.unreadCount + 1)
+                    }
+                    realm.add(object, update: .modified)
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    func resetUnread(roomId: String) {
+        queue.sync {
+            guard let realm = try? Realm() else { return }
+            guard let object = realm.object(ofType: ChatRoomSummaryObject.self, forPrimaryKey: roomId) else { return }
+            do {
+                try realm.write {
+                    object.unreadCount = 0
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    func fetchRoomSummaries() -> [ChatRoomSummaryEntity] {
+        queue.sync {
+            guard let realm = try? Realm() else { return [] }
+            let results = realm.objects(ChatRoomSummaryObject.self)
+                .sorted(byKeyPath: "lastMessageAt", ascending: false)
+            return results.map { $0.toEntity() }
+        }
+    }
+
     func upsertUsers(_ users: [UserInfoResponseDTO]) {
         guard !users.isEmpty else { return }
         queue.sync {
