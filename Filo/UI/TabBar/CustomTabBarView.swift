@@ -20,6 +20,10 @@ final class CustomTabBarView: BaseView{
     var selectedItem: Observable<TabBarItem>{
         selectedItemRelay.asObservable()
     }
+
+    func setSelectedItem(_ item: TabBarItem) {
+        selectedItemRelay.accept(item)
+    }
     
     //MARK: - View
     private let stackView: UIStackView = {

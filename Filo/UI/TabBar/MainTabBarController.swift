@@ -64,4 +64,11 @@ final class MainTabBarController: UITabBarController {
             })
             .disposed(by: disposeBag)
     }
+
+    func setSelectedIndex(_ index: Int) {
+        selectedIndex = index
+        if let item = TabBarItem(rawValue: index) {
+            customTabBar.setSelectedItem(item)
+        }
+    }
 }
