@@ -99,4 +99,21 @@ final class ChatRoomListTableViewCell: BaseTableViewCell {
             avatarImageView.image = nil
         }
     }
+
+    func configure(room: ChatRoomResponseDTO, currentUserId: String, cachedUser: UserInfoResponseDTO?) {
+        let opponent = cachedUser ?? room.participants.first { $0.userID != currentUserId }
+        nameLabel.text = opponent?.nick ?? "알 수 없음"
+        if let lastChat = room.lastChat {
+            lastMessageLabel.text = lastChat.content.isEmpty ? "" : lastChat.content
+            timeLabel.text = lastChat.createdAt.toChatTimestamp()
+        } else {
+            lastMessageLabel.text = "대화를 시작해보세요"
+            timeLabel.text = ""
+        }
+        if let url = opponent?.profileImage {
+            avatarImageView.setKFImage(urlString: url)
+        } else {
+            avatarImageView.image = nil
+        }
+    }
 }

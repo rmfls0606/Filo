@@ -56,7 +56,9 @@ final class ChatRoomListViewController: BaseViewController {
         output.chatRoomList
             .drive(tableView.rx.items(cellIdentifier: ChatRoomListTableViewCell.identifier, cellType: ChatRoomListTableViewCell.self)){ [weak self] _, element, cell in
                 guard let self else { return }
-                cell.configure(room: element, currentUserId: self.viewModel.currentUserId)
+                let opponentId = element.participants.first(where: { $0.userID != self.viewModel.currentUserId })?.userID
+                let cached = opponentId.flatMap { ChatLocalStore.shared.fetchUser(userId: $0) }
+                cell.configure(room: element, currentUserId: self.viewModel.currentUserId, cachedUser: cached)
             }
             .disposed(by: disposeBag)
 
@@ -64,7 +66,7 @@ final class ChatRoomListViewController: BaseViewController {
             .subscribe(onNext: { [weak self] room in
                 guard let self else { return }
                 let opponent = room.participants.first(where: { $0.userID != self.viewModel.currentUserId })
-                let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: nil)
+                let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: opponent?.userID)
                 let vc = ChatRoomViewController(viewModel: vm, title: opponent?.nick)
                 self.navigationController?.pushViewController(vc, animated: true)
             })
