@@ -184,6 +184,7 @@ final class SearchViewController: BaseViewController {
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
         navigationItem.title = "검색"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: nil, action: nil)
         view.addGestureRecognizer(tap)
         tap.cancelsTouchesInView = false
         orderButton.setContentHuggingPriority(.required, for: .horizontal)
@@ -277,6 +278,13 @@ final class SearchViewController: BaseViewController {
         tap.rx.event
             .bind(with: self) { owner, _ in
                 owner.view.endEditing(true)
+            }
+            .disposed(by: disposeBag)
+
+        navigationItem.rightBarButtonItem?.rx.tap
+            .bind(with: self) { owner, _ in
+                let vc = CommunityCreateViewController()
+                owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
 
