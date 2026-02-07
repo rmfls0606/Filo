@@ -166,7 +166,8 @@ final class CommunityDetailViewController: BaseViewController {
         label.numberOfLines = 1
         return label
     }()
-
+    
+    private var pageControlHeightConstraint: Constraint?
     
     init(viewModel: CommunityDetailViewModel) {
         self.viewModel = viewModel
@@ -249,6 +250,7 @@ final class CommunityDetailViewController: BaseViewController {
         }
 
         pageControl.snp.makeConstraints { make in
+            pageControlHeightConstraint = make.height.equalTo(16).constraint
             make.top.equalTo(mediaCollectionView.snp.bottom).offset(6)
             make.centerX.equalToSuperview()
         }
@@ -311,6 +313,9 @@ final class CommunityDetailViewController: BaseViewController {
                 self.mediaItemsRelay.accept(dto.files)
                 self.pageControl.numberOfPages = dto.files.count
                 self.pageControl.currentPage = 0
+                let hideIndicator = dto.files.count <= 1
+                self.pageControl.isHidden = hideIndicator
+                self.pageControlHeightConstraint?.update(offset: hideIndicator ? 0 : 16)
                 self.updatePageBadge(current: 1, total: dto.files.count)
                 
                 self.nickLabel.text = dto.creator.nick
