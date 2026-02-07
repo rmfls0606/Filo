@@ -9,6 +9,7 @@ import UIKit
 import SnapKit
 import RxSwift
 import RxCocoa
+import AVKit
 
 final class CommunityDetailViewController: BaseViewController {
     // MARK: - Properties
@@ -179,6 +180,8 @@ final class CommunityDetailViewController: BaseViewController {
     
     private var pageControlHeightConstraint: Constraint?
     private let menuActionRelay = PublishRelay<CommunityDetailViewModel.MenuAction>()
+    private var currentPostId: String?
+    private var lastComments: [PostCommentResponseDTO] = []
     
     init(viewModel: CommunityDetailViewModel) {
         self.viewModel = viewModel
@@ -324,10 +327,21 @@ final class CommunityDetailViewController: BaseViewController {
                 cell.configure(urlString: item)
             }
             .disposed(by: disposeBag)
+        
+        mediaCollectionView.rx.itemSelected
+            .bind(with: self) { owner, indexPath in
+                let items = owner.mediaItemsRelay.value
+                guard items.indices.contains(indexPath.item) else { return }
+                let urlString = items[indexPath.item]
+                owner.presentMedia(urlString: urlString)
+            }
+            .disposed(by: disposeBag)
 
         output.postDetail
             .drive(onNext: { [weak self] dto in
                 guard let self else { return }
+                self.currentPostId = dto.postId
+                self.lastComments = dto.comments
                 self.mediaItemsRelay.accept(dto.files)
                 self.pageControl.numberOfPages = dto.files.count
                 self.pageControl.currentPage = 0
@@ -423,6 +437,40 @@ final class CommunityDetailViewController: BaseViewController {
                 owner.presentPostMenu()
             }
             .disposed(by: disposeBag)
+
+        commentButton.rx.tap
+            .bind(with: self) { owner, _ in
+                guard let postId = owner.currentPostId else { return }
+                let comments = owner.lastComments.map { CommentItem(dto: $0) }
+                let vm = CommentsViewModel(postId: postId, initialComments: comments)
+                let vc = CommentsViewController(viewModel: vm)
+                vc.modalPresentationStyle = .pageSheet
+                owner.present(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
+    }
+    
+    private func presentMedia(urlString: String) {
+        let ext = (urlString as NSString).pathExtension.lowercased()
+        let isVideo = ["mp4", "mov", "avi", "mkv", "wmv", "webm"].contains(ext)
+        if isVideo {
+            guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
+            let headers = [
+                "SeSACKey": NetworkConfig.apiKey,
+                "Authorization": NetworkConfig.authorization
+            ]
+            let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+            let item = AVPlayerItem(asset: asset)
+            let player = AVPlayer(playerItem: item)
+            let vc = AVPlayerViewController()
+            vc.player = player
+            present(vc, animated: true) {
+                player.play()
+            }
+        } else {
+            let vc = RemoteImagePreviewViewController(imageURL: urlString)
+            present(vc, animated: true)
+        }
     }
 }
 
