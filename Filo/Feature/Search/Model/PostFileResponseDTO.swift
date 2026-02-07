@@ -6,3 +6,7 @@
 //
 
 import Foundation
+
+struct PostFileResponseDTO: Decodable, Sendable{
+    let files: [String]
+}

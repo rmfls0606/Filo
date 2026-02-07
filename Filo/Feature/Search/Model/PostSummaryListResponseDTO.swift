@@ -6,3 +6,13 @@
 //
 
 import Foundation
+
+struct PostSummaryListResponseDTO: Decodable, Sendable{
+    let data: [PostSummaryResponseDTO]
+    let nextCursor: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case data
+        case nextCursor = "next_cursor"
+    }
+}
