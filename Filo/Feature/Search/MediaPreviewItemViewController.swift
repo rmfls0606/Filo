@@ -36,25 +36,26 @@ final class MediaPreviewItemViewController: UIViewController {
         imageView.frame = view.bounds
         imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         imageView.image = item.thumbnail
-        
-        if item.isVideo, let data = item.data {
-            let ext = item.fileName?.split(separator: ".").last.map(String.init) ?? "mp4"
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".\(ext)")
-            do {
-                try data.write(to: tempURL)
-                let player = AVPlayer(url: tempURL)
-                let layer = AVPlayerLayer(player: player)
-                layer.frame = view.bounds
-                layer.videoGravity = .resizeAspect
-                view.layer.insertSublayer(layer, above: imageView.layer)
-                self.player = player
-                self.playerLayer = layer
-                
-                let tap = UITapGestureRecognizer(target: self, action: #selector(togglePlay))
-                view.addGestureRecognizer(tap)
-            } catch {
-                // fallback: image only
+
+        if item.isVideo {
+            if let data = item.data {
+                let ext = item.fileName?.split(separator: ".").last.map(String.init) ?? "mp4"
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".\(ext)")
+                do {
+                    try data.write(to: tempURL)
+                    setupPlayer(url: tempURL)
+                } catch {
+                    // fallback: image only
+                }
+            } else if let remotePath = item.remotePath {
+                if let asset = makeAuthorizedAsset(path: remotePath) {
+                    let playerItem = AVPlayerItem(asset: asset)
+                    let player = AVPlayer(playerItem: playerItem)
+                    setupPlayer(player: player)
+                }
             }
+        } else if let remotePath = item.remotePath {
+            imageView.setKFImage(urlString: remotePath)
         }
     }
     
@@ -81,5 +82,31 @@ final class MediaPreviewItemViewController: UIViewController {
         } else {
             player.play()
         }
+    }
+
+    private func setupPlayer(url: URL) {
+        let player = AVPlayer(url: url)
+        setupPlayer(player: player)
+    }
+
+    private func setupPlayer(player: AVPlayer) {
+        let layer = AVPlayerLayer(player: player)
+        layer.frame = view.bounds
+        layer.videoGravity = .resizeAspect
+        view.layer.insertSublayer(layer, above: imageView.layer)
+        self.player = player
+        self.playerLayer = layer
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(togglePlay))
+        view.addGestureRecognizer(tap)
+    }
+
+    private func makeAuthorizedAsset(path: String) -> AVURLAsset? {
+        guard let url = URL(string: NetworkConfig.baseURL + "/" + path) else { return nil }
+        let headers = [
+            "SeSACKey": NetworkConfig.apiKey,
+            "Authorization": NetworkConfig.authorization
+        ]
+        return AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
     }
 }

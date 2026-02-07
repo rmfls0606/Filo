@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import Toast
 import SnapKit
 import RxSwift
 import RxCocoa
@@ -16,6 +17,8 @@ import AVFoundation
 final class CommunityCreateViewController: BaseViewController {
     private let viewModel: CommunityCreateViewModel
     private let disposeBag = DisposeBag()
+    var onUpdated: (() -> Void)?
+    var onCreated: (() -> Void)?
     
     private let mediaAppendRelay = PublishRelay<[PostMediaItem]>()
     private let mediaRemoveRelay = PublishRelay<Int>()
@@ -216,7 +219,21 @@ final class CommunityCreateViewController: BaseViewController {
     
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
-        navigationItem.title = "게시글 등록"
+        navigationItem.title = viewModel.isEditMode ? "게시글 수정" : "게시글 등록"
+        if viewModel.isEditMode {
+            var config = submitButton.configuration
+            config?.title = "수정"
+            submitButton.configuration = config
+        }
+        if let seed = viewModel.seed {
+            titleField.text = seed.title
+            contentTextView.text = seed.content
+            contentPlaceholderLabel.isHidden = !seed.content.isEmpty
+            let updated = categoriesRelay.value.map {
+                SearchCategoryItem(type: $0.type, isSelected: $0.type == seed.category)
+            }
+            categoriesRelay.accept(updated)
+        }
         hideKeyboardWhenTapped()
     }
     
@@ -231,6 +248,11 @@ final class CommunityCreateViewController: BaseViewController {
         )
         
         let output = viewModel.transform(input: input)
+
+        if let seed = viewModel.seed, !seed.files.isEmpty {
+            let items = seed.files.map { makeRemoteMediaItem(path: $0) }
+            mediaAppendRelay.accept(items)
+        }
         
         categoriesRelay
             .bind(to: categoryCollectionView.rx.items(
@@ -265,12 +287,6 @@ final class CommunityCreateViewController: BaseViewController {
         output.mediaItems
             .drive(with: self) { owner, items in
                 owner.currentMediaItems = items
-                DispatchQueue.main.async {
-                    owner.mediaCollectionView.layoutIfNeeded()
-                    let height = owner.mediaCollectionView.collectionViewLayout.collectionViewContentSize.height
-                    owner.mediaCollectionHeightConstraint?.update(offset: height)
-                    owner.view.layoutIfNeeded()
-                }
             }
             .disposed(by: disposeBag)
 
@@ -285,6 +301,16 @@ final class CommunityCreateViewController: BaseViewController {
                 }
             }
             .disposed(by: disposeBag)
+
+        mediaCollectionView.rx.observe(CGSize.self, "contentSize")
+            .compactMap { $0?.height }
+            .distinctUntilChanged()
+            .observe(on: MainScheduler.instance)
+            .bind(with: self) { owner, height in
+                owner.mediaCollectionHeightConstraint?.update(offset: height)
+                owner.view.layoutIfNeeded()
+            }
+            .disposed(by: disposeBag)
         
         output.submitEnabled
             .drive(with: self) { owner, enabled in
@@ -293,14 +319,33 @@ final class CommunityCreateViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         output.submitSuccess
-            .emit(with: self) { owner, _ in
-                owner.navigationController?.popViewController(animated: true)
-            }
+            .emit(onNext: { [weak self] _ in
+                guard let self else { return }
+                if self.viewModel.isEditMode {
+                    self.view.makeToast("정상적으로 수정이 완료되었습니다", duration: 1.0, position: .bottom)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        self.onUpdated?()
+                        self.navigationController?.popViewController(animated: true)
+                    }
+                } else {
+                    self.onCreated?()
+                    self.navigationController?.popViewController(animated: true)
+                }
+            })
             .disposed(by: disposeBag)
         
         output.networkError
             .emit(with: self) { owner, error in
                 owner.showAlert(title: "오류", message: error.errorDescription)
+            }
+            .disposed(by: disposeBag)
+
+        submitButton.rx.tap
+            .filter { [weak self] in
+                self?.currentMediaItems.contains(where: { !$0.isValid }) ?? false
+            }
+            .bind(with: self) { owner, _ in
+                owner.showAlert(title: "안내", message: "압축 실패한 파일이 있습니다. 삭제 후 다시 시도해주세요.")
             }
             .disposed(by: disposeBag)
 
@@ -343,6 +388,24 @@ final class CommunityCreateViewController: BaseViewController {
 }
 
 private extension CommunityCreateViewController {
+    func isVideoPath(_ path: String) -> Bool {
+        let ext = (path as NSString).pathExtension.lowercased()
+        return ["mp4", "mov", "avi", "mkv", "wmv", "webm"].contains(ext)
+    }
+
+    func makeRemoteMediaItem(path: String) -> PostMediaItem {
+        return PostMediaItem(
+            id: UUID(),
+            data: nil,
+            fileName: (path as NSString).lastPathComponent,
+            mimeType: nil,
+            thumbnail: UIImage(),
+            isVideo: isVideoPath(path),
+            isValid: true,
+            remotePath: path
+        )
+    }
+
     func presentPicker() {
         var config = PHPickerConfiguration(photoLibrary: .shared())
         let remaining = max(0, 5 - currentMediaItems.count)
@@ -383,7 +446,8 @@ private extension CommunityCreateViewController {
             mimeType: mimeType,
             thumbnail: image,
             isVideo: isVideo,
-            isValid: true
+            isValid: true,
+            remotePath: nil
         )
     }
     
@@ -395,7 +459,8 @@ private extension CommunityCreateViewController {
             mimeType: nil,
             thumbnail: thumbnail ?? UIImage(),
             isVideo: isVideo,
-            isValid: false
+            isValid: false,
+            remotePath: nil
         )
     }
     
@@ -468,15 +533,18 @@ private extension CommunityCreateViewController {
         }
         if let data = try? Data(contentsOf: url), data.count <= maxSize {
             let (mime, fileName, ext) = mimeTypeAndName(from: url)
-            let item = makeMediaItem(data: data, fileName: fileName, mimeType: mime, fileExtension: ext, isVideo: true)
-            if let item {
-                print("[Media] Video accepted without compression: \(data.count) bytes")
-                completion(.success(item))
-            } else {
-                let thumb = thumbnailFromVideo(url: url)
-                completion(.failedCompression(makeInvalidItem(thumbnail: thumb, isVideo: true)))
+            // 서버가 video/quicktime(mov)을 거부하는 경우가 있어 mp4만 즉시 허용
+            if mime == "video/mp4", ext.lowercased() == "mp4" {
+                let item = makeMediaItem(data: data, fileName: fileName, mimeType: mime, fileExtension: ext, isVideo: true)
+                if let item {
+                    print("[Media] Video accepted without compression: \(data.count) bytes")
+                    completion(.success(item))
+                } else {
+                    let thumb = thumbnailFromVideo(url: url)
+                    completion(.failedCompression(makeInvalidItem(thumbnail: thumb, isVideo: true)))
+                }
+                return
             }
-            return
         }
         
         compressVideo(url: url, preset: AVAssetExportPresetMediumQuality) { [weak self] compressedURL in
@@ -488,7 +556,8 @@ private extension CommunityCreateViewController {
                     mimeType: nil,
                     thumbnail: UIImage(),
                     isVideo: true,
-                    isValid: false
+                    isValid: false,
+                    remotePath: nil
                 )
                 completion(.failedCompression(invalid))
                 return
@@ -525,7 +594,8 @@ private extension CommunityCreateViewController {
                         mimeType: nil,
                         thumbnail: UIImage(),
                         isVideo: true,
-                        isValid: false
+                        isValid: false,
+                        remotePath: nil
                     )
                     completion(.failedCompression(invalid))
                     return

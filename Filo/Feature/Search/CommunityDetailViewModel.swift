@@ -13,18 +13,19 @@ final class CommunityDetailViewModel: ViewModelType {
     enum MenuAction {
         case edit
         case delete
-        case cancel
     }
 
     struct Input {
         let likeTapped: ControlEvent<Void>
         let menuAction: Observable<MenuAction>
+        let refresh: Observable<Void>
     }
     
     struct Output {
         let postDetail: Driver<PostResponseDTO>
         let isOwner: Driver<Bool>
         let menuAction: Signal<MenuAction>
+        let deleteSuccess: Signal<Void>
         let likeState: Driver<Bool>
         let likeCount: Driver<Int>
         let networkError: Signal<NetworkError>
@@ -44,6 +45,7 @@ final class CommunityDetailViewModel: ViewModelType {
         let detailRelay = BehaviorRelay<PostResponseDTO?>(value: nil)
         let isOwnerRelay = PublishRelay<Bool>()
         let menuActionRelay = PublishRelay<MenuAction>()
+        let deleteSuccessRelay = PublishRelay<Void>()
         let likeStateRelay = PublishRelay<Bool>()
         let likeCountRelay = PublishRelay<Int>()
         let errorRelay = PublishRelay<NetworkError>()
@@ -54,7 +56,13 @@ final class CommunityDetailViewModel: ViewModelType {
             currentUserIdRelay.accept(currentUserId)
         }
 
-        postIdRelay
+        let detailTrigger = Observable.merge(
+            postIdRelay.asObservable().map { _ in },
+            input.refresh
+        )
+
+        detailTrigger
+            .withLatestFrom(postIdRelay.asObservable())
             .subscribe(onNext: { [weak self] postId in
                 guard let self else { return }
                 Task {
@@ -86,6 +94,24 @@ final class CommunityDetailViewModel: ViewModelType {
 
         input.menuAction
             .bind(to: menuActionRelay)
+            .disposed(by: disposeBag)
+
+        input.menuAction
+            .withLatestFrom(detailStream) { ($0, $1) }
+            .filter { action, _ in action == .delete }
+            .subscribe(onNext: { [weak self] _, detail in
+                guard let self else { return }
+                Task {
+                    do {
+                        try await self.service.requestEmpty(CommunityRouter.delete(postId: detail.postId))
+                        deleteSuccessRelay.accept(())
+                    } catch let error as NetworkError {
+                        errorRelay.accept(error)
+                    } catch {
+                        errorRelay.accept(.unknown(error))
+                    }
+                }
+            })
             .disposed(by: disposeBag)
         
         var requestId = 0
@@ -158,6 +184,7 @@ final class CommunityDetailViewModel: ViewModelType {
             postDetail: detailRelay.compactMap { $0 }.asDriver(onErrorDriveWith: .empty()),
             isOwner: isOwnerRelay.asDriver(onErrorJustReturn: false),
             menuAction: menuActionRelay.asSignal(),
+            deleteSuccess: deleteSuccessRelay.asSignal(),
             likeState: likeStateRelay.asDriver(onErrorDriveWith: .empty()),
             likeCount: likeCountRelay.asDriver(onErrorDriveWith: .empty()),
             networkError: errorRelay.asSignal()

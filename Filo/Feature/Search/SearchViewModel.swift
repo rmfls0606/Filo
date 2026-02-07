@@ -64,6 +64,7 @@ final class SearchViewModel: ViewModelType {
         let searchSubmit: Observable<Void>
         let categorySelected: ControlEvent<SearchCategoryItem>
         let orderTapped: ControlEvent<Void>
+        let refresh: Observable<Void>
         let postSelected: ControlEvent<PostSummaryResponseDTO>
     }
     
@@ -129,7 +130,8 @@ final class SearchViewModel: ViewModelType {
         let postTrigger = Observable.merge(
             Observable.just(()),
             input.categorySelected.map { _ in },
-            input.orderTapped.map { _ in })
+            input.orderTapped.map { _ in },
+            input.refresh)
             .share(replay: 1)
         
         postTrigger

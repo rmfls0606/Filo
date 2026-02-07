@@ -13,7 +13,7 @@ enum CommunityRouter: APITarget{
     case geolocation(category: String, longitude: String, latitude: String, maxDistance: String, limit: String, next: String, orderBy: String) //(위치 기반) 게시글 조회
     case search(title: String)
     case detail(postId: String)
-    case put(postId: String)
+    case put(postId: String, category: String, title: String, content: String, latitude: Double = 37.654215, longitude: Double = 127.049914, files: [String])
     case delete(postId: String)
     case like(postId: String, isLike: Bool)
     case user(category: String, limit: String, next: String, userId: String)
@@ -29,7 +29,7 @@ enum CommunityRouter: APITarget{
             return "/posts/geolocation"
         case .search:
             return "/posts/search"
-        case .detail(let postId), .put(let postId), .delete(let postId):
+        case .detail(let postId), .put(let postId, _, _, _, _, _, _), .delete(let postId):
             return "/posts/\(postId)"
         case .like(let postId, _):
             return "/posts/\(postId)/like"
@@ -44,8 +44,12 @@ enum CommunityRouter: APITarget{
         switch self {
         case .files, .posts, .like:
             return .post
-        case .user, .geolocation, .search, .detail, .put, .delete, .me:
+        case .user, .geolocation, .search, .detail, .me:
             return .get
+        case .put:
+            return .put
+        case .delete:
+            return .delete
         }
     }
     
@@ -56,8 +60,16 @@ enum CommunityRouter: APITarget{
     
     var parameters: Parameters?{
         switch self {
-        case .files, .detail, .put, .delete:
+        case .files, .detail, .delete:
             return nil
+        case .put(_, let category, let title, let content, let latitude, let longitude, let files):
+            return ["category": category,
+                    "title": title,
+                    "content": content,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "files": files
+            ]
         case .posts(let cateogry, let title, let content, let latitude, let longitude, let files):
             return ["category": cateogry,
                     "title": title,

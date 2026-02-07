@@ -38,6 +38,7 @@ final class SearchResultViewController: BaseViewController {
     
     private let viewModel: SearchResultViewModel
     private let disposeBag = DisposeBag()
+    private let refreshRelay = PublishRelay<Void>()
     
     init(viewModel: SearchResultViewModel) {
         self.viewModel = viewModel
@@ -78,6 +79,7 @@ final class SearchResultViewController: BaseViewController {
         let input = SearchResultViewModel.Input(
             searchText: searchBar.rx.text.orEmpty,
             searchSubmit: searchBar.rx.searchButtonClicked,
+            refresh: refreshRelay.asObservable(),
             selectedPost: collectionView.rx.modelSelected(PostSummaryResponseDTO.self)
         )
         
@@ -102,6 +104,12 @@ final class SearchResultViewController: BaseViewController {
             .drive(with: self){ owner, postId in
                 let vm = CommunityDetailViewModel(postId: postId)
                 let vc = CommunityDetailViewController(viewModel: vm)
+                vc.onDeleted = { [weak owner] _ in
+                    owner?.refreshRelay.accept(())
+                }
+                vc.onUpdated = { [weak owner] _ in
+                    owner?.refreshRelay.accept(())
+                }
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
@@ -113,4 +121,3 @@ final class SearchResultViewController: BaseViewController {
             .disposed(by: disposeBag)
     }
 }
-

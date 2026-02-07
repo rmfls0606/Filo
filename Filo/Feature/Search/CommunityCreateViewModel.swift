@@ -10,6 +10,21 @@ import RxSwift
 import RxCocoa
 
 final class CommunityCreateViewModel: ViewModelType {
+    enum Mode {
+        case create
+        case edit(Seed)
+    }
+
+    struct Seed {
+        let postId: String
+        let title: String
+        let content: String
+        let category: searchCategoryType
+        let latitude: Double
+        let longitude: Double
+        let files: [String]
+    }
+
     struct Input {
         let titleText: Observable<String>
         let contentText: Observable<String>
@@ -28,16 +43,29 @@ final class CommunityCreateViewModel: ViewModelType {
     
     private let disposeBag = DisposeBag()
     private let service: NetworkManagerProtocol
+    private let mode: Mode
+
+    var seed: Seed? {
+        if case .edit(let seed) = mode { return seed }
+        return nil
+    }
+
+    var isEditMode: Bool {
+        if case .edit = mode { return true }
+        return false
+    }
     
-    init(service: NetworkManagerProtocol = NetworkManager.shared) {
+    init(mode: Mode = .create, service: NetworkManagerProtocol = NetworkManager.shared) {
         self.service = service
+        self.mode = mode
     }
     
     func transform(input: Input) -> Output {
         let mediaRelay = BehaviorRelay<[PostMediaItem]>(value: [])
-        let categoryRelay = BehaviorRelay<searchCategoryType>(value: .all)
-        let titleRelay = BehaviorRelay<String>(value: "")
-        let contentRelay = BehaviorRelay<String>(value: "")
+        let initialCategory = seed?.category ?? .all
+        let categoryRelay = BehaviorRelay<searchCategoryType>(value: initialCategory)
+        let titleRelay = BehaviorRelay<String>(value: seed?.title ?? "")
+        let contentRelay = BehaviorRelay<String>(value: seed?.content ?? "")
         let errorRelay = PublishRelay<NetworkError>()
         let successRelay = PublishRelay<Void>()
         
@@ -76,8 +104,10 @@ final class CommunityCreateViewModel: ViewModelType {
         let submitEnabled = Observable
             .combineLatest(titleRelay, contentRelay, categoryRelay, mediaRelay)
             .map { [weak self] title, content, category, media in
-                let validMedia = media.filter { $0.isValid }
-                return self?.isSubmitEnabled(title: title, content: content, category: category, media: validMedia) ?? false
+                return self?.isSubmitEnabled(title: title,
+                                             content: content,
+                                             category: category,
+                                             media: media) ?? false
             }
             .distinctUntilChanged()
         
@@ -87,10 +117,14 @@ final class CommunityCreateViewModel: ViewModelType {
             .subscribe(onNext: { [weak self] title, content, category, media in
                 guard let self else { return }
                 let validMedia = media.filter { $0.isValid }
-                guard self.isSubmitEnabled(title: title, content: content, category: category, media: validMedia) else { return }
+                guard self.isSubmitEnabled(title: title,
+                                           content: content,
+                                           category: category,
+                                           media: media) else { return }
                 
                 Task {
                     do {
+                        let validMedia = media.filter { $0.isValid }
                         let files = validMedia.compactMap { item -> MultipartFile? in
                             guard let data = item.data,
                                   let fileName = item.fileName,
@@ -100,19 +134,63 @@ final class CommunityCreateViewModel: ViewModelType {
                                                  fileName: fileName,
                                                  mimeType: mimeType)
                         }
-                        let filesDTO: PostFileResponseDTO = try await self.service.upload(
-                            CommunityRouter.files(files: []),
-                            files: files
-                        )
-                        
-                        let _: PostResponseDTO = try await self.service.request(
-                            CommunityRouter.posts(
-                                category: category.query,
-                                title: title,
-                                content: content,
-                                files: filesDTO.files
+                        #if DEBUG
+                        let totalCount = files.count
+                        let totalBytes = files.reduce(0) { $0 + $1.data.count }
+                        print("[Upload] files.count=\(totalCount), totalBytes=\(totalBytes)")
+                        for (idx, file) in files.enumerated() {
+                            print("[Upload] #\(idx) name=\(file.fileName) mime=\(file.mimeType) bytes=\(file.data.count)")
+                        }
+                        #endif
+                        if self.isEditMode, let seed = self.seed {
+                            let existingFiles = validMedia.compactMap { $0.remotePath }
+                            let uploadTargets = validMedia.filter { $0.remotePath == nil }
+                            let uploadFiles = uploadTargets.compactMap { item -> MultipartFile? in
+                                guard let data = item.data,
+                                      let fileName = item.fileName,
+                                      let mimeType = item.mimeType else { return nil }
+                                return MultipartFile(data: data,
+                                                     name: "files",
+                                                     fileName: fileName,
+                                                     mimeType: mimeType)
+                            }
+                            let uploaded: [String]
+                            if uploadFiles.isEmpty {
+                                uploaded = []
+                            } else {
+                                let filesDTO: PostFileResponseDTO = try await self.service.upload(
+                                    CommunityRouter.files(files: []),
+                                    files: uploadFiles
+                                )
+                                uploaded = filesDTO.files
+                            }
+                            let mergedFiles = existingFiles + uploaded
+                            let _: PostResponseDTO = try await self.service.request(
+                                CommunityRouter.put(
+                                    postId: seed.postId,
+                                    category: category.query,
+                                    title: title,
+                                    content: content,
+                                    latitude: seed.latitude,
+                                    longitude: seed.longitude,
+                                    files: mergedFiles
+                                )
                             )
-                        )
+                        } else {
+                            let filesDTO: PostFileResponseDTO = try await self.service.upload(
+                                CommunityRouter.files(files: []),
+                                files: files
+                            )
+                            
+                            let _: PostResponseDTO = try await self.service.request(
+                                CommunityRouter.posts(
+                                    category: category.query,
+                                    title: title,
+                                    content: content,
+                                    files: filesDTO.files
+                                )
+                            )
+                        }
                         
                         successRelay.accept(())
                     } catch let error as NetworkError {
@@ -139,6 +217,9 @@ final class CommunityCreateViewModel: ViewModelType {
         guard category != .all else { return false }
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        return !media.isEmpty
+        guard media.allSatisfy({ $0.isValid }) else { return false }
+        let hasExistingFiles = media.contains { $0.remotePath != nil }
+        let hasNewFiles = media.contains { $0.remotePath == nil }
+        return hasExistingFiles || hasNewFiles
     }
 }

@@ -13,6 +13,7 @@ final class SearchResultViewModel: ViewModelType {
     struct Input {
         let searchText: ControlProperty<String>
         let searchSubmit: ControlEvent<Void>
+        let refresh: Observable<Void>
         let selectedPost: ControlEvent<PostSummaryResponseDTO>
     }
     
@@ -41,12 +42,37 @@ final class SearchResultViewModel: ViewModelType {
             .withLatestFrom(input.searchText)
             .share(replay: 1)
         
-        let trigger = Observable.merge(queryRelay.asObservable(), submitQuery)
+        let trigger = Observable.merge(
+            queryRelay.asObservable(),
+            submitQuery
+        )
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .distinctUntilChanged()
         
         trigger
+            .subscribe(onNext: { [weak self] query in
+                guard let self else { return }
+                Task {
+                    do {
+                        let dto: PostSummaryListResponseDTO = try await self.service.request(
+                            CommunityRouter.search(title: query)
+                        )
+                        
+                        postsRelay.accept(dto.data)
+                    } catch let error as NetworkError {
+                        errorRelay.accept(error)
+                    } catch {
+                        errorRelay.accept(.unknown(error))
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
+
+        input.refresh
+            .withLatestFrom(queryRelay.asObservable())
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
             .subscribe(onNext: { [weak self] query in
                 guard let self else { return }
                 Task {
@@ -77,4 +103,3 @@ final class SearchResultViewModel: ViewModelType {
         )
     }
 }
-

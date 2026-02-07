@@ -95,6 +95,7 @@ final class SearchViewController: BaseViewController {
     // MARK: - Properties
     private let viewModel: SearchViewModel
     private let disposeBag = DisposeBag()
+    private let refreshRelay = PublishRelay<Void>()
     private var didInvalidateCategoryLayout = false
     private var isSearchMode = false
     private var currentVideoIndex: IndexPath?
@@ -201,6 +202,7 @@ final class SearchViewController: BaseViewController {
             searchSubmit: searchBar.rx.searchButtonClicked.asObservable(),
             categorySelected: categoryCollectionView.rx.modelSelected(SearchCategoryItem.self),
             orderTapped: orderButton.rx.tap,
+            refresh: refreshRelay.asObservable(),
             postSelected: collectionView.rx.modelSelected(PostSummaryResponseDTO.self)
         )
 
@@ -275,6 +277,12 @@ final class SearchViewController: BaseViewController {
             .drive(with: self){ owner, postId in
                 let vm = CommunityDetailViewModel(postId: postId)
                 let vc = CommunityDetailViewController(viewModel: vm)
+                vc.onDeleted = { [weak owner] _ in
+                    owner?.refreshRelay.accept(())
+                }
+                vc.onUpdated = { [weak owner] _ in
+                    owner?.refreshRelay.accept(())
+                }
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
@@ -294,6 +302,9 @@ final class SearchViewController: BaseViewController {
         navigationItem.rightBarButtonItem?.rx.tap
             .bind(with: self) { owner, _ in
                 let vc = CommunityCreateViewController()
+                vc.onCreated = { [weak owner] in
+                    owner?.refreshRelay.accept(())
+                }
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)

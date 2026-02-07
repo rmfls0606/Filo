@@ -16,6 +16,7 @@ final class CommunityDetailViewController: BaseViewController {
     private let viewModel: CommunityDetailViewModel
     private let disposeBag = DisposeBag()
     private let mediaItemsRelay = BehaviorRelay<[String]>(value: [])
+    private let refreshRelay = PublishRelay<Void>()
     private var currentMediaIndex: Int = 0
     
     // MARK: - UI
@@ -53,6 +54,7 @@ final class CommunityDetailViewController: BaseViewController {
         config.contentInsets = .zero
         let button = UIButton(configuration: config)
         button.isHidden = true
+        button.showsMenuAsPrimaryAction = true
         return button
     }()
     
@@ -174,6 +176,9 @@ final class CommunityDetailViewController: BaseViewController {
     private var currentPostId: String?
     private var lastComments: [PostCommentResponseDTO] = []
     private var currentCreatorId: String?
+    private var currentDetail: PostResponseDTO?
+    var onDeleted: ((String) -> Void)?
+    var onUpdated: ((String) -> Void)?
     
     init(viewModel: CommunityDetailViewModel) {
         self.viewModel = viewModel
@@ -297,6 +302,14 @@ final class CommunityDetailViewController: BaseViewController {
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
         navigationItem.title = "게시글"
+
+        let editAction = UIAction(title: "수정") { [weak self] _ in
+            self?.menuActionRelay.accept(.edit)
+        }
+        let deleteAction = UIAction(title: "삭제", attributes: .destructive) { [weak self] _ in
+            self?.confirmDelete()
+        }
+        moreButton.menu = UIMenu(title: "", children: [editAction, deleteAction])
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -320,7 +333,8 @@ final class CommunityDetailViewController: BaseViewController {
 
         let input = CommunityDetailViewModel.Input(
             likeTapped: likeButton.rx.tap,
-            menuAction: menuActionRelay.asObservable()
+            menuAction: menuActionRelay.asObservable(),
+            refresh: refreshRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -338,6 +352,8 @@ final class CommunityDetailViewController: BaseViewController {
             .drive(onNext: { [weak self] dto in
                 guard let self else { return }
                 self.currentPostId = dto.postId
+                self.onUpdated?(dto.postId)
+                self.currentDetail = dto
                 self.lastComments = dto.comments
                 self.mediaItemsRelay.accept(dto.files)
                 self.pageControl.numberOfPages = dto.files.count
@@ -419,8 +435,34 @@ final class CommunityDetailViewController: BaseViewController {
             .disposed(by: disposeBag)
 
         output.menuAction
-            .emit(with: self) { _, action in
-                print("menuAction:", action)
+            .emit(with: self) { owner, action in
+                guard case .edit = action else { return }
+                guard let detail = owner.currentDetail else { return }
+                let category = searchCategoryType.allCases.first { $0.query == detail.category } ?? .all
+                let seed = CommunityCreateViewModel.Seed(
+                    postId: detail.postId,
+                    title: detail.title,
+                    content: detail.content,
+                    category: category,
+                    latitude: detail.geolocation.latitude,
+                    longitude: detail.geolocation.longitude,
+                    files: detail.files
+                )
+                let vm = CommunityCreateViewModel(mode: .edit(seed))
+                let vc = CommunityCreateViewController(viewModel: vm)
+                vc.onUpdated = { [weak owner] in
+                    owner?.refreshRelay.accept(())
+                }
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
+
+        output.deleteSuccess
+            .emit(with: self) { owner, _ in
+                if let postId = owner.currentPostId {
+                    owner.onDeleted?(postId)
+                }
+                owner.navigationController?.popViewController(animated: true)
             }
             .disposed(by: disposeBag)
 
@@ -436,12 +478,6 @@ final class CommunityDetailViewController: BaseViewController {
                     owner.currentMediaIndex = clamped
                     owner.updatePlayback()
                 }
-            }
-            .disposed(by: disposeBag)
-
-        moreButton.rx.tap
-            .bind(with: self) { owner, _ in
-                owner.presentPostMenu()
             }
             .disposed(by: disposeBag)
 
@@ -492,23 +528,17 @@ final class CommunityDetailViewController: BaseViewController {
 }
 
 private extension CommunityDetailViewController {
-    func presentPostMenu() {
-        let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        let editAction = UIAlertAction(title: "수정", style: .default) { [weak self] _ in
-            self?.menuActionRelay.accept(.edit)
-        }
-        let deleteAction = UIAlertAction(title: "삭제", style: .destructive) { [weak self] _ in
+    func confirmDelete() {
+        let alert = UIAlertController(title: "삭제", message: "게시글을 삭제할까요?", preferredStyle: .alert)
+        let cancel = UIAlertAction(title: "취소", style: .cancel)
+        let confirm = UIAlertAction(title: "삭제", style: .destructive) { [weak self] _ in
             self?.menuActionRelay.accept(.delete)
         }
-        let cancelAction = UIAlertAction(title: "취소", style: .cancel) { [weak self] _ in
-            self?.menuActionRelay.accept(.cancel)
-        }
-        alert.addAction(editAction)
-        alert.addAction(deleteAction)
-        alert.addAction(cancelAction)
+        alert.addAction(cancel)
+        alert.addAction(confirm)
         present(alert, animated: true)
     }
-    
+
     func formatCount(_ value: Int) -> String {
         if value >= 1_000_000 {
             let number = Double(value) / 1_000_000

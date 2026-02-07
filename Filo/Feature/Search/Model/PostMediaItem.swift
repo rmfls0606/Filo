@@ -15,4 +15,5 @@ struct PostMediaItem: Equatable {
     let thumbnail: UIImage
     let isVideo: Bool
     let isValid: Bool
+    let remotePath: String?
 }
