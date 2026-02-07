@@ -10,12 +10,21 @@ import RxSwift
 import RxCocoa
 
 final class CommunityDetailViewModel: ViewModelType {
+    enum MenuAction {
+        case edit
+        case delete
+        case cancel
+    }
+
     struct Input {
         let likeTapped: ControlEvent<Void>
+        let menuAction: Observable<MenuAction>
     }
     
     struct Output {
         let postDetail: Driver<PostResponseDTO>
+        let isOwner: Driver<Bool>
+        let menuAction: Signal<MenuAction>
         let likeState: Driver<Bool>
         let likeCount: Driver<Int>
         let networkError: Signal<NetworkError>
@@ -25,17 +34,26 @@ final class CommunityDetailViewModel: ViewModelType {
     private let postIdRelay: BehaviorRelay<String>
     private let service: NetworkManagerProtocol
     
+    
     init(postId: String, service: NetworkManagerProtocol = NetworkManager.shared) {
         self.postIdRelay = BehaviorRelay(value: postId)
         self.service = service
     }
     
     func transform(input: Input) -> Output {
-        let detailRelay = PublishRelay<PostResponseDTO>()
+        let detailRelay = BehaviorRelay<PostResponseDTO?>(value: nil)
+        let isOwnerRelay = PublishRelay<Bool>()
+        let menuActionRelay = PublishRelay<MenuAction>()
         let likeStateRelay = PublishRelay<Bool>()
         let likeCountRelay = PublishRelay<Int>()
         let errorRelay = PublishRelay<NetworkError>()
+        let currentUserIdRelay = BehaviorRelay<String>(value: "")
         
+        Task {
+            let currentUserId = await TokenStorage.shared.userId() ?? ""
+            currentUserIdRelay.accept(currentUserId)
+        }
+
         postIdRelay
             .subscribe(onNext: { [weak self] postId in
                 guard let self else { return }
@@ -55,12 +73,26 @@ final class CommunityDetailViewModel: ViewModelType {
                 }
             })
             .disposed(by: disposeBag)
+
+        let detailStream = detailRelay
+            .compactMap { $0 }
+            .share(replay: 1)
+
+        Observable
+            .combineLatest(detailStream, currentUserIdRelay)
+            .map { detail, userId in detail.creator.userID == userId }
+            .bind(to: isOwnerRelay)
+            .disposed(by: disposeBag)
+
+        input.menuAction
+            .bind(to: menuActionRelay)
+            .disposed(by: disposeBag)
         
         var requestId = 0
         var latestRequestId = 0
         
         input.likeTapped
-            .withLatestFrom(detailRelay)
+            .withLatestFrom(detailStream)
             .map { detail -> (detail: PostResponseDTO, desiredLiked: Bool, requestId: Int, prevLiked: Bool, prevCount: Int) in
                 let prevLiked = LikeStore.shared.isLiked(id: detail.postId)
                 let prevCount = LikeStore.shared.likeCount(id: detail.postId) ?? detail.likeCount
@@ -123,11 +155,12 @@ final class CommunityDetailViewModel: ViewModelType {
             .disposed(by: disposeBag)
         
         return Output(
-            postDetail: detailRelay.asDriver(onErrorDriveWith: .empty()),
+            postDetail: detailRelay.compactMap { $0 }.asDriver(onErrorDriveWith: .empty()),
+            isOwner: isOwnerRelay.asDriver(onErrorJustReturn: false),
+            menuAction: menuActionRelay.asSignal(),
             likeState: likeStateRelay.asDriver(onErrorDriveWith: .empty()),
             likeCount: likeCountRelay.asDriver(onErrorDriveWith: .empty()),
             networkError: errorRelay.asSignal()
         )
     }
 }
-

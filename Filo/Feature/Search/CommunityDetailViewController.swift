@@ -43,6 +43,16 @@ final class CommunityDetailViewController: BaseViewController {
         label.numberOfLines = 1
         return label
     }()
+
+    private let moreButton: UIButton = {
+        var config = UIButton.Configuration.plain()
+        config.image = UIImage(systemName: "ellipsis")
+        config.baseForegroundColor = GrayStyle.gray60.color
+        config.contentInsets = .zero
+        let button = UIButton(configuration: config)
+        button.isHidden = true
+        return button
+    }()
     
     private lazy var mediaCollectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
@@ -168,6 +178,7 @@ final class CommunityDetailViewController: BaseViewController {
     }()
     
     private var pageControlHeightConstraint: Constraint?
+    private let menuActionRelay = PublishRelay<CommunityDetailViewModel.MenuAction>()
     
     init(viewModel: CommunityDetailViewModel) {
         self.viewModel = viewModel
@@ -191,6 +202,7 @@ final class CommunityDetailViewController: BaseViewController {
         contentView.addSubview(headerView)
         headerView.addSubview(profileImageView)
         headerView.addSubview(nickLabel)
+        headerView.addSubview(moreButton)
         
         contentView.addSubview(mediaCollectionView)
         contentView.addSubview(pageCountBadge)
@@ -233,7 +245,12 @@ final class CommunityDetailViewController: BaseViewController {
         nickLabel.snp.makeConstraints { make in
             make.leading.equalTo(profileImageView.snp.trailing).offset(12)
             make.centerY.equalTo(profileImageView)
-            make.trailing.lessThanOrEqualToSuperview()
+            make.trailing.lessThanOrEqualTo(moreButton.snp.leading).offset(-8)
+        }
+
+        moreButton.snp.makeConstraints { make in
+            make.trailing.equalToSuperview().inset(16)
+            make.centerY.equalTo(profileImageView)
         }
         
         mediaCollectionView.snp.makeConstraints { make in
@@ -293,7 +310,8 @@ final class CommunityDetailViewController: BaseViewController {
     
     override func configureBind() {
         let input = CommunityDetailViewModel.Input(
-            likeTapped: likeButton.rx.tap
+            likeTapped: likeButton.rx.tap,
+            menuAction: menuActionRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -370,10 +388,22 @@ final class CommunityDetailViewController: BaseViewController {
                 owner.likeCountLabel.text = owner.formatCount(count)
             }
             .disposed(by: disposeBag)
+
+        output.isOwner
+            .drive(with: self) { owner, isOwner in
+                owner.moreButton.isHidden = !isOwner
+            }
+            .disposed(by: disposeBag)
         
         output.networkError
             .emit(with: self) { owner, error in
                 owner.showAlert(title: "오류", message: error.errorDescription)
+            }
+            .disposed(by: disposeBag)
+
+        output.menuAction
+            .emit(with: self) { _, action in
+                print("menuAction:", action)
             }
             .disposed(by: disposeBag)
 
@@ -387,10 +417,33 @@ final class CommunityDetailViewController: BaseViewController {
                 owner.updatePageBadge(current: clamped + 1, total: owner.mediaItemsRelay.value.count)
             }
             .disposed(by: disposeBag)
+
+        moreButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.presentPostMenu()
+            }
+            .disposed(by: disposeBag)
     }
 }
 
 private extension CommunityDetailViewController {
+    func presentPostMenu() {
+        let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+        let editAction = UIAlertAction(title: "수정", style: .default) { [weak self] _ in
+            self?.menuActionRelay.accept(.edit)
+        }
+        let deleteAction = UIAlertAction(title: "삭제", style: .destructive) { [weak self] _ in
+            self?.menuActionRelay.accept(.delete)
+        }
+        let cancelAction = UIAlertAction(title: "취소", style: .cancel) { [weak self] _ in
+            self?.menuActionRelay.accept(.cancel)
+        }
+        alert.addAction(editAction)
+        alert.addAction(deleteAction)
+        alert.addAction(cancelAction)
+        present(alert, animated: true)
+    }
+    
     func formatCount(_ value: Int) -> String {
         if value >= 1_000_000 {
             let number = Double(value) / 1_000_000
