@@ -97,6 +97,7 @@ final class SearchViewController: BaseViewController {
     private let disposeBag = DisposeBag()
     private var didInvalidateCategoryLayout = false
     private var isSearchMode = false
+    private var currentVideoIndex: IndexPath?
     
     private var filterSectionHeightConstraint: Constraint?
     private var cancelButtonWidthConstraint: Constraint?
@@ -232,6 +233,15 @@ final class SearchViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
         
+        output.posts
+            .drive(with: self) { owner, _ in
+                DispatchQueue.main.async {
+                    owner.collectionView.layoutIfNeeded()
+                    owner.updatePlayback()
+                }
+            }
+            .disposed(by: disposeBag)
+        
         output.results
             .drive(resultsTableView.rx.items) { tableView, _, item in
                 switch item {
@@ -340,10 +350,83 @@ final class SearchViewController: BaseViewController {
                 }
             }
             .disposed(by: disposeBag)
+        
+        collectionView.rx.willBeginDragging
+            .bind(with: self) { owner, _ in
+                owner.stopAllPlayback()
+            }
+            .disposed(by: disposeBag)
+        
+        collectionView.rx.didEndDecelerating
+            .bind(with: self) { owner, _ in
+                owner.updatePlayback()
+            }
+            .disposed(by: disposeBag)
+        
+        collectionView.rx.didEndDragging
+            .filter { !$0 }
+            .bind(with: self) { owner, _ in
+                owner.updatePlayback()
+            }
+            .disposed(by: disposeBag)
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        updatePlayback()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        stopAllPlayback()
     }
 }
 
 private extension SearchViewController {
+    func updatePlayback() {
+        guard !collectionView.isHidden else { return }
+        let candidates = collectionView.visibleCells.compactMap { cell -> (IndexPath, SearchPostCollectionViewCell)? in
+            guard let mediaCell = cell as? SearchPostCollectionViewCell else { return nil }
+            guard let index = collectionView.indexPath(for: mediaCell) else { return nil }
+            return (index, mediaCell)
+        }
+        
+        let videoCandidates = candidates.filter { $0.1.isVideoCell() }
+        guard !videoCandidates.isEmpty else {
+            stopAllPlayback()
+            return
+        }
+        
+        let center = CGPoint(x: collectionView.bounds.midX + collectionView.contentOffset.x,
+                             y: collectionView.bounds.midY + collectionView.contentOffset.y)
+        let target = videoCandidates.min { a, b in
+            guard let attrA = collectionView.layoutAttributesForItem(at: a.0),
+                  let attrB = collectionView.layoutAttributesForItem(at: b.0) else { return false }
+            let distA = hypot(attrA.center.x - center.x, attrA.center.y - center.y)
+            let distB = hypot(attrB.center.x - center.x, attrB.center.y - center.y)
+            return distA < distB
+        }
+        
+        for cell in collectionView.visibleCells {
+            if let mediaCell = cell as? SearchPostCollectionViewCell {
+                mediaCell.stopPlayback()
+            }
+        }
+        
+        if let targetCell = target?.1 {
+            currentVideoIndex = target?.0
+            targetCell.startPlayback()
+        }
+    }
+    
+    func stopAllPlayback() {
+        for cell in collectionView.visibleCells {
+            if let mediaCell = cell as? SearchPostCollectionViewCell {
+                mediaCell.stopPlayback()
+            }
+        }
+    }
+    
     func setSearchMode(_ isActive: Bool, animated: Bool) {
         guard isSearchMode != isActive else { return }
         isSearchMode = isActive
