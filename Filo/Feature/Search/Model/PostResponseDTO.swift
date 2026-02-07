@@ -12,7 +12,7 @@ struct PostResponseDTO: Decodable, Sendable{
     let category: String
     let title: String
     let content: String
-    let gelocation: Geolocation
+    let geolocation: Geolocation
     let creator: UserInfoResponseDTO
     let files: [String]
     let isLike: Bool
@@ -26,7 +26,7 @@ struct PostResponseDTO: Decodable, Sendable{
         case category
         case title
         case content
-        case gelocation
+        case geolocation
         case creator
         case files
         case isLike = "is_like"
