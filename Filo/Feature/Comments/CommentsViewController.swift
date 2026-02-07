@@ -15,7 +15,10 @@ final class CommentsViewController: BaseViewController {
     private let viewModel: CommentsViewModel
     private let disposeBag = DisposeBag()
     private let replyTargetRelay = BehaviorRelay<CommentReplyTarget?>(value: nil)
+    private let editTargetRelay = BehaviorRelay<String?>(value: nil)
     private let expandRepliesRelay = PublishRelay<String>()
+    private let editRelay = PublishRelay<(String, String)>()
+    private let deleteRelay = PublishRelay<String>()
     private var inputBottomConstraint: Constraint?
     private var currentUserId: String = ""
     
@@ -90,7 +93,7 @@ final class CommentsViewController: BaseViewController {
         var config = UIButton.Configuration.plain()
         let imageConfig = UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
         config.preferredSymbolConfigurationForImage = imageConfig
-        config.baseForegroundColor = Brand.blackTurquoise.color
+        config.baseForegroundColor = GrayStyle.gray75.color
         
         // 이미지 렌더링 방식 확인
         let image = UIImage(named: "message")?.withRenderingMode(.alwaysTemplate)
@@ -202,7 +205,9 @@ final class CommentsViewController: BaseViewController {
             sendTapped: sendButton.rx.tap.asObservable(),
             commentText: inputTextView.rx.text.orEmpty.asObservable(),
             replyTarget: replyTargetRelay.asObservable(),
-            expandReplies: expandRepliesRelay.asObservable()
+            expandReplies: expandRepliesRelay.asObservable(),
+            editTarget: editTargetRelay.asObservable(),
+            deleteComment: deleteRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -263,6 +268,7 @@ final class CommentsViewController: BaseViewController {
             .emit(with: self) { owner, _ in
                 owner.inputTextView.text = ""
                 owner.replyTargetRelay.accept(nil)
+                owner.editTargetRelay.accept(nil)
                 owner.inputTextView.isScrollEnabled = false
                 owner.view.layoutIfNeeded()
             }
@@ -270,9 +276,24 @@ final class CommentsViewController: BaseViewController {
 
         replyTargetRelay
             .bind(with: self) { owner, target in
-                owner.replyInfoView.isHidden = target == nil
+                let editTarget = owner.editTargetRelay.value
+                owner.replyInfoView.isHidden = (target == nil && editTarget == nil)
                 if let target {
                     owner.replyInfoLabel.text = "\(target.nick)님에게 답글 작성 중"
+                } else if editTarget != nil {
+                    owner.replyInfoLabel.text = "댓글 수정 중"
+                }
+            }
+            .disposed(by: disposeBag)
+        
+        editTargetRelay
+            .bind(with: self) { owner, target in
+                let replyTarget = owner.replyTargetRelay.value
+                owner.replyInfoView.isHidden = (target == nil && replyTarget == nil)
+                if let target {
+                    owner.replyInfoLabel.text = "댓글 수정 중"
+                } else if let replyTarget {
+                    owner.replyInfoLabel.text = "\(replyTarget.nick)님에게 답글 작성 중"
                 }
             }
             .disposed(by: disposeBag)
@@ -319,6 +340,7 @@ final class CommentsViewController: BaseViewController {
         replyCancelButton.rx.tap
             .bind(with: self) { owner, _ in
                 owner.replyTargetRelay.accept(nil)
+                owner.editTargetRelay.accept(nil)
                 owner.inputTextView.text = ""
                 owner.inputTextView.setNeedsLayout()
             }
@@ -351,10 +373,20 @@ final class CommentsViewController: BaseViewController {
     }
     
     private func presentEdit(for row: CommentRow) {
-        print("edit comment:", row.commentId)
+        editTargetRelay.accept(row.commentId)
+        inputTextView.text = row.content
+        inputTextView.becomeFirstResponder()
+        inputTextView.setNeedsLayout()
     }
     
     private func presentDelete(for row: CommentRow) {
-        print("delete comment:", row.commentId)
+        let alert = UIAlertController(title: "댓글 삭제", message: "댓글을 삭제할까요?", preferredStyle: .alert)
+        let cancelAction = UIAlertAction(title: "취소", style: .cancel)
+        let deleteAction = UIAlertAction(title: "삭제", style: .destructive) { [weak self] _ in
+            self?.deleteRelay.accept(row.commentId)
+        }
+        alert.addAction(cancelAction)
+        alert.addAction(deleteAction)
+        present(alert, animated: true)
     }
 }

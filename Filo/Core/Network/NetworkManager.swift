@@ -11,6 +11,7 @@ import Alamofire
 protocol NetworkManagerProtocol{
     func request<T: Decodable>(_ router: APITarget) async throws -> T
     func upload<T: Decodable>(_ router: APITarget, files: [MultipartFile]) async throws -> T
+    func requestEmpty(_ router: APITarget) async throws
 }
 
 final class NetworkManager: NetworkManagerProtocol{

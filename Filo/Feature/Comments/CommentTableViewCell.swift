@@ -132,12 +132,7 @@ final class CommentTableViewCell: BaseTableViewCell {
         headerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         headerSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         
-        replyButton.rx.tap
-            .bind(to: replyTap)
-            .disposed(by: disposeBag)
-        moreButton.rx.tap
-            .bind(to: moreTap)
-            .disposed(by: disposeBag)
+        // bindings are set per-configure to avoid reuse issues
     }
     
     override func prepareForReuse() {
@@ -147,6 +142,13 @@ final class CommentTableViewCell: BaseTableViewCell {
     }
     
     func configure(item: CommentRow, showMore: Bool) {
+        replyButton.rx.tap
+            .bind(to: replyTap)
+            .disposed(by: disposeBag)
+        moreButton.rx.tap
+            .bind(to: moreTap)
+            .disposed(by: disposeBag)
+
         nameLabel.text = item.creator.nick
         timeLabel.text = item.createdAt.toRelativeTimeString()
         if item.content.hasPrefix("@") {

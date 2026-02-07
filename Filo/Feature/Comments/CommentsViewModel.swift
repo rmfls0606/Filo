@@ -16,6 +16,8 @@ final class CommentsViewModel: ViewModelType {
         let commentText: Observable<String>
         let replyTarget: Observable<CommentReplyTarget?>
         let expandReplies: Observable<String>
+        let editTarget: Observable<String?>
+        let deleteComment: Observable<String>
     }
     
     struct Output {
@@ -45,6 +47,7 @@ final class CommentsViewModel: ViewModelType {
         let successRelay = PublishRelay<Void>()
         let replyTargetRelay = BehaviorRelay<CommentReplyTarget?>(value: nil)
         let expandedRelay = BehaviorRelay<Set<String>>(value: [])
+        let editTargetRelay = BehaviorRelay<String?>(value: nil)
         
         input.viewWillAppear
             .map { [initialComments] in initialComments }
@@ -53,6 +56,10 @@ final class CommentsViewModel: ViewModelType {
         
         input.replyTarget
             .bind(to: replyTargetRelay)
+            .disposed(by: disposeBag)
+        
+        input.editTarget
+            .bind(to: editTargetRelay)
             .disposed(by: disposeBag)
         
         input.expandReplies
@@ -76,54 +83,136 @@ final class CommentsViewModel: ViewModelType {
             .distinctUntilChanged()
         
         input.sendTapped
-            .withLatestFrom(Observable.combineLatest(input.commentText, replyTargetRelay))
-            .map { (text: $0.0.trimmingCharacters(in: .whitespacesAndNewlines), replyTarget: $0.1) }
+            .withLatestFrom(Observable.combineLatest(input.commentText, replyTargetRelay, editTargetRelay))
+            .map { (text: $0.0.trimmingCharacters(in: .whitespacesAndNewlines), replyTarget: $0.1, editTarget: $0.2) }
             .filter { !$0.text.isEmpty }
             .subscribe(onNext: { [weak self] payload in
                 guard let self else { return }
                 Task {
                     do {
-                        let dto: CommentResponseDTO = try await self.service.request(
-                            CommentRouter.postComments(postId: self.postId,
-                                                       parent_comment_id: payload.replyTarget?.commentId ?? "",
-                                                       content: payload.text)
-                        )
-                        var store = commentsDataRelay.value
-                        if let parentId = payload.replyTarget?.commentId {
-                            if let index = store.firstIndex(where: { $0.commentId == parentId }) {
-                                let reply = RepliesCommentResponseDTO(
+                        if let editId = payload.editTarget {
+                            let _: CommentResponseDTO = try await self.service.request(
+                                CommentRouter.putComments(postId: self.postId, commentId: editId, content: payload.text)
+                            )
+                            var store = commentsDataRelay.value
+                            if let index = store.firstIndex(where: { $0.commentId == editId }) {
+                                let origin = store[index]
+                                let updated = PostCommentResponseDTO(
+                                    commentId: origin.commentId,
+                                    content: payload.text,
+                                    createdAt: origin.createdAt,
+                                    creator: origin.creator,
+                                    replies: origin.replies
+                                )
+                                store[index] = updated
+                            } else {
+                                for i in store.indices {
+                                    let parent = store[i]
+                                    if let replyIndex = parent.replies.firstIndex(where: { $0.commentId == editId }) {
+                                        var replies = parent.replies
+                                        let reply = replies[replyIndex]
+                                        let updated = RepliesCommentResponseDTO(
+                                            commentId: reply.commentId,
+                                            content: payload.text,
+                                            createdAt: reply.createdAt,
+                                            creator: reply.creator
+                                        )
+                                        replies[replyIndex] = updated
+                                        let updatedParent = PostCommentResponseDTO(
+                                            commentId: parent.commentId,
+                                            content: parent.content,
+                                            createdAt: parent.createdAt,
+                                            creator: parent.creator,
+                                            replies: replies
+                                        )
+                                        store[i] = updatedParent
+                                        break
+                                    }
+                                }
+                            }
+                            commentsDataRelay.accept(store)
+                            editTargetRelay.accept(nil)
+                        } else {
+                            let dto: CommentResponseDTO = try await self.service.request(
+                                CommentRouter.postComments(postId: self.postId,
+                                                           parent_comment_id: payload.replyTarget?.commentId ?? "",
+                                                           content: payload.text)
+                            )
+                            var store = commentsDataRelay.value
+                            if let parentId = payload.replyTarget?.commentId {
+                                if let index = store.firstIndex(where: { $0.commentId == parentId }) {
+                                    let reply = RepliesCommentResponseDTO(
+                                        commentId: dto.commentId,
+                                        content: dto.content,
+                                        createdAt: dto.createdAt,
+                                        creator: dto.creator
+                                    )
+                                    let parent = store[index]
+                                    let updatedReplies = parent.replies + [reply]
+                                    let updated = PostCommentResponseDTO(
+                                        commentId: parent.commentId,
+                                        content: parent.content,
+                                        createdAt: parent.createdAt,
+                                        creator: parent.creator,
+                                        replies: updatedReplies
+                                    )
+                                    store[index] = updated
+                                }
+                            } else {
+                                let newComment = PostCommentResponseDTO(
                                     commentId: dto.commentId,
                                     content: dto.content,
                                     createdAt: dto.createdAt,
-                                    creator: dto.creator
+                                    creator: dto.creator,
+                                    replies: []
                                 )
-                                let parent = store[index]
-                                let updatedReplies = parent.replies + [reply]
-                                let updated = PostCommentResponseDTO(
-                                    commentId: parent.commentId,
-                                    content: parent.content,
-                                    createdAt: parent.createdAt,
-                                    creator: parent.creator,
-                                    replies: updatedReplies
-                                )
-                                store[index] = updated
+                                store.append(newComment)
                             }
+                            commentsDataRelay.accept(store)
+                            if let parentId = payload.replyTarget?.commentId {
+                                expandedRelay.accept(expandedRelay.value.union([parentId]))
+                            }
+                            replyTargetRelay.accept(nil)
+                        }
+                        successRelay.accept(())
+                    } catch let error as NetworkError {
+                        errorRelay.accept(error)
+                    } catch {
+                        errorRelay.accept(.unknown(error))
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
+
+        input.deleteComment
+            .subscribe(onNext: { [weak self] commentId in
+                guard let self else { return }
+                Task {
+                    do {
+                        try await self.service.requestEmpty(
+                            CommentRouter.deleteComments(postId: self.postId, commentId: commentId)
+                        )
+                        var store = commentsDataRelay.value
+                        if let index = store.firstIndex(where: { $0.commentId == commentId }) {
+                            store.remove(at: index)
                         } else {
-                            let newComment = PostCommentResponseDTO(
-                                commentId: dto.commentId,
-                                content: dto.content,
-                                createdAt: dto.createdAt,
-                                creator: dto.creator,
-                                replies: []
-                            )
-                            store.append(newComment)
+                            for i in store.indices {
+                                let parent = store[i]
+                                if parent.replies.contains(where: { $0.commentId == commentId }) {
+                                    let filtered = parent.replies.filter { $0.commentId != commentId }
+                                    let updatedParent = PostCommentResponseDTO(
+                                        commentId: parent.commentId,
+                                        content: parent.content,
+                                        createdAt: parent.createdAt,
+                                        creator: parent.creator,
+                                        replies: filtered
+                                    )
+                                    store[i] = updatedParent
+                                    break
+                                }
+                            }
                         }
                         commentsDataRelay.accept(store)
-                        if let parentId = payload.replyTarget?.commentId {
-                            expandedRelay.accept(expandedRelay.value.union([parentId]))
-                        }
-                        replyTargetRelay.accept(nil)
-                        successRelay.accept(())
                     } catch let error as NetworkError {
                         errorRelay.accept(error)
                     } catch {
