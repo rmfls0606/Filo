@@ -13,11 +13,13 @@ final class SearchResultViewModel: ViewModelType {
     struct Input {
         let searchText: ControlProperty<String>
         let searchSubmit: ControlEvent<Void>
+        let selectedPost: ControlEvent<PostSummaryResponseDTO>
     }
     
     struct Output {
         let posts: Driver<[PostSummaryResponseDTO]>
         let networkError: Signal<NetworkError>
+        let selectedPost: Driver<String>
     }
     
     private let query: String
@@ -33,6 +35,7 @@ final class SearchResultViewModel: ViewModelType {
         let queryRelay = BehaviorRelay<String>(value: query)
         let postsRelay = BehaviorRelay<[PostSummaryResponseDTO]>(value: [])
         let errorRelay = PublishRelay<NetworkError>()
+        let selectedPostRelay = PublishRelay<String>()
         
         let submitQuery = input.searchSubmit
             .withLatestFrom(input.searchText)
@@ -62,9 +65,15 @@ final class SearchResultViewModel: ViewModelType {
             })
             .disposed(by: disposeBag)
         
+        input.selectedPost
+            .map{ $0.postId }
+            .bind(to: selectedPostRelay)
+            .disposed(by: disposeBag)
+        
         return Output(
             posts: postsRelay.asDriver(),
-            networkError: errorRelay.asSignal()
+            networkError: errorRelay.asSignal(),
+            selectedPost: selectedPostRelay.asDriver(onErrorDriveWith: .empty())
         )
     }
 }

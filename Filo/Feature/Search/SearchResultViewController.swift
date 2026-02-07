@@ -77,7 +77,8 @@ final class SearchResultViewController: BaseViewController {
     override func configureBind() {
         let input = SearchResultViewModel.Input(
             searchText: searchBar.rx.text.orEmpty,
-            searchSubmit: searchBar.rx.searchButtonClicked
+            searchSubmit: searchBar.rx.searchButtonClicked,
+            selectedPost: collectionView.rx.modelSelected(PostSummaryResponseDTO.self)
         )
         
         let output = viewModel.transform(input: input)
@@ -94,6 +95,14 @@ final class SearchResultViewController: BaseViewController {
         output.networkError
             .emit(with: self) { owner, error in
                 owner.showAlert(title: "오류", message: error.errorDescription)
+            }
+            .disposed(by: disposeBag)
+        
+        output.selectedPost
+            .drive(with: self){ owner, postId in
+                let vm = CommunityDetailViewModel(postId: postId)
+                let vc = CommunityDetailViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
         
