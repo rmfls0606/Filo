@@ -34,10 +34,21 @@ final class CommunityMediaPreviewCell: BaseCollectionViewCell {
         return view
     }()
     
+    private let closeButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+        button.tintColor = GrayStyle.gray75.color
+        button.backgroundColor = .clear
+        return button
+    }()
+    
+    var onDelete: (() -> Void)?
+    
     override func configureHierarchy() {
         contentView.addSubview(imageView)
         contentView.addSubview(playIconView)
         contentView.addSubview(warningIconView)
+        contentView.addSubview(closeButton)
     }
     
     override func configureLayout() {
@@ -52,13 +63,20 @@ final class CommunityMediaPreviewCell: BaseCollectionViewCell {
         
         warningIconView.snp.makeConstraints { make in
             make.trailing.equalToSuperview().inset(6)
-            make.top.equalToSuperview().inset(6)
+            make.bottom.equalToSuperview().inset(6)
             make.size.equalTo(18)
+        }
+        
+        closeButton.snp.makeConstraints { make in
+            make.top.equalToSuperview().inset(4)
+            make.trailing.equalToSuperview().inset(4)
+            make.size.equalTo(20)
         }
     }
     
     override func configureView() {
         contentView.backgroundColor = .clear
+        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
     }
     
     override func prepareForReuse() {
@@ -66,11 +84,16 @@ final class CommunityMediaPreviewCell: BaseCollectionViewCell {
         imageView.image = nil
         playIconView.isHidden = true
         warningIconView.isHidden = true
+        onDelete = nil
     }
     
     func configure(item: PostMediaItem) {
         imageView.image = item.thumbnail
         playIconView.isHidden = !item.isVideo
         warningIconView.isHidden = item.isValid
+    }
+    
+    @objc private func closeTapped() {
+        onDelete?()
     }
 }
