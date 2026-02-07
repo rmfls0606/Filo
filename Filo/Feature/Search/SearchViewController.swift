@@ -385,37 +385,18 @@ final class SearchViewController: BaseViewController {
 private extension SearchViewController {
     func updatePlayback() {
         guard !collectionView.isHidden else { return }
-        let candidates = collectionView.visibleCells.compactMap { cell -> (IndexPath, SearchPostCollectionViewCell)? in
-            guard let mediaCell = cell as? SearchPostCollectionViewCell else { return nil }
-            guard let index = collectionView.indexPath(for: mediaCell) else { return nil }
-            return (index, mediaCell)
-        }
-        
-        let videoCandidates = candidates.filter { $0.1.isVideoCell() }
-        guard !videoCandidates.isEmpty else {
-            stopAllPlayback()
-            return
-        }
-        
-        let center = CGPoint(x: collectionView.bounds.midX + collectionView.contentOffset.x,
-                             y: collectionView.bounds.midY + collectionView.contentOffset.y)
-        let target = videoCandidates.min { a, b in
-            guard let attrA = collectionView.layoutAttributesForItem(at: a.0),
-                  let attrB = collectionView.layoutAttributesForItem(at: b.0) else { return false }
-            let distA = hypot(attrA.center.x - center.x, attrA.center.y - center.y)
-            let distB = hypot(attrB.center.x - center.x, attrB.center.y - center.y)
-            return distA < distB
-        }
-        
+        var hasVideo = false
         for cell in collectionView.visibleCells {
-            if let mediaCell = cell as? SearchPostCollectionViewCell {
+            guard let mediaCell = cell as? SearchPostCollectionViewCell else { continue }
+            if mediaCell.isVideoCell() {
+                hasVideo = true
+                mediaCell.startPlayback()
+            } else {
                 mediaCell.stopPlayback()
             }
         }
-        
-        if let targetCell = target?.1 {
-            currentVideoIndex = target?.0
-            targetCell.startPlayback()
+        if !hasVideo {
+            stopAllPlayback()
         }
     }
     
