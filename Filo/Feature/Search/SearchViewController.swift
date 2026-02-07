@@ -198,7 +198,8 @@ final class SearchViewController: BaseViewController {
             searchText: searchBar.rx.text.orEmpty.asObservable(),
             searchSubmit: searchBar.rx.searchButtonClicked.asObservable(),
             categorySelected: categoryCollectionView.rx.modelSelected(SearchCategoryItem.self),
-            orderTapped: orderButton.rx.tap
+            orderTapped: orderButton.rx.tap,
+            postSelected: collectionView.rx.modelSelected(PostSummaryResponseDTO.self)
         )
 
         let output = viewModel.transform(input: input)
@@ -256,6 +257,14 @@ final class SearchViewController: BaseViewController {
         output.orderTitle
             .drive(with: self) { owner, title in
                 owner.orderButton.configuration?.title = title
+            }
+            .disposed(by: disposeBag)
+        
+        output.selectedPost
+            .drive(with: self){ owner, postId in
+                let vm = CommunityDetailViewModel(postId: postId)
+                let vc = CommunityDetailViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
 

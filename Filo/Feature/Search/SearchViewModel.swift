@@ -64,6 +64,7 @@ final class SearchViewModel: ViewModelType {
         let searchSubmit: Observable<Void>
         let categorySelected: ControlEvent<SearchCategoryItem>
         let orderTapped: ControlEvent<Void>
+        let postSelected: ControlEvent<PostSummaryResponseDTO>
     }
     
     struct Output {
@@ -71,6 +72,7 @@ final class SearchViewModel: ViewModelType {
         let posts: Driver<[PostSummaryResponseDTO]>
         let results: Driver<[SearchResultItem]>
         let orderTitle: Driver<String>
+        let selectedPost: Driver<String>
         let networkError: Signal<NetworkError>
     }
     
@@ -89,6 +91,7 @@ final class SearchViewModel: ViewModelType {
         let orderRelay = BehaviorRelay<SearchOrder>(value: .createdAt)
         let searchTextRelay = BehaviorRelay<String>(value: "")
         let postsRelay = BehaviorRelay<[PostSummaryResponseDTO]>(value: [])
+        let selectedPostRelay = PublishRelay<String>()
         let resultsRelay = BehaviorRelay<[SearchResultItem]>(value: [])
         let errorRelay = PublishRelay<NetworkError>()
         
@@ -180,11 +183,19 @@ final class SearchViewModel: ViewModelType {
             })
             .disposed(by: disposeBag)
         
+        input.postSelected
+            .map{ $0.postId }
+            .bind { postId in
+                selectedPostRelay.accept(postId)
+            }
+            .disposed(by: disposeBag)
+        
         return Output(
             categories: categoriesRelay.asDriver(),
             posts: postsRelay.asDriver(),
             results: resultsRelay.asDriver(),
             orderTitle: orderRelay.map { $0.rawValue }.asDriver(onErrorJustReturn: SearchOrder.createdAt.rawValue),
+            selectedPost: selectedPostRelay.asDriver(onErrorDriveWith: .empty()),
             networkError: errorRelay.asSignal()
         )
     }
