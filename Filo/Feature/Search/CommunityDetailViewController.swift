@@ -151,16 +151,6 @@ final class CommunityDetailViewController: BaseViewController {
         return label
     }()
     
-    private let chatButton: UIButton = {
-        var config = UIButton.Configuration.plain()
-        var imageConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-        config.image = UIImage(systemName: "paperplane")
-        config.preferredSymbolConfigurationForImage = imageConfig
-        config.baseForegroundColor = GrayStyle.gray60.color
-        config.contentInsets = .zero
-        let button = UIButton(configuration: config)
-        return button
-    }()
 
     
     private let captionLabel: UILabel = {
@@ -215,7 +205,6 @@ final class CommunityDetailViewController: BaseViewController {
         contentView.addSubview(actionStack)
         actionStack.addArrangedSubview(likeStack)
         actionStack.addArrangedSubview(commentStack)
-        actionStack.addArrangedSubview(chatButton)
         likeStack.addArrangedSubview(likeButton)
         likeStack.addArrangedSubview(likeCountLabel)
         commentStack.addArrangedSubview(commentButton)
@@ -291,9 +280,6 @@ final class CommunityDetailViewController: BaseViewController {
             make.verticalEdges.equalToSuperview()
         }
         
-        chatButton.snp.makeConstraints { make in
-            make.verticalEdges.equalToSuperview()
-        }
 
         captionLabel.snp.makeConstraints { make in
             make.horizontalEdges.equalToSuperview().inset(16)
