@@ -19,6 +19,12 @@ final class NetworkManager: NetworkManagerProtocol{
     private init(){ }
     
     private let maxRetryCount = 2
+    private let uploadSession: Session = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 120
+        return Session(configuration: config)
+    }()
     
     func request<T: Decodable>(_ router: APITarget) async throws -> T{
         try await execute(router: router,
@@ -148,7 +154,7 @@ private extension NetworkManager{
 
 private extension NetworkManager{
     func sendUpload<T: Decodable>(router: APITarget, files: [MultipartFile], type: T.Type) async throws -> T{
-        let response = await AF.upload(multipartFormData: { form in
+        let response = await uploadSession.upload(multipartFormData: { form in
             files.forEach { file in
                 form.append(file.data,
                             withName: file.name,
@@ -163,6 +169,7 @@ private extension NetworkManager{
         case . success(let value):
             return value
         case .failure(let error):
+            print(error)
             throw NetworkError.mapping(error: error,
                                        statusCode: response.response?.statusCode,
                                        data: response.data)
