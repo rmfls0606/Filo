@@ -33,9 +33,39 @@ final class NetworkManager: NetworkManagerProtocol{
         }
            
     }
+
+    func requestEmpty(_ router: APITarget) async throws {
+        try await executeVoid(router: router, retryCount: 0) {
+            try await self.sendEmptyRequest(router: router)
+        }
+    }
 }
 
 private extension NetworkManager{
+    func executeVoid(router: APITarget, retryCount: Int, action: @escaping () async throws -> Void) async throws {
+        do {
+            return try await action()
+        } catch let error as NetworkError {
+            guard retryCount < maxRetryCount else { throw error }
+
+            if case .statusCodeError(let type) = error,
+               type == .accessTokenExpired || type == .unauthorized {
+                guard !router.path.contains("/auth/refresh") else { throw error }
+                do {
+                    _ = try await TokenStorage.shared.refreshUpdate({
+                        try await AuthService.shared.refreshAccessToken()
+                    })
+                    return try await executeVoid(router: router, retryCount: retryCount + 1, action: action)
+                } catch {
+                    await TokenStorage.shared.clear()
+                    throw NetworkError.statusCodeError(type: .refreshTokenExpired)
+                }
+            }
+
+            throw error
+        }
+    }
+
     func execute<T: Decodable>(router: APITarget, retryCount: Int, action: @escaping () async throws -> T) async throws -> T{
         do{
             return try await action()
@@ -73,6 +103,27 @@ private extension NetworkManager{
 }
 
 private extension NetworkManager{
+    func sendEmptyRequest(router: APITarget) async throws {
+        let response = await AF.request(router.endPoint,
+                                        method: router.method,
+                                        parameters: router.parameters,
+                                        encoding: router.encoding,
+                                        headers: router.headers)
+            .validate(statusCode: 200..<300)
+            .serializingData(emptyResponseCodes: [200, 204])
+            .response
+
+        switch response.result{
+        case .success:
+            return
+        case .failure(let error):
+            print(error)
+            throw NetworkError.mapping(error: error,
+                                       statusCode: response.response?.statusCode,
+                                       data: response.data)
+        }
+    }
+
     func sendRequest<T: Decodable>(router: APITarget, type: T.Type) async throws -> T{
         let response = await AF.request(router.endPoint,
                                         method: router.method,
@@ -87,6 +138,7 @@ private extension NetworkManager{
         case .success(let value):
             return value
         case .failure(let error):
+            print(error)
             throw NetworkError.mapping(error: error,
                                        statusCode: response.response?.statusCode,
                                        data: response.data)
