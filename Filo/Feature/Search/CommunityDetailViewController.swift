@@ -363,7 +363,8 @@ final class CommunityDetailViewController: BaseViewController {
                 self.nickLabel.text = dto.creator.nick
                 self.createdLabel.text = dto.createdAt.toPostDetailDateString()
                 self.likeCountLabel.text = self.formatCount(dto.likeCount)
-                self.commentCountLabel.text = self.formatCount(dto.comments.count)
+                let replyCount = dto.comments.reduce(0) { $0 + $1.replies.count }
+                self.commentCountLabel.text = self.formatCount(dto.comments.count + replyCount)
                 
                 if let profile = dto.creator.profileImage {
                     self.profileImageView.setKFImage(urlString: profile)
@@ -455,11 +456,11 @@ final class CommunityDetailViewController: BaseViewController {
         commentButton.rx.tap
             .bind(with: self) { owner, _ in
                 guard let postId = owner.currentPostId else { return }
-                let comments = owner.lastComments.map { CommentItem(dto: $0) }
-                let vm = CommentsViewModel(postId: postId, initialComments: comments)
+                let vm = CommentsViewModel(postId: postId, initialComments: owner.lastComments)
                 let vc = CommentsViewController(viewModel: vm)
-                vc.modalPresentationStyle = .pageSheet
-                owner.present(vc, animated: true)
+                let nav = UINavigationController(rootViewController: vc)
+                nav.modalPresentationStyle = .pageSheet
+                owner.present(nav, animated: true)
             }
             .disposed(by: disposeBag)
     }
