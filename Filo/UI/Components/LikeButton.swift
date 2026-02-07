@@ -10,6 +10,7 @@ import UIKit
 final class LikeButton: UIButton {
     var config = UIButton.Configuration.plain()
     var imageConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+    var selectedColor: UIColor?
     
     override init(frame: CGRect) {
         super.init(frame: .zero)
@@ -28,11 +29,11 @@ final class LikeButton: UIButton {
         config.baseBackgroundColor = .clear
         config.image = UIImage(named: "like_Empty")
         configuration = config
-        configurationUpdateHandler = { btn in
+        configurationUpdateHandler = {[weak self] btn in
             var config = btn.configuration
             if btn.isSelected{
                 config?.image = UIImage(named: "like_Fill")
-                config?.baseForegroundColor = GrayStyle.gray30.color
+                config?.baseForegroundColor = self?.selectedColor ?? GrayStyle.gray30.color
             }else{
                 config?.image = UIImage(named: "like_Empty")
                 config?.baseForegroundColor = GrayStyle.gray60.color
