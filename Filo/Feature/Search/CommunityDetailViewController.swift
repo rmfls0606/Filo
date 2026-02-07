@@ -16,6 +16,7 @@ final class CommunityDetailViewController: BaseViewController {
     private let viewModel: CommunityDetailViewModel
     private let disposeBag = DisposeBag()
     private let mediaItemsRelay = BehaviorRelay<[String]>(value: [])
+    private var currentMediaIndex: Int = 0
     
     // MARK: - UI
     private let scrollView: UIScrollView = {
@@ -311,6 +312,20 @@ final class CommunityDetailViewController: BaseViewController {
         navigationItem.title = "게시글"
     }
     
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        updatePlayback()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        for cell in mediaCollectionView.visibleCells {
+            if let mediaCell = cell as? CommunityDetailMediaCell {
+                mediaCell.stopPlayback()
+            }
+        }
+    }
+    
     override func configureBind() {
         let input = CommunityDetailViewModel.Input(
             likeTapped: likeButton.rx.tap,
@@ -328,15 +343,6 @@ final class CommunityDetailViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
         
-        mediaCollectionView.rx.itemSelected
-            .bind(with: self) { owner, indexPath in
-                let items = owner.mediaItemsRelay.value
-                guard items.indices.contains(indexPath.item) else { return }
-                let urlString = items[indexPath.item]
-                owner.presentMedia(urlString: urlString)
-            }
-            .disposed(by: disposeBag)
-
         output.postDetail
             .drive(onNext: { [weak self] dto in
                 guard let self else { return }
@@ -349,6 +355,10 @@ final class CommunityDetailViewController: BaseViewController {
                 self.pageControl.isHidden = hideIndicator
                 self.pageControlHeightConstraint?.update(offset: hideIndicator ? 0 : 16)
                 self.updatePageBadge(current: 1, total: dto.files.count)
+                self.currentMediaIndex = 0
+                DispatchQueue.main.async {
+                    self.updatePlayback()
+                }
                 
                 self.nickLabel.text = dto.creator.nick
                 self.createdLabel.text = dto.createdAt.toPostDetailDateString()
@@ -429,6 +439,10 @@ final class CommunityDetailViewController: BaseViewController {
                 let clamped = max(0, min(page, maxIndex))
                 owner.pageControl.currentPage = clamped
                 owner.updatePageBadge(current: clamped + 1, total: owner.mediaItemsRelay.value.count)
+                if owner.currentMediaIndex != clamped {
+                    owner.currentMediaIndex = clamped
+                    owner.updatePlayback()
+                }
             }
             .disposed(by: disposeBag)
 
@@ -454,19 +468,7 @@ final class CommunityDetailViewController: BaseViewController {
         let ext = (urlString as NSString).pathExtension.lowercased()
         let isVideo = ["mp4", "mov", "avi", "mkv", "wmv", "webm"].contains(ext)
         if isVideo {
-            guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
-            let headers = [
-                "SeSACKey": NetworkConfig.apiKey,
-                "Authorization": NetworkConfig.authorization
-            ]
-            let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
-            let item = AVPlayerItem(asset: asset)
-            let player = AVPlayer(playerItem: item)
-            let vc = AVPlayerViewController()
-            vc.player = player
-            present(vc, animated: true) {
-                player.play()
-            }
+            return
         } else {
             let vc = RemoteImagePreviewViewController(imageURL: urlString)
             present(vc, animated: true)
@@ -511,6 +513,18 @@ private extension CommunityDetailViewController {
         }
         pageCountBadge.isHidden = false
         pageCountBadge.text = "\(current)/\(total)"
+    }
+    
+    func updatePlayback() {
+        for cell in mediaCollectionView.visibleCells {
+            if let mediaCell = cell as? CommunityDetailMediaCell {
+                mediaCell.stopPlayback()
+            }
+        }
+        guard let cell = mediaCollectionView.cellForItem(at: IndexPath(item: currentMediaIndex, section: 0)) as? CommunityDetailMediaCell else {
+            return
+        }
+        cell.startPlayback(muted: false)
     }
     
 }

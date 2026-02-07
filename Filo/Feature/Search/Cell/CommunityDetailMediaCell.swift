@@ -26,12 +26,27 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
         return view
     }()
     
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .large)
+        view.hidesWhenStopped = true
+        view.color = .white
+        return view
+    }()
+    
+    private var playerLayer: AVPlayerLayer?
+    private var player: AVPlayer?
+    private var playbackObserver: NSObjectProtocol?
+    private var statusObservation: NSKeyValueObservation?
+    
     private var currentURL: String?
     private var thumbnailRequestId = UUID()
+    
+    var isVideo: Bool = false
     
     override func configureHierarchy() {
         contentView.addSubview(imageView)
         contentView.addSubview(playIconView)
+        contentView.addSubview(loadingIndicator)
     }
     
     override func configureLayout() {
@@ -43,30 +58,41 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
             make.center.equalToSuperview()
             make.size.equalTo(32)
         }
+        
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+        }
     }
     
     override func configureView() {
         contentView.backgroundColor = .clear
+        let tap = UITapGestureRecognizer(target: self, action: #selector(togglePlayback))
+        contentView.addGestureRecognizer(tap)
     }
     
     override func prepareForReuse() {
         super.prepareForReuse()
         imageView.image = nil
+        imageView.alpha = 1.0
         playIconView.isHidden = true
         currentURL = nil
         thumbnailRequestId = UUID()
+        stopPlayback()
+        hideLoading()
     }
     
     func configure(urlString: String) {
         currentURL = urlString
-        let isVideo = isVideoURL(urlString)
-        playIconView.isHidden = !isVideo
+        isVideo = isVideoURL(urlString)
+        playIconView.isHidden = true
         if isVideo {
-            imageView.image = UIImage(systemName: "photo")?.withRenderingMode(.alwaysTemplate)
-            imageView.tintColor = GrayStyle.gray75.color
-            imageView.contentMode = .scaleAspectFit
-            generateVideoThumbnail(urlString: urlString)
+            imageView.image = nil
+            imageView.backgroundColor = .black
+            imageView.contentMode = .scaleAspectFill
+            imageView.alpha = 1.0
+            showLoading()
         } else {
+            imageView.backgroundColor = GrayStyle.gray90.color
             imageView.contentMode = .scaleAspectFill
             imageView.setKFImage(urlString: urlString)
         }
@@ -110,6 +136,76 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
                 self.imageView.image = image
                 self.imageView.contentMode = .scaleAspectFill
             }
+        }
+    }
+    
+    func startPlayback(muted: Bool = true) {
+        guard isVideo, let urlString = currentURL, player == nil else { return }
+        guard let asset = makeAuthorizedAsset(urlString: urlString) else { return }
+        let item = AVPlayerItem(asset: asset)
+        let player = AVPlayer(playerItem: item)
+        player.isMuted = muted
+        let layer = AVPlayerLayer(player: player)
+        layer.frame = contentView.bounds
+        layer.videoGravity = .resizeAspectFill
+        contentView.layer.insertSublayer(layer, above: imageView.layer)
+        self.player = player
+        self.playerLayer = layer
+        statusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                if item.status == .readyToPlay {
+                    self?.hideLoading()
+                    UIView.animate(withDuration: 0.15) {
+                        self?.imageView.alpha = 0.0
+                    }
+                } else if item.status == .failed {
+                    self?.hideLoading()
+                }
+            }
+        }
+        playbackObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            self?.player?.seek(to: .zero)
+            self?.player?.play()
+        }
+        player.play()
+    }
+    
+    func stopPlayback() {
+        player?.pause()
+        statusObservation = nil
+        if let observer = playbackObserver {
+            NotificationCenter.default.removeObserver(observer)
+            playbackObserver = nil
+        }
+        player = nil
+        playerLayer?.removeFromSuperlayer()
+        playerLayer = nil
+        imageView.alpha = 1.0
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        playerLayer?.frame = contentView.bounds
+    }
+    
+    private func showLoading() {
+        loadingIndicator.startAnimating()
+    }
+    
+    private func hideLoading() {
+        loadingIndicator.stopAnimating()
+    }
+    
+    @objc private func togglePlayback() {
+        guard isVideo, let player else { return }
+        if player.timeControlStatus == .playing {
+            player.pause()
+        } else {
+            player.play()
         }
     }
 }
