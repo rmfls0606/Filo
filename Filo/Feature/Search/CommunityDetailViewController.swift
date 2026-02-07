@@ -173,6 +173,7 @@ final class CommunityDetailViewController: BaseViewController {
     private let menuActionRelay = PublishRelay<CommunityDetailViewModel.MenuAction>()
     private var currentPostId: String?
     private var lastComments: [PostCommentResponseDTO] = []
+    private var currentCreatorId: String?
     
     init(viewModel: CommunityDetailViewModel) {
         self.viewModel = viewModel
@@ -313,6 +314,10 @@ final class CommunityDetailViewController: BaseViewController {
     }
     
     override func configureBind() {
+        let headerTap = UITapGestureRecognizer()
+        headerView.addGestureRecognizer(headerTap)
+        headerView.isUserInteractionEnabled = true
+
         let input = CommunityDetailViewModel.Input(
             likeTapped: likeButton.rx.tap,
             menuAction: menuActionRelay.asObservable()
@@ -347,6 +352,7 @@ final class CommunityDetailViewController: BaseViewController {
                 }
                 
                 self.nickLabel.text = dto.creator.nick
+                self.currentCreatorId = dto.creator.userID
                 self.createdLabel.text = dto.createdAt.toPostDetailDateString()
                 self.likeCountLabel.text = self.formatCount(dto.likeCount)
                 let replyCount = dto.comments.reduce(0) { $0 + $1.replies.count }
@@ -436,6 +442,25 @@ final class CommunityDetailViewController: BaseViewController {
         moreButton.rx.tap
             .bind(with: self) { owner, _ in
                 owner.presentPostMenu()
+            }
+            .disposed(by: disposeBag)
+
+        headerTap.rx.event
+            .filter { $0.state == .recognized }
+            .bind(with: self) { owner, _ in
+                guard let creatorId = owner.currentCreatorId else { return }
+                Task {
+                    let currentUserId = await TokenStorage.shared.userId() ?? ""
+                    if currentUserId.isEmpty { return }
+                    if creatorId == currentUserId {
+                        let vc = ProfileViewController()
+                        owner.navigationController?.pushViewController(vc, animated: true)
+                    } else {
+                        let vm = UserProfileViewModel(userId: creatorId)
+                        let vc = UserProfileViewController(viewModel: vm)
+                        owner.navigationController?.pushViewController(vc, animated: true)
+                    }
+                }
             }
             .disposed(by: disposeBag)
 
