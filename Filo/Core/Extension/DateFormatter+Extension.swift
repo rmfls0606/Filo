@@ -15,6 +15,14 @@ extension DateFormatter {
         formatter.dateFormat = "yy.MM.dd(E)"
         return formatter
     }()
+
+    static let postDetailDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy년 M월 d일"
+        return formatter
+    }()
 }
 
 extension String {
@@ -24,5 +32,13 @@ extension String {
         let date = isoFormatter.date(from: self) ?? ISO8601DateFormatter().date(from: self)
         guard let date else { return self }
         return DateFormatter.orderDateFormatter.string(from: date)
+    }
+
+    func toPostDetailDateString() -> String {
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = isoFormatter.date(from: self) ?? ISO8601DateFormatter().date(from: self)
+        guard let date else { return self }
+        return DateFormatter.postDetailDateFormatter.string(from: date)
     }
 }
