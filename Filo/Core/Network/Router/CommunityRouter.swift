@@ -28,7 +28,7 @@ enum CommunityRouter: APITarget{
         case .geolocation:
             return "/posts/geolocation"
         case .search:
-            return "posts/search"
+            return "/posts/search"
         case .detail(let postId), .put(let postId), .delete(let postId):
             return "/posts/\(postId)"
         case .like(let postId, _):
@@ -63,7 +63,8 @@ enum CommunityRouter: APITarget{
                     "title": title,
                     "content": content,
                     "latitude": latitude,
-                    "longitude": longitude
+                    "longitude": longitude,
+                    "files": files
             ]
         case .geolocation(let category, let longitude, let latitude, let maxDistance, let limit, let next, let orderBy):
             var parms = [String: Any]()
@@ -71,6 +72,7 @@ enum CommunityRouter: APITarget{
             if !longitude.isEmpty{ parms["longitude"] = longitude }
             if !latitude.isEmpty{ parms["latitude"] = latitude}
             if !maxDistance.isEmpty{ parms["maxDistance"] = maxDistance }
+            if !limit.isEmpty{ parms["limit"] = maxDistance }
             if !next.isEmpty { parms["next"] = next }
             parms["order_by"] = orderBy
             return parms
@@ -95,9 +97,9 @@ enum CommunityRouter: APITarget{
     
     var encoding: ParameterEncoding{
         switch self {
-        case .files, .posts, .search, .detail, .put, .like, .me:
+        case .files, .posts, .detail, .put, .like, .me:
             return JSONEncoding.default
-        case .geolocation, .user, .delete:
+        case .geolocation, .user, .delete, .search:
             return URLEncoding.default
         }
     }
