@@ -34,7 +34,6 @@ final class HomeViewController: BaseViewController {
     
     private let todayFilterIntroductionView: UIView = {
         let view = UIView()
-        view.backgroundColor = .orange
         return view
     }()
     
