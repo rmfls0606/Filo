@@ -26,6 +26,13 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         return view
     }()
     
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .medium)
+        view.hidesWhenStopped = true
+        view.color = .white
+        return view
+    }()
+    
     private let durationLabel: UILabel = {
         let label = UILabel()
         label.font = .Pretendard.caption1
@@ -39,10 +46,16 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
     
     private var currentURL: String?
     private var thumbnailRequestId = UUID()
+    private var playerLayer: AVPlayerLayer?
+    private var player: AVPlayer?
+    private var isVideoItem: Bool = false
+    private var playbackObserver: NSObjectProtocol?
+    private var statusObservation: NSKeyValueObservation?
 
     override func configureHierarchy() {
         contentView.addSubview(imageView)
         contentView.addSubview(playIconView)
+        contentView.addSubview(loadingIndicator)
         contentView.addSubview(durationLabel)
     }
 
@@ -54,6 +67,10 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         playIconView.snp.makeConstraints { make in
             make.center.equalToSuperview()
             make.size.equalTo(28)
+        }
+        
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalToSuperview()
         }
         
         durationLabel.snp.makeConstraints { make in
@@ -71,26 +88,33 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         super.prepareForReuse()
         imageView.image = nil
         imageView.contentMode = .scaleAspectFill
+        imageView.alpha = 1.0
         playIconView.isHidden = true
+        loadingIndicator.stopAnimating()
         durationLabel.isHidden = true
         durationLabel.text = nil
         currentURL = nil
         thumbnailRequestId = UUID()
+        stopPlayback()
     }
 
     func configure(item: PostSummaryResponseDTO) {
         guard let urlString = item.files.first else { return }
         currentURL = urlString
         let isVideo = isVideoURL(urlString)
+        isVideoItem = isVideo
         playIconView.isHidden = !isVideo
         
         if isVideo {
-            imageView.image = UIImage(systemName: "photo")?.withRenderingMode(.alwaysTemplate)
-            imageView.tintColor = GrayStyle.gray75.color
-            imageView.contentMode = .scaleAspectFit
+            imageView.image = nil
+            imageView.backgroundColor = .black
+            imageView.contentMode = .scaleAspectFill
+            imageView.alpha = 1.0
+            loadingIndicator.startAnimating()
             generateVideoThumbnail(urlString: urlString)
             generateVideoDuration(urlString: urlString)
         } else {
+            imageView.backgroundColor = GrayStyle.gray90.color
             imageView.setKFImage(urlString: urlString)
             imageView.contentMode = .scaleAspectFill
         }
@@ -122,9 +146,10 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
             guard let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) else {
                 DispatchQueue.main.async {
                     guard let self, self.thumbnailRequestId == requestId, self.currentURL == urlString else { return }
-                    self.imageView.image = UIImage(systemName: "photo")?.withRenderingMode(.alwaysTemplate)
-                    self.imageView.tintColor = GrayStyle.gray75.color
-                    self.imageView.contentMode = .scaleAspectFit
+                    self.loadingIndicator.stopAnimating()
+                    self.imageView.image = nil
+                    self.imageView.backgroundColor = .black
+                    self.imageView.contentMode = .scaleAspectFill
                 }
                 return
             }
@@ -133,6 +158,7 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
                 guard let self, self.thumbnailRequestId == requestId, self.currentURL == urlString else { return }
                 self.imageView.image = image
                 self.imageView.contentMode = .scaleAspectFill
+                self.loadingIndicator.stopAnimating()
             }
         }
     }
@@ -163,5 +189,64 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         } else {
             return String(format: "%d:%02d", minutes, secs)
         }
+    }
+    
+    func isVideoCell() -> Bool {
+        isVideoItem
+    }
+    
+    func startPlayback() {
+        guard isVideoItem, player == nil, let urlString = currentURL else { return }
+        guard let asset = makeAuthorizedAsset(urlString: urlString) else { return }
+        let item = AVPlayerItem(asset: asset)
+        let player = AVPlayer(playerItem: item)
+        player.isMuted = true
+        let layer = AVPlayerLayer(player: player)
+        layer.frame = contentView.bounds
+        layer.videoGravity = .resizeAspectFill
+        contentView.layer.insertSublayer(layer, above: imageView.layer)
+        self.player = player
+        self.playerLayer = layer
+        playIconView.isHidden = true
+        statusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                if item.status == .readyToPlay {
+                    self?.loadingIndicator.stopAnimating()
+                    UIView.animate(withDuration: 0.15) {
+                        self?.imageView.alpha = 0.0
+                    }
+                } else if item.status == .failed {
+                    self?.loadingIndicator.stopAnimating()
+                }
+            }
+        }
+        playbackObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            self?.player?.seek(to: .zero)
+            self?.player?.play()
+        }
+        player.play()
+    }
+    
+    func stopPlayback() {
+        player?.pause()
+        statusObservation = nil
+        if let observer = playbackObserver {
+            NotificationCenter.default.removeObserver(observer)
+            playbackObserver = nil
+        }
+        player = nil
+        playerLayer?.removeFromSuperlayer()
+        playerLayer = nil
+        playIconView.isHidden = !isVideoItem
+        imageView.alpha = 1.0
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        playerLayer?.frame = contentView.bounds
     }
 }
