@@ -17,10 +17,10 @@ final class CommentsViewController: BaseViewController {
     private let replyTargetRelay = BehaviorRelay<CommentReplyTarget?>(value: nil)
     private let editTargetRelay = BehaviorRelay<String?>(value: nil)
     private let expandRepliesRelay = PublishRelay<String>()
-    private let editRelay = PublishRelay<(String, String)>()
     private let deleteRelay = PublishRelay<String>()
     private var inputBottomConstraint: Constraint?
     private var currentUserId: String = ""
+    var onCountChanged: ((Int) -> Void)?
     
     private let tableView: UITableView = {
         let view = UITableView()
@@ -195,7 +195,7 @@ final class CommentsViewController: BaseViewController {
             sheet.detents = [.medium(), .large()]
             sheet.prefersGrabberVisible = true
             sheet.largestUndimmedDetentIdentifier = .large
-            sheet.prefersScrollingExpandsWhenScrolledToEdge = true
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
         }
     }
     
@@ -271,6 +271,12 @@ final class CommentsViewController: BaseViewController {
                 owner.editTargetRelay.accept(nil)
                 owner.inputTextView.isScrollEnabled = false
                 owner.view.layoutIfNeeded()
+            }
+            .disposed(by: disposeBag)
+        
+        output.totalCount
+            .drive(with: self) { owner, count in
+                owner.onCountChanged?(count)
             }
             .disposed(by: disposeBag)
 

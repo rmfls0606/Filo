@@ -24,6 +24,7 @@ final class CommentsViewModel: ViewModelType {
         let comments: Driver<[CommentListItem]>
         let sendEnabled: Driver<Bool>
         let sendSuccess: Signal<Void>
+        let totalCount: Driver<Int>
         let networkError: Signal<NetworkError>
     }
     
@@ -222,10 +223,19 @@ final class CommentsViewModel: ViewModelType {
             })
             .disposed(by: disposeBag)
         
+        let totalCount = commentsDataRelay
+            .map { comments in
+                let replyCount = comments.reduce(0) { $0 + $1.replies.count }
+                return comments.count + replyCount
+            }
+            .distinctUntilChanged()
+            .asDriver(onErrorJustReturn: 0)
+        
         return Output(
             comments: commentsRelay.asDriver(),
             sendEnabled: sendEnabled.asDriver(onErrorJustReturn: false),
             sendSuccess: successRelay.asSignal(),
+            totalCount: totalCount,
             networkError: errorRelay.asSignal()
         )
     }

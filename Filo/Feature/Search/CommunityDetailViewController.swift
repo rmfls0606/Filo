@@ -458,6 +458,9 @@ final class CommunityDetailViewController: BaseViewController {
                 guard let postId = owner.currentPostId else { return }
                 let vm = CommentsViewModel(postId: postId, initialComments: owner.lastComments)
                 let vc = CommentsViewController(viewModel: vm)
+                vc.onCountChanged = { [weak owner] count in
+                    owner?.commentCountLabel.text = owner?.formatCount(count)
+                }
                 let nav = UINavigationController(rootViewController: vc)
                 nav.modalPresentationStyle = .pageSheet
                 owner.present(nav, animated: true)
