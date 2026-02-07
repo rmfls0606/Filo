@@ -18,6 +18,15 @@ final class SearchViewController: BaseViewController {
         bar.searchBarStyle = .minimal
         return bar
     }()
+    
+    private let cancelButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("취소", for: .normal)
+        button.titleLabel?.font = .Pretendard.body1
+        button.setTitleColor(GrayStyle.gray30.color, for: .normal)
+        button.isHidden = true
+        return button
+    }()
 
     private let filterSectionView = UIView()
 
@@ -60,6 +69,17 @@ final class SearchViewController: BaseViewController {
         view.register(SearchPostCollectionViewCell.self, forCellWithReuseIdentifier: SearchPostCollectionViewCell.identifier)
         return view
     }()
+
+    private let resultsTableView: UITableView = {
+        let view = UITableView()
+        view.backgroundColor = .clear
+        view.separatorStyle = .none
+        view.showsVerticalScrollIndicator = false
+        view.rowHeight = UITableView.automaticDimension
+        view.register(SearchKeywordTableViewCell.self, forCellReuseIdentifier: SearchKeywordTableViewCell.identifier)
+        view.register(SearchUserTableViewCell.self, forCellReuseIdentifier: SearchUserTableViewCell.identifier)
+        return view
+    }()
     
     let tap = UITapGestureRecognizer()
 
@@ -67,6 +87,12 @@ final class SearchViewController: BaseViewController {
     private let viewModel: SearchViewModel
     private let disposeBag = DisposeBag()
     private var didInvalidateCategoryLayout = false
+    private var isSearchMode = false
+    
+    private var filterSectionHeightConstraint: Constraint?
+    private var cancelButtonWidthConstraint: Constraint?
+    private var searchBarTrailingToSafeConstraint: Constraint?
+    private var searchBarTrailingToCancelConstraint: Constraint?
 
     init(viewModel: SearchViewModel = SearchViewModel()) {
         self.viewModel = viewModel
@@ -83,40 +109,57 @@ final class SearchViewController: BaseViewController {
     
     override func configureHierarchy() {
         view.addSubview(searchBar)
+        view.addSubview(cancelButton)
         view.addSubview(filterSectionView)
         filterSectionView.addSubview(categoryCollectionView)
         filterSectionView.addSubview(orderButton)
         view.addSubview(collectionView)
+        view.addSubview(resultsTableView)
     }
 
     override func configureLayout() {
         searchBar.snp.makeConstraints { make in
             make.top.equalTo(view.safeAreaLayoutGuide).inset(8)
-            make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
+            make.leading.equalTo(view.safeAreaLayoutGuide).inset(12)
+            searchBarTrailingToSafeConstraint = make.trailing.equalTo(view.safeAreaLayoutGuide).inset(12).constraint
+            searchBarTrailingToCancelConstraint = make.trailing.equalTo(cancelButton.snp.leading).offset(-8).constraint
         }
+        searchBarTrailingToCancelConstraint?.deactivate()
         
+        cancelButton.snp.makeConstraints { make in
+            make.centerY.equalTo(searchBar.snp.centerY)
+            make.verticalEdges.equalTo(searchBar.searchTextField)
+            make.trailing.equalTo(view.safeAreaLayoutGuide).inset(12)
+            cancelButtonWidthConstraint = make.width.equalTo(0).constraint
+        }
+    
         filterSectionView.snp.makeConstraints { make in
-            make.top.equalTo(searchBar.snp.bottom)
+            make.top.equalTo(searchBar.snp.bottom).offset(8)
             make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
-            make.height.equalTo(36)
+            filterSectionHeightConstraint = make.height.equalTo(36).constraint
         }
 
         categoryCollectionView.snp.makeConstraints { make in
             make.verticalEdges.equalToSuperview()
-            make.leading.equalToSuperview()
-            make.trailing.equalTo(orderButton.snp.leading).offset(-8)
+            make.leading.equalToSuperview().inset(12)
+            make.trailing.equalTo(orderButton.snp.leading).offset(-20)
             make.height.equalTo(36)
         }
 
         orderButton.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
-            make.leading.greaterThanOrEqualTo(categoryCollectionView.snp.trailing).offset(8)
-            make.trailing.equalToSuperview().inset(16)
+            make.trailing.equalToSuperview().inset(12)
             make.height.equalTo(24)
         }
 
         collectionView.snp.makeConstraints { make in
             make.top.equalTo(filterSectionView.snp.bottom).offset(8)
+            make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
+            make.bottom.equalTo(view.safeAreaLayoutGuide)
+        }
+
+        resultsTableView.snp.makeConstraints { make in
+            make.top.equalTo(searchBar.snp.bottom)
             make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
             make.bottom.equalTo(view.safeAreaLayoutGuide)
         }
@@ -129,6 +172,9 @@ final class SearchViewController: BaseViewController {
         tap.cancelsTouchesInView = false
         orderButton.setContentHuggingPriority(.required, for: .horizontal)
         orderButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        resultsTableView.alpha = 0
+        resultsTableView.isHidden = true
+        cancelButton.isHidden = true
     }
 
     override func configureBind() {
@@ -167,6 +213,29 @@ final class SearchViewController: BaseViewController {
                 cell.configure(item: item)
             }
             .disposed(by: disposeBag)
+        
+        output.results
+            .drive(resultsTableView.rx.items) { tableView, _, item in
+                switch item {
+                case .keyword(let text):
+                    guard let cell = tableView.dequeueReusableCell(
+                        withIdentifier: SearchKeywordTableViewCell.identifier
+                    ) as? SearchKeywordTableViewCell else {
+                        return UITableViewCell()
+                    }
+                    cell.configure(text: text)
+                    return cell
+                case .user(let user):
+                    guard let cell = tableView.dequeueReusableCell(
+                        withIdentifier: SearchUserTableViewCell.identifier
+                    ) as? SearchUserTableViewCell else {
+                        return UITableViewCell()
+                    }
+                    cell.configure(item: user)
+                    return cell
+                }
+            }
+            .disposed(by: disposeBag)
 
         output.orderTitle
             .drive(with: self) { owner, title in
@@ -185,5 +254,80 @@ final class SearchViewController: BaseViewController {
                 owner.view.endEditing(true)
             }
             .disposed(by: disposeBag)
+
+        searchBar.rx.textDidBeginEditing
+            .bind(with: self) { owner, _ in
+                owner.setSearchMode(true, animated: true)
+            }
+            .disposed(by: disposeBag)
+
+        cancelButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.searchBar.text = ""
+                owner.searchBar.resignFirstResponder()
+                owner.setSearchMode(false, animated: true)
+            }
+            .disposed(by: disposeBag)
+        
+        searchBar.rx.searchButtonClicked
+            .bind(with: self) { owner, _ in
+                owner.searchBar.resignFirstResponder()
+            }
+            .disposed(by: disposeBag)
+
+        resultsTableView.rx.modelSelected(SearchResultItem.self)
+            .bind(with: self) { owner, item in
+                switch item {
+                case .keyword:
+                    owner.searchBar.resignFirstResponder()
+                case .user(let user):
+                    owner.searchBar.resignFirstResponder()
+                }
+            }
+            .disposed(by: disposeBag)
+    }
+}
+
+private extension SearchViewController {
+    func setSearchMode(_ isActive: Bool, animated: Bool) {
+        guard isSearchMode != isActive else { return }
+        isSearchMode = isActive
+        cancelButton.isHidden = false
+        cancelButtonWidthConstraint?.update(offset: isActive ? 44 : 0)
+        if isActive {
+            searchBarTrailingToSafeConstraint?.deactivate()
+            searchBarTrailingToCancelConstraint?.activate()
+        } else {
+            searchBarTrailingToCancelConstraint?.deactivate()
+            searchBarTrailingToSafeConstraint?.activate()
+        }
+        resultsTableView.isHidden = false
+        collectionView.isHidden = false
+        
+        let animations = {
+            self.filterSectionHeightConstraint?.update(offset: isActive ? 0 : 36)
+            self.filterSectionView.alpha = isActive ? 0 : 1
+            self.collectionView.alpha = isActive ? 0 : 1
+            self.resultsTableView.alpha = isActive ? 1 : 0
+            self.resultsTableView.transform = isActive ? .identity : CGAffineTransform(translationX: 0, y: 8)
+            self.view.layoutIfNeeded()
+        }
+        
+        let completion: (Bool) -> Void = { _ in
+            self.resultsTableView.isHidden = !isActive
+            self.collectionView.isHidden = isActive
+            self.cancelButton.isHidden = !isActive
+        }
+        
+        if animated {
+            UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseInOut]) {
+                animations()
+            } completion: { finished in
+                completion(finished)
+            }
+        } else {
+            animations()
+            completion(true)
+        }
     }
 }

@@ -14,6 +14,11 @@ struct SearchCategoryItem {
     let isSelected: Bool
 }
 
+enum SearchResultItem {
+    case keyword(String)
+    case user(UserInfoResponseDTO)
+}
+
 enum searchCategoryType: String, CaseIterable{
     case all = "전체"
     case food = "푸드"
@@ -64,6 +69,7 @@ final class SearchViewModel: ViewModelType {
     struct Output {
         let categories: Driver<[SearchCategoryItem]>
         let posts: Driver<[PostSummaryResponseDTO]>
+        let results: Driver<[SearchResultItem]>
         let orderTitle: Driver<String>
         let networkError: Signal<NetworkError>
     }
@@ -83,6 +89,7 @@ final class SearchViewModel: ViewModelType {
         let orderRelay = BehaviorRelay<SearchOrder>(value: .createdAt)
         let searchTextRelay = BehaviorRelay<String>(value: "")
         let postsRelay = BehaviorRelay<[PostSummaryResponseDTO]>(value: [])
+        let resultsRelay = BehaviorRelay<[SearchResultItem]>(value: [])
         let errorRelay = PublishRelay<NetworkError>()
         
         let textTrigger = input.searchText
@@ -116,16 +123,15 @@ final class SearchViewModel: ViewModelType {
             .disposed(by: disposeBag)
         
         
-        let trigger = Observable.merge(
-            input.searchSubmit,
-            input.categorySelected.map{ _ in},
-            input.orderTapped.map { _ in },
-            textTrigger.map{ _ in })
+        let postTrigger = Observable.merge(
+            Observable.just(()),
+            input.categorySelected.map { _ in },
+            input.orderTapped.map { _ in })
             .share(replay: 1)
         
-        trigger
-            .withLatestFrom(Observable.combineLatest(searchTextRelay, selectedCategoryRelay, orderRelay))
-            .subscribe(onNext: { [weak self] query, category, order in
+        postTrigger
+            .withLatestFrom(Observable.combineLatest(selectedCategoryRelay, orderRelay))
+            .subscribe(onNext: { [weak self] category, order in
                 guard let self else { return }
                 Task {
                     do {
@@ -148,10 +154,36 @@ final class SearchViewModel: ViewModelType {
                 }
             })
             .disposed(by: disposeBag)
+
+        textTrigger
+            .withLatestFrom(searchTextRelay)
+            .subscribe(onNext: { [weak self] query in
+                guard let self else { return }
+                guard !query.isEmpty else {
+                    resultsRelay.accept([])
+                    return
+                }
+                
+                Task {
+                    do {
+                        let dto: UserInfoListResponseDTO = try await self.service.request(
+                            UserRouter.search(nick: query)
+                        )
+                        let items: [SearchResultItem] = [.keyword(query)] + dto.data.map { .user($0) }
+                        resultsRelay.accept(items)
+                    } catch let error as NetworkError {
+                        errorRelay.accept(error)
+                    } catch {
+                        errorRelay.accept(.unknown(error))
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
         
         return Output(
             categories: categoriesRelay.asDriver(),
             posts: postsRelay.asDriver(),
+            results: resultsRelay.asDriver(),
             orderTitle: orderRelay.map { $0.rawValue }.asDriver(onErrorJustReturn: SearchOrder.createdAt.rawValue),
             networkError: errorRelay.asSignal()
         )
