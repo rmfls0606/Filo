@@ -9,6 +9,7 @@ import UIKit
 import SnapKit
 import RxSwift
 import RxCocoa
+import Kingfisher
 
 final class CommentTableViewCell: BaseTableViewCell {    
     private let profileImageView: UIImageView = {
@@ -81,6 +82,7 @@ final class CommentTableViewCell: BaseTableViewCell {
     }()
     
     private var profileLeadingConstraint: Constraint?
+    private var currentProfileKey: String?
     let replyTap = PublishRelay<Void>()
     let moreTap = PublishRelay<Void>()
     private(set) var disposeBag = DisposeBag()
@@ -137,7 +139,9 @@ final class CommentTableViewCell: BaseTableViewCell {
     
     override func prepareForReuse() {
         super.prepareForReuse()
+        profileImageView.kf.cancelDownloadTask()
         profileImageView.image = nil
+        currentProfileKey = nil
         disposeBag = DisposeBag()
     }
     
@@ -175,8 +179,32 @@ final class CommentTableViewCell: BaseTableViewCell {
         moreButton.isHidden = !showMore
         layoutIfNeeded()
         
+        profileImageView.kf.cancelDownloadTask()
+        profileImageView.image = nil
+        currentProfileKey = nil
         if let url = item.creator.profileImage {
-            profileImageView.setKFImage(urlString: url)
+            let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let fullURL = URL(string: NetworkConfig.baseURL + "/" + trimmed), !trimmed.isEmpty {
+                let targetSize = CGSize(width: 30, height: 30)
+                let processor = DownsamplingImageProcessor(size: targetSize)
+                let options: KingfisherOptionsInfo = [
+                    .scaleFactor(UIScreen.main.scale),
+                    .processor(processor),
+                    .cacheOriginalImage,
+                    .requestModifier(RequestModifier.modifer)
+                ]
+                let cacheKey = "\(fullURL.absoluteString)|\(item.creator.userID)"
+                currentProfileKey = cacheKey
+                let resource = KF.ImageResource(downloadURL: fullURL, cacheKey: cacheKey)
+                profileImageView.kf.setImage(with: resource, options: options) { [weak self] _ in
+                    guard let self else { return }
+                    if self.currentProfileKey != cacheKey {
+                        self.profileImageView.image = nil
+                    }
+                }
+            } else {
+                profileImageView.image = nil
+            }
         } else {
             profileImageView.image = nil
         }
