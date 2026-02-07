@@ -281,7 +281,9 @@ final class SearchViewController: BaseViewController {
                 case .keyword:
                     owner.searchBar.resignFirstResponder()
                 case .user(let user):
-                    owner.searchBar.resignFirstResponder()
+                    let vm = UserProfileViewModel(userId: user.userID)
+                    let vc = UserProfileViewController(viewModel: vm)
+                    owner.navigationController?.pushViewController(vc, animated: true)
                 }
             }
             .disposed(by: disposeBag)
