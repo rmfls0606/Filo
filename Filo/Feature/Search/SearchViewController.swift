@@ -19,6 +19,12 @@ final class SearchViewController: BaseViewController {
         return bar
     }()
     
+    private let searchBarBottomLineView: UIView = {
+        let view = UIView()
+        view.backgroundColor = Brand.deepTurquoise.color
+        return view
+    }()
+    
     private let cancelButton: UIButton = {
         let button = UIButton(type: .system)
         button.setTitle("취소", for: .normal)
@@ -75,9 +81,12 @@ final class SearchViewController: BaseViewController {
         view.backgroundColor = .clear
         view.separatorStyle = .none
         view.showsVerticalScrollIndicator = false
-        view.rowHeight = UITableView.automaticDimension
-        view.register(SearchKeywordTableViewCell.self, forCellReuseIdentifier: SearchKeywordTableViewCell.identifier)
+        view.showsHorizontalScrollIndicator = false
+        view.alwaysBounceHorizontal = false
+        view.isDirectionalLockEnabled = true
+        view.rowHeight = 60
         view.register(SearchUserTableViewCell.self, forCellReuseIdentifier: SearchUserTableViewCell.identifier)
+        view.contentInset = UIEdgeInsets(top: 20, left: 0, bottom: 20, right: 0)
         return view
     }()
     
@@ -109,6 +118,7 @@ final class SearchViewController: BaseViewController {
     
     override func configureHierarchy() {
         view.addSubview(searchBar)
+        view.addSubview(searchBarBottomLineView)
         view.addSubview(cancelButton)
         view.addSubview(filterSectionView)
         filterSectionView.addSubview(categoryCollectionView)
@@ -132,9 +142,15 @@ final class SearchViewController: BaseViewController {
             make.trailing.equalTo(view.safeAreaLayoutGuide).inset(12)
             cancelButtonWidthConstraint = make.width.equalTo(0).constraint
         }
+        
+        searchBarBottomLineView.snp.makeConstraints { make in
+            make.top.equalTo(searchBar.snp.bottom).offset(8)
+            make.horizontalEdges.equalToSuperview()
+            make.height.equalTo(1)
+        }
     
         filterSectionView.snp.makeConstraints { make in
-            make.top.equalTo(searchBar.snp.bottom).offset(8)
+            make.top.equalTo(searchBarBottomLineView.snp.bottom).offset(8)
             make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
             filterSectionHeightConstraint = make.height.equalTo(36).constraint
         }
@@ -159,7 +175,7 @@ final class SearchViewController: BaseViewController {
         }
 
         resultsTableView.snp.makeConstraints { make in
-            make.top.equalTo(searchBar.snp.bottom)
+            make.top.equalTo(searchBarBottomLineView.snp.bottom)
             make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
             make.bottom.equalTo(view.safeAreaLayoutGuide)
         }
@@ -219,11 +235,11 @@ final class SearchViewController: BaseViewController {
                 switch item {
                 case .keyword(let text):
                     guard let cell = tableView.dequeueReusableCell(
-                        withIdentifier: SearchKeywordTableViewCell.identifier
-                    ) as? SearchKeywordTableViewCell else {
+                        withIdentifier: SearchUserTableViewCell.identifier
+                    ) as? SearchUserTableViewCell else {
                         return UITableViewCell()
                     }
-                    cell.configure(text: text)
+                    cell.configureKeyword(text: text)
                     return cell
                 case .user(let user):
                     guard let cell = tableView.dequeueReusableCell(

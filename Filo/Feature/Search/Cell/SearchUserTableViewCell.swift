@@ -19,6 +19,15 @@ final class SearchUserTableViewCell: BaseTableViewCell {
         view.layer.cornerRadius = 20
         return view
     }()
+
+    private let iconImageView: UIImageView = {
+        let view = UIImageView()
+        view.image = UIImage(systemName: "magnifyingglass")
+        view.tintColor = GrayStyle.gray60.color
+        view.contentMode = .center
+        view.isHidden = true
+        return view
+    }()
     
     private let nickLabel: UILabel = {
         let label = UILabel()
@@ -45,6 +54,7 @@ final class SearchUserTableViewCell: BaseTableViewCell {
     
     override func configureHierarchy() {
         contentView.addSubview(profileImageView)
+        contentView.addSubview(iconImageView)
         contentView.addSubview(textStack)
         textStack.addArrangedSubview(nickLabel)
         textStack.addArrangedSubview(nameLabel)
@@ -55,6 +65,11 @@ final class SearchUserTableViewCell: BaseTableViewCell {
             make.leading.equalToSuperview().inset(16)
             make.centerY.equalToSuperview()
             make.size.equalTo(40)
+        }
+
+        iconImageView.snp.makeConstraints { make in
+            make.center.equalTo(profileImageView)
+            make.size.equalTo(18)
         }
         
         textStack.snp.makeConstraints { make in
@@ -73,9 +88,21 @@ final class SearchUserTableViewCell: BaseTableViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         profileImageView.image = nil
+        iconImageView.isHidden = true
+        nameLabel.isHidden = false
+        nickLabel.font = .Pretendard.body1
+        profileImageView.layer.cornerRadius = 20
+        profileImageView.backgroundColor = GrayStyle.gray90.color
+        profileImageView.contentMode = .scaleAspectFill
     }
     
     func configure(item: UserInfoResponseDTO) {
+        iconImageView.isHidden = true
+        nameLabel.isHidden = false
+        nickLabel.font = .Pretendard.body1
+        profileImageView.layer.cornerRadius = 20
+        profileImageView.backgroundColor = GrayStyle.gray90.color
+        profileImageView.contentMode = .scaleAspectFill
         nickLabel.text = item.nick
         nameLabel.text = item.name ?? item.introduction ?? ""
         
@@ -85,5 +112,16 @@ final class SearchUserTableViewCell: BaseTableViewCell {
             profileImageView.image = nil
         }
     }
-}
 
+    func configureKeyword(text: String) {
+        nickLabel.text = text
+        nameLabel.text = nil
+        nameLabel.isHidden = true
+        profileImageView.image = nil
+        nickLabel.font = .Pretendard.body2
+        profileImageView.layer.cornerRadius = 20
+        profileImageView.backgroundColor = GrayStyle.gray90.color
+        profileImageView.contentMode = .center
+        iconImageView.isHidden = false
+    }
+}
