@@ -28,6 +28,10 @@ final actor TokenStorage{
         try? await KeychainManager.shared.read(key: .userName)
     }
     
+    func userId() async -> String?{
+        try? await KeychainManager.shared.read(key: .userId)
+    }
+    
     //MARK: - Save
     func save(access: String, refresh: String, userId: String? = nil, userName: String? = nil) async throws{
         try await KeychainManager.shared.save(access, key: .accessToken)
