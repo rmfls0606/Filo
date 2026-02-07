@@ -51,7 +51,7 @@ final class SearchResultViewModel: ViewModelType {
                         let dto: PostSummaryListResponseDTO = try await self.service.request(
                             CommunityRouter.search(title: query)
                         )
-                        print(dto)
+                        
                         postsRelay.accept(dto.data)
                     } catch let error as NetworkError {
                         errorRelay.accept(error)

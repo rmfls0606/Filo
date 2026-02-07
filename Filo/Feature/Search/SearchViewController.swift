@@ -270,16 +270,27 @@ final class SearchViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         searchBar.rx.searchButtonClicked
+            .withLatestFrom(searchBar.rx.text.orEmpty)
             .bind(with: self) { owner, _ in
+                let query = owner.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !query.isEmpty else { return }
                 owner.searchBar.resignFirstResponder()
+                let vm = SearchResultViewModel(query: query)
+                let vc = SearchResultViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
 
         resultsTableView.rx.modelSelected(SearchResultItem.self)
             .bind(with: self) { owner, item in
                 switch item {
-                case .keyword:
+                case .keyword(let text):
+                    let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !query.isEmpty else { return }
                     owner.searchBar.resignFirstResponder()
+                    let vm = SearchResultViewModel(query: query)
+                    let vc = SearchResultViewController(viewModel: vm)
+                    owner.navigationController?.pushViewController(vc, animated: true)
                 case .user(let user):
                     Task {
                         let currentUserId = await TokenStorage.shared.userId() ?? ""
