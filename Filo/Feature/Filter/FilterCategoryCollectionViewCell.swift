@@ -13,6 +13,8 @@ final class FilterCategoryCollectionViewCell: BaseCollectionViewCell {
         let label = UILabel()
         label.font = .Pretendard.body2
         label.textAlignment = .center
+        label.numberOfLines = 1
+        label.lineBreakMode = .byClipping
         return label
     }()
     
@@ -30,8 +32,14 @@ final class FilterCategoryCollectionViewCell: BaseCollectionViewCell {
     override func configureView() {
         contentView.layer.borderWidth = 1.0
         contentView.layer.borderColor = Brand.deepTurquoise.color?.cgColor
-        contentView.layer.cornerRadius = self.frame.height / 2
         contentView.clipsToBounds = true
+        titleLabel.setContentHuggingPriority(.required, for: .horizontal)
+        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        contentView.layer.cornerRadius = contentView.bounds.height / 2
     }
     
     func configure(_ item: FilterCategoryEntity){
@@ -39,5 +47,11 @@ final class FilterCategoryCollectionViewCell: BaseCollectionViewCell {
         
         contentView.backgroundColor = item.isSelected ? Brand.brightTurquoise.color : Brand.blackTurquoise.color
         titleLabel.textColor = item.isSelected ? GrayStyle.gray45.color : GrayStyle.gray75.color
+    }
+
+    func configure(title: String, isSelected: Bool) {
+        titleLabel.text = title
+        contentView.backgroundColor = isSelected ? Brand.brightTurquoise.color : Brand.blackTurquoise.color
+        titleLabel.textColor = isSelected ? GrayStyle.gray45.color : GrayStyle.gray75.color
     }
 }
