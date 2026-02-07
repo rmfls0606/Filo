@@ -103,11 +103,14 @@ final class CommunityCreateViewController: BaseViewController {
         layout.minimumLineSpacing = 6
         layout.itemSize = .zero
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.isScrollEnabled = false
         view.backgroundColor = .clear
         view.register(CommunityMediaPreviewCell.self, forCellWithReuseIdentifier: CommunityMediaPreviewCell.identifier)
-        view.showsVerticalScrollIndicator = true
+        view.showsVerticalScrollIndicator = false
         return view
     }()
+    
+    private var mediaCollectionHeightConstraint: Constraint?
     
     private let submitButton: UIButton = {
         var config = UIButton.Configuration.filled()
@@ -200,7 +203,7 @@ final class CommunityCreateViewController: BaseViewController {
         mediaCollectionView.snp.makeConstraints { make in
             make.top.equalTo(addMediaButton.snp.bottom).offset(12)
             make.horizontalEdges.equalToSuperview().inset(16)
-            make.height.equalTo(220)
+            mediaCollectionHeightConstraint = make.height.equalTo(0).constraint
         }
         
         submitButton.snp.makeConstraints { make in
@@ -262,6 +265,12 @@ final class CommunityCreateViewController: BaseViewController {
         output.mediaItems
             .drive(with: self) { owner, items in
                 owner.currentMediaItems = items
+                DispatchQueue.main.async {
+                    owner.mediaCollectionView.layoutIfNeeded()
+                    let height = owner.mediaCollectionView.collectionViewLayout.collectionViewContentSize.height
+                    owner.mediaCollectionHeightConstraint?.update(offset: height)
+                    owner.view.layoutIfNeeded()
+                }
             }
             .disposed(by: disposeBag)
 
@@ -269,8 +278,11 @@ final class CommunityCreateViewController: BaseViewController {
             .drive(mediaCollectionView.rx.items(
                 cellIdentifier: CommunityMediaPreviewCell.identifier,
                 cellType: CommunityMediaPreviewCell.self
-            )) { _, item, cell in
+            )) { [weak self] index, item, cell in
                 cell.configure(item: item)
+                cell.onDelete = { [weak self] in
+                    self?.mediaRemoveRelay.accept(index)
+                }
             }
             .disposed(by: disposeBag)
         
@@ -307,8 +319,11 @@ final class CommunityCreateViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         mediaCollectionView.rx.itemSelected
-            .map { $0.item }
-            .bind(to: mediaRemoveRelay)
+            .bind(with: self) { owner, indexPath in
+                guard owner.currentMediaItems.indices.contains(indexPath.item) else { return }
+                let item = owner.currentMediaItems[indexPath.item]
+                owner.presentPreview(item: item)
+            }
             .disposed(by: disposeBag)
         
         contentTextView.rx.text.orEmpty
@@ -317,6 +332,13 @@ final class CommunityCreateViewController: BaseViewController {
                 owner.contentPlaceholderLabel.isHidden = hasText
             }
             .disposed(by: disposeBag)
+    }
+    
+    private func presentPreview(item: PostMediaItem) {
+        let items = currentMediaItems
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        let vc = MediaPreviewPagerViewController(items: items, startIndex: index)
+        present(vc, animated: true)
     }
 }
 
