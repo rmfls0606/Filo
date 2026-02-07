@@ -281,9 +281,18 @@ final class SearchViewController: BaseViewController {
                 case .keyword:
                     owner.searchBar.resignFirstResponder()
                 case .user(let user):
-                    let vm = UserProfileViewModel(userId: user.userID)
-                    let vc = UserProfileViewController(viewModel: vm)
-                    owner.navigationController?.pushViewController(vc, animated: true)
+                    Task {
+                        let currentUserId = await TokenStorage.shared.userId() ?? ""
+                        if currentUserId.isEmpty { return }
+                        if user.userID == currentUserId {
+                            let vc = ProfileViewController()
+                            owner.navigationController?.pushViewController(vc, animated: true)
+                        } else {
+                            let vm = UserProfileViewModel(userId: user.userID)
+                            let vc = UserProfileViewController(viewModel: vm)
+                            owner.navigationController?.pushViewController(vc, animated: true)
+                        }
+                    }
                 }
             }
             .disposed(by: disposeBag)
