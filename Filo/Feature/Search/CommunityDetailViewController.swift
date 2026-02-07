@@ -331,8 +331,9 @@ final class CommunityDetailViewController: BaseViewController {
                 
                 let nick = dto.creator.nick + " "
                 let content = dto.content
+                let title = dto.title.isEmpty ? "" : dto.title + "\n"
                 let category = dto.category.isEmpty ? "" : " #\(dto.category)"
-                let text = nick + content + category
+                let text = nick + title + content + category
                 let attr = NSMutableAttributedString(string: text, attributes: [
                     .font: UIFont.Pretendard.caption1 as Any,
                     .foregroundColor: GrayStyle.gray60.color as Any
@@ -341,8 +342,15 @@ final class CommunityDetailViewController: BaseViewController {
                     .font: UIFont.Pretendard.body2 as Any,
                     .foregroundColor: GrayStyle.gray30.color as Any
                 ], range: NSRange(location: 0, length: nick.count))
+                if !title.isEmpty {
+                    let titleRange = NSRange(location: nick.count, length: title.count)
+                    attr.addAttributes([
+                        .font: UIFont.Pretendard.body2 as Any,
+                        .foregroundColor: GrayStyle.gray30.color as Any
+                    ], range: titleRange)
+                }
                 if !category.isEmpty {
-                    let categoryRange = NSRange(location: (nick + content).count, length: category.count)
+                    let categoryRange = NSRange(location: (nick + title + content).count, length: category.count)
                     attr.addAttributes([
                         .foregroundColor: Brand.brightTurquoise.color as Any
                     ], range: categoryRange)
