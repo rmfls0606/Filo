@@ -10,6 +10,20 @@ import SnapKit
 import RxSwift
 import RxCocoa
 
+private enum UserProfileGridItem {
+    case filter(FilterSummaryResponseDTO)
+    case post(PostSummaryResponseDTO)
+
+    var thumbnailPath: String? {
+        switch self {
+        case .filter(let item):
+            return item.files.count > 1 ? item.files[1] : item.files.first
+        case .post(let item):
+            return item.files.count > 1 ? item.files[1] : item.files.first
+        }
+    }
+}
+
 final class UserProfileViewController: BaseViewController {
     private let scrollView: UIScrollView = {
         let view = UIScrollView()
@@ -359,11 +373,11 @@ final class UserProfileViewController: BaseViewController {
         
         let visibleItems = Driver
             .combineLatest(output.userFilterItems, output.userCommunityItems, output.selectedSegment)
-            .map { (filterItems: [FilterSummaryResponseDTO], communityItems: [PostSummaryResponseDTO], selected: Int) -> [String] in
+            .map { (filterItems: [FilterSummaryResponseDTO], communityItems: [PostSummaryResponseDTO], selected: Int) -> [UserProfileGridItem] in
                 if selected == 0 {
-                    return filterItems.compactMap { $0.files.count > 1 ? $0.files[1] : $0.files.first }
+                    return filterItems.map { .filter($0) }
                 } else {
-                    return communityItems.compactMap { $0.files.count > 1 ? $0.files[1] : $0.files.first }
+                    return communityItems.map { .post($0) }
                 }
             }
         
@@ -372,7 +386,22 @@ final class UserProfileViewController: BaseViewController {
                 cellIdentifier: TodayAuthorImageCollectionViewCell.identifier,
                 cellType: TodayAuthorImageCollectionViewCell.self
             )) { _, element, cell in
-                cell.configure(urlString: element)
+                cell.configure(urlString: element.thumbnailPath ?? "")
+            }
+            .disposed(by: disposeBag)
+        
+        filterCollectionView.rx.modelSelected(UserProfileGridItem.self)
+            .bind(with: self) { owner, item in
+                switch item {
+                case .filter(let filter):
+                    let vm = DetailViewModel(filterId: filter.filterId)
+                    let vc = DetailViewController(viewModel: vm)
+                    owner.navigationController?.pushViewController(vc, animated: true)
+                case .post(let post):
+                    let vm = CommunityDetailViewModel(postId: post.postId)
+                    let vc = CommunityDetailViewController(viewModel: vm)
+                    owner.navigationController?.pushViewController(vc, animated: true)
+                }
             }
             .disposed(by: disposeBag)
         
