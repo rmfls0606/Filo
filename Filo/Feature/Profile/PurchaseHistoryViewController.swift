@@ -74,7 +74,8 @@ final class PurchaseHistoryViewController: BaseViewController {
         
         output.receipt
             .emit(with: self) { owner, receipt in
-                let vc = ReceiptViewController(receipt: receipt)
+                let vm = OrderValidationViewModel(receipt: receipt)
+                let vc = OrderValidationViewController(viewModel: vm)
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
