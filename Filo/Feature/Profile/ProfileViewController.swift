@@ -291,6 +291,9 @@ final class ProfileViewController: BaseViewController {
                 } else if item.title.contains("찜한자료") {
                     let vc = LikedContentViewController()
                     owner.navigationController?.pushViewController(vc, animated: true)
+                } else if item.title.contains("구매내역") {
+                    let vc = PurchaseHistoryViewController()
+                    owner.navigationController?.pushViewController(vc, animated: true)
                 }
             }
             .disposed(by: disposeBag)
