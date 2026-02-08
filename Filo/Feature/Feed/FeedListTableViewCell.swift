@@ -144,6 +144,14 @@ final class FeedListTableViewCell: BaseTableViewCell {
     
     override func configureView() {
         selectionStyle = .none
+        
+        // 카테고리 태그는 줄어들지 않도록 보호하고, 제목이 먼저 압축되게 설정
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        categoryLabelbox.setContentCompressionResistancePriority(.required, for: .horizontal)
+        categoryLabelbox.setContentHuggingPriority(.required, for: .horizontal)
+        categoryLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        categoryLabel.setContentHuggingPriority(.required, for: .horizontal)
     }
     
     func configure(_ item: FilterSummaryResponseEntity, isLiked: Bool) {
