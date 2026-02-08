@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
 final class FilterViewController: BaseViewController {
     //MARK: - Properties
     private let disposeBag = DisposeBag()
-    private let viewModel = FilterViewModel()
+    private let viewModel: FilterViewModel
     private var categoryDataSource: UICollectionViewDiffableDataSource<FilterCategorySection, FilterCategoryEntity>!
     private let imageSelectedRelay = PublishRelay<Data>()
     private let assetIdentifierRelay = PublishRelay<String?>()
@@ -24,6 +24,11 @@ final class FilterViewController: BaseViewController {
     private var pendingSelectionWorkItem: DispatchWorkItem?
     private var pendingOriginalData: Data?
     private var pendingAssetIdentifier: String?
+    
+    init(viewModel: FilterViewModel = FilterViewModel()) {
+        self.viewModel = viewModel
+        super.init(nibName: nil, bundle: nil)
+    }
     
     //MARK: - UI
     private let filterScrollView: UIScrollView = {
@@ -162,7 +167,7 @@ final class FilterViewController: BaseViewController {
     }
     
     override func configureView() {
-        navigationItem.title = "MAKE"
+        navigationItem.title = viewModel.isEditMode ? "수정하기" : "MAKE"
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(named: "save"))
         navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
         view.backgroundColor = .black
@@ -173,6 +178,7 @@ final class FilterViewController: BaseViewController {
         filterPriceTextField.contentInsets.right += priceUnitView.bounds.width
         
         configureCategoryDataSource()
+        applyInitialFormIfNeeded()
     }
     
     override func configureBind() {
@@ -236,6 +242,17 @@ final class FilterViewController: BaseViewController {
                 self?.showAlert(title: "오류", message: error.errorDescription)
             })
             .disposed(by: disposeBag)
+        
+        output.saveSuccess
+            .emit(with: self) { owner, _ in
+                let message = owner.viewModel.isEditMode ? "필터가 수정되었습니다." : "필터가 등록되었습니다."
+                owner.showAlert(title: "완료", message: message) { [weak owner] in
+                    if owner?.viewModel.isEditMode == true {
+                        owner?.navigationController?.popViewController(animated: true)
+                    }
+                }
+            }
+            .disposed(by: disposeBag)
 
         filterNameTextField.rx.controlEvent(.editingDidEndOnExit)
             .bind(with: self) { owner, _ in
@@ -283,6 +300,13 @@ final class FilterViewController: BaseViewController {
                 owner.view.endEditing(true)
             }
             .disposed(by: disposeBag)
+    }
+    
+    private func applyInitialFormIfNeeded() {
+        guard let seed = viewModel.initialSeed else { return }
+        filterNameTextField.text = seed.title
+        filterIntroduceTextField.text = seed.description
+        filterPriceTextField.text = "\(seed.price)".formattedDecimal()
     }
     
     private func pushEditViewController(with imageData: Data, props: FilterImagePropsEntity?, isNewSelection: Bool) {

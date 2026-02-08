@@ -14,7 +14,24 @@ import CoreLocation
 import UIKit
 
 final class FilterViewModel: ViewModelType{
+    struct EditSeed {
+        let filterId: String
+        let category: String
+        let title: String
+        let description: String
+        let price: Int
+        let files: [String]
+        let filterValues: FilterValuesDTO?
+        let photoMetadata: PhotoMetadataDTO?
+    }
+    
+    enum Mode {
+        case create
+        case edit(EditSeed)
+    }
+    
     private let disposeBag = DisposeBag()
+    private let mode: Mode
     
     struct Input{
         let categorySelected: Observable<FilterCategoryType>
@@ -36,6 +53,7 @@ final class FilterViewModel: ViewModelType{
         let metadata: Driver<FilterImageMetadata?>
         let priceNumberText: Driver<String>
         let saveEnabled: Driver<Bool>
+        let saveSuccess: Signal<Void>
         let networkError: Signal<NetworkError>
     }
     
@@ -46,21 +64,47 @@ final class FilterViewModel: ViewModelType{
     private var latestOriginalData: Data?
     private var lastAssetIdentifier: String?
     
+    var isEditMode: Bool {
+        if case .edit = mode { return true }
+        return false
+    }
+    
+    var initialSeed: EditSeed? {
+        if case .edit(let seed) = mode { return seed }
+        return nil
+    }
+    
+    init(mode: Mode = .create) {
+        self.mode = mode
+    }
+    
     func transform(input: Input) -> Output {
+        let initialCategory = initialSeed.flatMap { FilterCategoryType(rawValue: $0.category) }
+        let initialPriceText = initialSeed.map { "\($0.price)".formattedDecimal() } ?? ""
+        let initialPriceValue = initialSeed?.price ?? 0
+        let initialProps = initialSeed.flatMap { makeInitialFilterProps(from: $0.filterValues) }
+        let initialMetadata = initialSeed.flatMap { makeInitialMetadata(from: $0.photoMetadata) }
+        
         let categoriesRelay = BehaviorRelay<[FilterCategoryEntity]>(
             value: FilterCategoryType.allCases.map{
-                FilterCategoryEntity(type: $0)
+                FilterCategoryEntity(type: $0, isSelected: $0 == initialCategory)
             }
         )
         let imageDataRelay = BehaviorRelay<Data?>(value: nil)
         let originalImageDataRelay = BehaviorRelay<Data?>(value: nil)
-        let filterPropsRelay = BehaviorRelay<FilterImagePropsEntity?>(value: nil)
-        let priceNumberText = BehaviorRelay<String>(value: "")
-        let priceValueRelay = BehaviorRelay<Int>(value: 0)
-        let filterNameRelay = BehaviorRelay<String>(value: "")
-        let selectedCategoryRelay = BehaviorRelay<FilterCategoryType?>(value: nil)
-        let filterIntroduceRelay = BehaviorRelay<String>(value: "")
+        let filterPropsRelay = BehaviorRelay<FilterImagePropsEntity?>(value: initialProps)
+        let priceNumberText = BehaviorRelay<String>(value: initialPriceText)
+        let priceValueRelay = BehaviorRelay<Int>(value: initialPriceValue)
+        let filterNameRelay = BehaviorRelay<String>(value: initialSeed?.title ?? "")
+        let selectedCategoryRelay = BehaviorRelay<FilterCategoryType?>(value: initialCategory)
+        let filterIntroduceRelay = BehaviorRelay<String>(value: initialSeed?.description ?? "")
+        let saveSuccessRelay = PublishRelay<Void>()
         let networkErrorRelay = PublishRelay<NetworkError>()
+        
+        if let initialMetadata {
+            publishMetadata(initialMetadata)
+        }
+        preloadEditImagesIfNeeded(imageDataRelay: imageDataRelay, originalImageDataRelay: originalImageDataRelay, networkErrorRelay: networkErrorRelay)
         
         input.categorySelected
             .withLatestFrom(categoriesRelay){ selected, items in
@@ -170,9 +214,17 @@ final class FilterViewModel: ViewModelType{
                             metadata: metadata
                         )
                         
-                        let _: FilterResponseDTO = try await NetworkManager.shared.request(
-                            FilterRouter.createFilter(requestBody: requestBody)
-                        )
+                        switch self.mode {
+                        case .create:
+                            let _: FilterResponseDTO = try await NetworkManager.shared.request(
+                                FilterRouter.createFilter(requestBody: requestBody)
+                            )
+                        case .edit(let seed):
+                            let _: FilterResponseDTO = try await NetworkManager.shared.request(
+                                FilterRouter.updateFilter(filterId: seed.filterId, requestBody: requestBody)
+                            )
+                        }
+                        saveSuccessRelay.accept(())
                     } catch(let error as NetworkError) {
                         networkErrorRelay.accept(error)
                     }catch(let error){
@@ -209,6 +261,7 @@ final class FilterViewModel: ViewModelType{
             }
             .distinctUntilChanged()
             .asDriver(onErrorJustReturn: false),
+            saveSuccess: saveSuccessRelay.asSignal(),
             networkError: networkErrorRelay.asSignal()
         )
     }
@@ -354,6 +407,119 @@ final class FilterViewModel: ViewModelType{
     private func sanitize(_ value: Double?) -> Double? {
         guard let value, value.isFinite else { return nil }
         return value
+    }
+    
+    private func makeInitialFilterProps(from dto: FilterValuesDTO?) -> FilterImagePropsEntity? {
+        guard let dto else { return nil }
+        return FilterImagePropsEntity(
+            blackPoint: dto.blackPoint ?? 0,
+            blur: dto.blur ?? 0,
+            brightness: dto.brightness ?? 0,
+            contrast: dto.contrast ?? 0,
+            exposure: dto.exposure ?? 0,
+            highlights: dto.highlights ?? 0,
+            noise: dto.noiseReduction ?? 0,
+            saturation: dto.saturation ?? 0,
+            shadows: dto.shadows ?? 0,
+            sharpness: dto.sharpness ?? 0,
+            temperature: dto.temperature ?? 0,
+            vignette: dto.vignette ?? 0
+        )
+    }
+    
+    private func makeInitialMetadata(from dto: PhotoMetadataDTO?) -> FilterImageMetadata? {
+        guard let dto else { return nil }
+        let (make, model) = splitCamera(dto.camera)
+        let megaPixel: Double?
+        if let width = dto.pixelWidth, let height = dto.pixelHeight {
+            megaPixel = (Double(width) * Double(height)) / 1_000_000.0
+        } else {
+            megaPixel = nil
+        }
+        let fileSizeMB = dto.fileSize.map { fileSizeString(from: Int($0)) }
+        return FilterImageMetadata(
+            make: make,
+            model: model,
+            lensModel: dto.lensInfo,
+            focalLength: dto.focalLength,
+            fNumber: dto.aperture,
+            iso: dto.iso,
+            megaPixel: megaPixel,
+            width: dto.pixelWidth,
+            height: dto.pixelHeight,
+            fileSizeMB: fileSizeMB,
+            fileSizeBytes: dto.fileSize,
+            format: dto.format,
+            dateTimeOriginal: dto.dateTimeOriginal,
+            shutterSpeed: dto.shutterSpeed,
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            address: nil
+        )
+    }
+    
+    private func splitCamera(_ camera: String?) -> (String?, String?) {
+        guard let camera else { return (nil, nil) }
+        let normalized = camera.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return (nil, nil) }
+        let parts = normalized.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        if parts.count <= 1 {
+            return (nil, parts.first)
+        }
+        return (parts.first, parts.dropFirst().joined(separator: " "))
+    }
+    
+    private func preloadEditImagesIfNeeded(
+        imageDataRelay: BehaviorRelay<Data?>,
+        originalImageDataRelay: BehaviorRelay<Data?>,
+        networkErrorRelay: PublishRelay<NetworkError>
+    ) {
+        guard case .edit(let seed) = mode else { return }
+        guard !seed.files.isEmpty else { return }
+        
+        Task { [weak self] in
+            guard let self else { return }
+            let originalPath = seed.files.first
+            let filteredPath = seed.files.count > 1 ? seed.files[1] : seed.files.first
+            
+            async let originalData = self.fetchImageData(relativePath: originalPath)
+            async let filteredData = self.fetchImageData(relativePath: filteredPath)
+            
+            do {
+                let original = try await originalData
+                let filtered = try await filteredData
+                await MainActor.run {
+                    if let original {
+                        self.latestOriginalData = original
+                        originalImageDataRelay.accept(original)
+                    }
+                    if let filtered {
+                        imageDataRelay.accept(filtered)
+                    } else if let original {
+                        imageDataRelay.accept(original)
+                    }
+                }
+            } catch let error as NetworkError {
+                networkErrorRelay.accept(error)
+            } catch {
+                networkErrorRelay.accept(.unknown(error))
+            }
+        }
+    }
+    
+    private func fetchImageData(relativePath: String?) async throws -> Data? {
+        guard let relativePath, !relativePath.isEmpty else { return nil }
+        guard let url = URL(string: NetworkConfig.baseURL + "/" + relativePath) else { return nil }
+        
+        var request = URLRequest(url: url)
+        request.setValue(NetworkConfig.apiKey, forHTTPHeaderField: "SeSACKey")
+        request.setValue(NetworkConfig.authorization, forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
+            return nil
+        }
+        return data
     }
     
     //data 기반 메타데이터 추출

@@ -378,12 +378,20 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     }
     private var currentHashTags: [String] = []
     private var currentBuyerCount: Int?
+    private var currentDetail: FilterResponseDTO?
     private let geocoder = CLGeocoder()
     private var reverseGeocodeTask: Task<Void, Never>?
+    private lazy var likeBarButtonItem = UIBarButtonItem(image: .likeEmpty, style: .plain, target: nil, action: nil)
+    private lazy var editMenuBarButtonItem: UIBarButtonItem = {
+        let item = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), style: .plain, target: nil, action: nil)
+        item.menu = makeOwnerMenu()
+        return item
+    }()
     
     let comparePan = UIPanGestureRecognizer()
     let tapGesutre = UITapGestureRecognizer()
     let viewModel: DetailViewModel
+    private var hasAppearedOnce = false
     
     init(viewModel: DetailViewModel) {
         self.viewModel = viewModel
@@ -394,6 +402,15 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         super.viewDidLayoutSubviews()
         updateFilterValuesLayout()
         updateCompareMask()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if hasAppearedOnce {
+            viewModel.refreshDetail()
+        } else {
+            hasAppearedOnce = true
+        }
     }
     
     override func configureHierarchy() {
@@ -627,8 +644,9 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     }
     
     override func configureView() {
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: .likeEmpty)
-        navigationItem.rightBarButtonItem?.tintColor = GrayStyle.gray75.color
+        likeBarButtonItem.tintColor = GrayStyle.gray75.color
+        editMenuBarButtonItem.tintColor = GrayStyle.gray75.color
+        navigationItem.rightBarButtonItems = [likeBarButtonItem]
         navigationItem.leftBarButtonItem = UIBarButtonItem(image: .chevron)
         navigationItem.leftBarButtonItem?.tintColor = GrayStyle.gray75.color
         compareDragButton.addGestureRecognizer(comparePan)
@@ -639,13 +657,14 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     
     override func configureBind() {
         let input = DetailViewModel.Input(
-            likeTapped: navigationItem.rightBarButtonItem?.rx.tap
+            likeTapped: likeBarButtonItem.rx.tap
         )
         
         let output = viewModel.transform(input: input)
         
         output.filterDetailData
             .drive(with: self){ owner, data in
+                owner.currentDetail = data
                 owner.navigationItem.title = data.title
                 owner.filterImageContainer.alpha = 0
                 let group = DispatchGroup()
@@ -683,6 +702,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.authorDescriptionLabel.text = data.creator.introduction
                 let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
                 owner.sendMessageButton.isHidden = (currentUserId == data.creator.userID)
+                owner.configureRightBarButtons(isOwner: currentUserId == data.creator.userID)
             }
             .disposed(by: disposeBag)
         
@@ -694,7 +714,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
 
         output.likeState
             .drive(with: self) { owner, state in
-                owner.navigationItem.rightBarButtonItem?.image = state ? UIImage(named: "like_Fill") : UIImage(named: "like_Empty")
+                owner.likeBarButtonItem.image = state ? UIImage(named: "like_Fill") : UIImage(named: "like_Empty")
             }
             .disposed(by: disposeBag)
 
@@ -847,6 +867,82 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         }
         
         return infoContainer
+    }
+    
+    private func configureRightBarButtons(isOwner: Bool) {
+        if isOwner {
+            navigationItem.rightBarButtonItems = [likeBarButtonItem, editMenuBarButtonItem]
+        } else {
+            navigationItem.rightBarButtonItems = [likeBarButtonItem]
+        }
+    }
+    
+    private func makeOwnerMenu() -> UIMenu {
+        let editAction = UIAction(title: "수정") { [weak self] _ in
+            self?.moveToFilterEdit()
+        }
+        let deleteAction = UIAction(title: "삭제", attributes: .destructive) { [weak self] _ in
+            self?.confirmDeleteFilter()
+        }
+        return UIMenu(title: "", children: [editAction, deleteAction])
+    }
+    
+    private func moveToFilterEdit() {
+        guard let detail = currentDetail else { return }
+        let seed = FilterViewModel.EditSeed(
+            filterId: detail.filterId,
+            category: detail.category,
+            title: detail.title,
+            description: detail.description,
+            price: detail.price,
+            files: detail.files,
+            filterValues: detail.filterValues,
+            photoMetadata: detail.photoMetadata
+        )
+        let vm = FilterViewModel(mode: .edit(seed))
+        let vc = FilterViewController(viewModel: vm)
+        navigationController?.pushViewController(vc, animated: true)
+    }
+    
+    private func confirmDeleteFilter() {
+        let alert = UIAlertController(title: "삭제", message: "필터를 삭제할까요?", preferredStyle: .alert)
+        let cancel = UIAlertAction(title: "취소", style: .cancel)
+        let delete = UIAlertAction(title: "삭제", style: .destructive) { [weak self] _ in
+            self?.deleteFilter()
+        }
+        alert.addAction(cancel)
+        alert.addAction(delete)
+        present(alert, animated: true)
+    }
+    
+    private func deleteFilter() {
+        guard let filterId = currentDetail?.filterId else { return }
+        setLoading(true)
+        
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await NetworkManager.shared.requestEmpty(
+                    FilterRouter.deleteFilter(filterId: filterId)
+                )
+                await MainActor.run {
+                    self.setLoading(false)
+                    self.showAlert(title: "완료", message: "필터가 삭제되었습니다.") { [weak self] in
+                        self?.navigationController?.popViewController(animated: true)
+                    }
+                }
+            } catch let error as NetworkError {
+                await MainActor.run {
+                    self.setLoading(false)
+                    self.showAlert(title: "오류", message: error.errorDescription)
+                }
+            } catch {
+                await MainActor.run {
+                    self.setLoading(false)
+                    self.showAlert(title: "오류", message: NetworkError.unknown(error).errorDescription)
+                }
+            }
+        }
     }
     
     private func setLoading(_ isLoading: Bool) {

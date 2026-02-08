@@ -23,6 +23,10 @@ final class DetailViewModel: ViewModelType {
         externalFilterValuesRelay.accept(values)
     }
     
+    func refreshDetail() {
+        filterIdRelay.accept(filterIdRelay.value)
+    }
+    
     struct Input{
         let likeTapped: ControlEvent<Void>?
     }
