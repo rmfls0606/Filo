@@ -12,10 +12,12 @@ import RxCocoa
 final class ProfileViewModel: ViewModelType {
     struct Input {
         let viewWillAppear: Observable<Void>
+        let logoutTap: Observable<Void>
     }
     
     struct Output {
         let profileItem: Driver<MyInfoResponseDTO?>
+        let logoutSuccess: Signal<Void>
         let networkError: Signal<NetworkError>
     }
     
@@ -28,6 +30,7 @@ final class ProfileViewModel: ViewModelType {
     
     func transform(input: Input) -> Output {
         let profileRelay = BehaviorRelay<MyInfoResponseDTO?>(value: nil)
+        let logoutSuccessRelay = PublishRelay<Void>()
         let errorRelay = PublishRelay<NetworkError>()
         
         input.viewWillAppear
@@ -50,8 +53,32 @@ final class ProfileViewModel: ViewModelType {
             })
             .disposed(by: disposeBag)
         
+        input.logoutTap
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                Task {
+                    do {
+                        try await self.service.requestEmpty(UserRouter.logout)
+                        await TokenStorage.shared.clear()
+                        await MainActor.run {
+                            logoutSuccessRelay.accept(())
+                        }
+                    } catch let error as NetworkError {
+                        await MainActor.run {
+                            errorRelay.accept(error)
+                        }
+                    } catch {
+                        await MainActor.run {
+                            errorRelay.accept(.unknown(error))
+                        }
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
+        
         return Output(
             profileItem: profileRelay.asDriver(onErrorDriveWith: .empty()),
+            logoutSuccess: logoutSuccessRelay.asSignal(),
             networkError: errorRelay.asSignal()
         )
     }

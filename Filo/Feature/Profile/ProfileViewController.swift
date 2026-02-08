@@ -14,6 +14,7 @@ final class ProfileViewController: BaseViewController {
     private let viewModel: ProfileViewModel
     private let disposeBag = DisposeBag()
     private let hashTagsRelay = BehaviorRelay<[String]>(value: [])
+    private let logoutRelay = PublishRelay<Void>()
     private var currentHashTags: [String] = []
 
     private let menuItems: [ProfileMenuCell.Item] = [
@@ -244,7 +245,8 @@ final class ProfileViewController: BaseViewController {
             .disposed(by: disposeBag)
 
         let input = ProfileViewModel.Input(
-            viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear(_:))).map { _ in }
+            viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear(_:))).map { _ in },
+            logoutTap: logoutRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -266,6 +268,18 @@ final class ProfileViewController: BaseViewController {
         output.networkError
             .emit(with: self) { owner, error in
                 owner.showAlert(title: "오류", message: error.errorDescription)
+            }
+            .disposed(by: disposeBag)
+        
+        output.logoutSuccess
+            .emit(with: self) { owner, _ in
+                owner.switchToLogin()
+            }
+            .disposed(by: disposeBag)
+        
+        logoutButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.presentLogoutAlert()
             }
             .disposed(by: disposeBag)
 
@@ -354,5 +368,20 @@ private extension ProfileViewController {
         let height = rows * itemWidth + max(0, rows - 1) * lineSpacing + sectionInset.top + sectionInset.bottom
         menuHeightConstraint?.update(offset: max(0, height))
         view.layoutIfNeeded()
+    }
+    
+    func switchToLogin() {
+        guard let scene = view.window?.windowScene,
+              let delegate = scene.delegate as? SceneDelegate else { return }
+        delegate.setRootViewController(LoginViewController())
+    }
+    
+    func presentLogoutAlert() {
+        let alert = UIAlertController(title: "로그아웃", message: "정말 로그아웃 하시겠어요?", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "취소", style: .cancel))
+        alert.addAction(UIAlertAction(title: "확인", style: .destructive, handler: { [weak self] _ in
+            self?.logoutRelay.accept(())
+        }))
+        present(alert, animated: true)
     }
 }
