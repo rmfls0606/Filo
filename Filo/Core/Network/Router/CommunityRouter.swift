@@ -87,7 +87,7 @@ enum CommunityRouter: APITarget{
             if !longitude.isEmpty{ parms["longitude"] = longitude }
             if !latitude.isEmpty{ parms["latitude"] = latitude}
             if !maxDistance.isEmpty{ parms["maxDistance"] = maxDistance }
-            if !limit.isEmpty{ parms["limit"] = maxDistance }
+            if !limit.isEmpty{ parms["limit"] = limit }
             if !next.isEmpty { parms["next"] = next }
             parms["order_by"] = orderBy
             return parms

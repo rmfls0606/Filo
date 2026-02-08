@@ -66,6 +66,8 @@ final class SearchViewModel: ViewModelType {
         let orderTapped: ControlEvent<Void>
         let refresh: Observable<Void>
         let postSelected: ControlEvent<PostSummaryResponseDTO>
+        let loadNextPage: Observable<Void>
+        let cancelLoadNextPage: Observable<Void>
     }
     
     struct Output {
@@ -73,6 +75,8 @@ final class SearchViewModel: ViewModelType {
         let posts: Driver<[PostSummaryResponseDTO]>
         let results: Driver<[SearchResultItem]>
         let orderTitle: Driver<String>
+        let isInitialLoading: Driver<Bool>
+        let isAppendLoading: Driver<Bool>
         let selectedPost: Driver<String>
         let networkError: Signal<NetworkError>
     }
@@ -92,9 +96,16 @@ final class SearchViewModel: ViewModelType {
         let orderRelay = BehaviorRelay<SearchOrder>(value: .createdAt)
         let searchTextRelay = BehaviorRelay<String>(value: "")
         let postsRelay = BehaviorRelay<[PostSummaryResponseDTO]>(value: [])
+        let nextCursorRelay = BehaviorRelay<String>(value: "")
+        let isLoadingRelay = BehaviorRelay<Bool>(value: false)
+        let isAppendLoadingRelay = BehaviorRelay<Bool>(value: false)
+        let isLastPageRelay = BehaviorRelay<Bool>(value: false)
         let selectedPostRelay = PublishRelay<String>()
         let resultsRelay = BehaviorRelay<[SearchResultItem]>(value: [])
         let errorRelay = PublishRelay<NetworkError>()
+        var currentQueryId = 0
+        var pagingRequestToken = 0
+        var inFlightPageTask: Task<Void, Never>?
         
         let textTrigger = input.searchText
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -127,36 +138,98 @@ final class SearchViewModel: ViewModelType {
             .disposed(by: disposeBag)
         
         
-        let postTrigger = Observable.merge(
+        let resetTrigger = Observable.merge(
             Observable.just(()),
             input.categorySelected.map { _ in },
             input.orderTapped.map { _ in },
             input.refresh)
             .share(replay: 1)
         
-        postTrigger
+        let requestPage: (_ next: String, _ append: Bool, _ queryId: Int, _ category: searchCategoryType, _ order: SearchOrder) -> Void = {
+            next, append, queryId, category, order in
+            inFlightPageTask?.cancel()
+            isLoadingRelay.accept(true)
+            isAppendLoadingRelay.accept(append)
+            pagingRequestToken += 1
+            let requestToken = pagingRequestToken
+            
+            inFlightPageTask = Task {
+                do {
+                    let dto: PostSummaryPaginationResponseDTO = try await self.service.request(
+                        CommunityRouter.geolocation(category: category.query,
+                                                    longitude: "",
+                                                    latitude: "",
+                                                    maxDistance: "",
+                                                    limit: "30",
+                                                    next: next,
+                                                    orderBy: order.orderBy)
+                    )
+                    guard !Task.isCancelled else { return }
+                    guard currentQueryId == queryId, pagingRequestToken == requestToken else { return }
+                    let merged = append ? (postsRelay.value + dto.data) : dto.data
+                    postsRelay.accept(merged)
+                    nextCursorRelay.accept(dto.nextCursor)
+                    isLastPageRelay.accept(dto.nextCursor == "0")
+                    isLoadingRelay.accept(false)
+                    isAppendLoadingRelay.accept(false)
+                } catch let error as NetworkError {
+                    guard !Task.isCancelled else { return }
+                    guard currentQueryId == queryId, pagingRequestToken == requestToken else { return }
+                    isLoadingRelay.accept(false)
+                    isAppendLoadingRelay.accept(false)
+                    errorRelay.accept(error)
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    guard currentQueryId == queryId, pagingRequestToken == requestToken else { return }
+                    isLoadingRelay.accept(false)
+                    isAppendLoadingRelay.accept(false)
+                    errorRelay.accept(.unknown(error))
+                }
+            }
+        }
+        
+        resetTrigger
             .withLatestFrom(Observable.combineLatest(selectedCategoryRelay, orderRelay))
             .subscribe(onNext: { [weak self] category, order in
                 guard let self else { return }
-                Task {
-                    do {
-                        let dto: PostSummaryPaginationResponseDTO = try await self.service.request(
-                            CommunityRouter.geolocation(category: category.query,
-                                                        longitude: "",
-                                                        latitude: "",
-                                                        maxDistance: "",
-                                                        limit: "30",
-                                                        next: "",
-                                                        orderBy: order.orderBy)
-                        )
-                        
-                        postsRelay.accept(dto.data)
-                    } catch let error as NetworkError {
-                        errorRelay.accept(error)
-                    } catch {
-                        errorRelay.accept(.unknown(error))
-                    }
-                }
+                currentQueryId += 1
+                let queryId = currentQueryId
+                inFlightPageTask?.cancel()
+                postsRelay.accept([])
+                nextCursorRelay.accept("")
+                isLastPageRelay.accept(false)
+                isLoadingRelay.accept(false)
+                isAppendLoadingRelay.accept(false)
+                requestPage("", false, queryId, category, order)
+            })
+            .disposed(by: disposeBag)
+        
+        input.loadNextPage
+            .withLatestFrom(Observable.combineLatest(
+                nextCursorRelay.asObservable(),
+                isLoadingRelay.asObservable(),
+                isLastPageRelay.asObservable(),
+                selectedCategoryRelay.asObservable(),
+                orderRelay.asObservable()
+            ))
+            .filter { nextCursor, isLoading, isLastPage, _, _ in
+                !isLoading && !isLastPage && !nextCursor.isEmpty && nextCursor != "0"
+            }
+            .subscribe(onNext: { nextCursor, _, _, category, order in
+                requestPage(nextCursor, true, currentQueryId, category, order)
+            })
+            .disposed(by: disposeBag)
+        
+        input.cancelLoadNextPage
+            .withLatestFrom(Observable.combineLatest(isLoadingRelay.asObservable(), isAppendLoadingRelay.asObservable()))
+            .filter { isLoading, isAppendLoading in
+                isLoading && isAppendLoading
+            }
+            .subscribe(onNext: { _, _ in
+                pagingRequestToken += 1
+                inFlightPageTask?.cancel()
+                isLoadingRelay.accept(false)
+                isAppendLoadingRelay.accept(false)
             })
             .disposed(by: disposeBag)
 
@@ -192,11 +265,29 @@ final class SearchViewModel: ViewModelType {
             }
             .disposed(by: disposeBag)
         
+        let isInitialLoading = Observable
+            .combineLatest(postsRelay.asObservable(), isLoadingRelay.asObservable())
+            .map { posts, isLoading in
+                isLoading && posts.isEmpty
+            }
+            .distinctUntilChanged()
+            .asDriver(onErrorJustReturn: false)
+        
+        let isAppendLoading = Observable
+            .combineLatest(postsRelay.asObservable(), isLoadingRelay.asObservable(), isAppendLoadingRelay.asObservable())
+            .map { posts, isLoading, isAppendLoading in
+                isLoading && isAppendLoading && !posts.isEmpty
+            }
+            .distinctUntilChanged()
+            .asDriver(onErrorJustReturn: false)
+        
         return Output(
             categories: categoriesRelay.asDriver(),
             posts: postsRelay.asDriver(),
             results: resultsRelay.asDriver(),
             orderTitle: orderRelay.map { $0.rawValue }.asDriver(onErrorJustReturn: SearchOrder.createdAt.rawValue),
+            isInitialLoading: isInitialLoading,
+            isAppendLoading: isAppendLoading,
             selectedPost: selectedPostRelay.asDriver(onErrorDriveWith: .empty()),
             networkError: errorRelay.asSignal()
         )

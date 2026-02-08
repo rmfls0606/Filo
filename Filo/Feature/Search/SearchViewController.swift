@@ -90,6 +90,18 @@ final class SearchViewController: BaseViewController {
         return view
     }()
     
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .large)
+        view.hidesWhenStopped = true
+        return view
+    }()
+    
+    private let appendLoadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .medium)
+        view.hidesWhenStopped = true
+        return view
+    }()
+    
     let tap = UITapGestureRecognizer()
 
     // MARK: - Properties
@@ -99,6 +111,7 @@ final class SearchViewController: BaseViewController {
     private var didInvalidateCategoryLayout = false
     private var isSearchMode = false
     private var currentVideoIndex: IndexPath?
+    private var currentPosts: [PostSummaryResponseDTO] = []
     
     private var filterSectionHeightConstraint: Constraint?
     private var cancelButtonWidthConstraint: Constraint?
@@ -127,6 +140,8 @@ final class SearchViewController: BaseViewController {
         filterSectionView.addSubview(orderButton)
         view.addSubview(collectionView)
         view.addSubview(resultsTableView)
+        view.addSubview(loadingIndicator)
+        view.addSubview(appendLoadingIndicator)
     }
 
     override func configureLayout() {
@@ -181,6 +196,15 @@ final class SearchViewController: BaseViewController {
             make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
             make.bottom.equalTo(view.safeAreaLayoutGuide)
         }
+        
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalTo(collectionView)
+        }
+        
+        appendLoadingIndicator.snp.makeConstraints { make in
+            make.centerX.equalTo(collectionView)
+            make.bottom.equalTo(view.safeAreaLayoutGuide).inset(12)
+        }
     }
 
     override func configureView() {
@@ -203,7 +227,23 @@ final class SearchViewController: BaseViewController {
             categorySelected: categoryCollectionView.rx.modelSelected(SearchCategoryItem.self),
             orderTapped: orderButton.rx.tap,
             refresh: refreshRelay.asObservable(),
-            postSelected: collectionView.rx.modelSelected(PostSummaryResponseDTO.self)
+            postSelected: collectionView.rx.modelSelected(PostSummaryResponseDTO.self),
+            loadNextPage: collectionView.rx.prefetchItems
+                .compactMap { [weak self] indexPaths -> Void? in
+                    guard let self else { return nil }
+                    guard let maxItem = indexPaths.map({ $0.item }).max() else { return nil }
+                    let thresholdIndex = max(0, self.currentPosts.count - 10)
+                    return maxItem >= thresholdIndex ? () : nil
+                }
+                .throttle(.milliseconds(300), scheduler: MainScheduler.instance),
+            cancelLoadNextPage: collectionView.rx.cancelPrefetchingForItems
+                .compactMap { [weak self] indexPaths -> Void? in
+                    guard let self else { return nil }
+                    guard let maxItem = indexPaths.map({ $0.item }).max() else { return nil }
+                    let thresholdIndex = max(0, self.currentPosts.count - 10)
+                    return maxItem >= thresholdIndex ? () : nil
+                }
+                .throttle(.milliseconds(300), scheduler: MainScheduler.instance)
         )
 
         let output = viewModel.transform(input: input)
@@ -232,6 +272,12 @@ final class SearchViewController: BaseViewController {
                 cellType: SearchPostCollectionViewCell.self
             )) { _, item, cell in
                 cell.configure(item: item)
+            }
+            .disposed(by: disposeBag)
+        
+        output.posts
+            .drive(with: self) { owner, posts in
+                owner.currentPosts = posts
             }
             .disposed(by: disposeBag)
         
@@ -270,6 +316,26 @@ final class SearchViewController: BaseViewController {
         output.orderTitle
             .drive(with: self) { owner, title in
                 owner.orderButton.configuration?.title = title
+            }
+            .disposed(by: disposeBag)
+        
+        output.isInitialLoading
+            .drive(with: self) { owner, isLoading in
+                if isLoading {
+                    owner.loadingIndicator.startAnimating()
+                } else {
+                    owner.loadingIndicator.stopAnimating()
+                }
+            }
+            .disposed(by: disposeBag)
+        
+        output.isAppendLoading
+            .drive(with: self) { owner, isLoading in
+                if isLoading {
+                    owner.appendLoadingIndicator.startAnimating()
+                } else {
+                    owner.appendLoadingIndicator.stopAnimating()
+                }
             }
             .disposed(by: disposeBag)
         
