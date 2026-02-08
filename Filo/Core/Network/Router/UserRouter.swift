@@ -18,6 +18,7 @@ enum UserRouter: APITarget{
     case getProfile //내 프로필 조회
     case putProfile(nick: String, name: String, introduction: String, phoneNum: String, profileImage: String, hashTags: [String]) //내 프로필 수정
     case image(profile: String)
+    case logout
     
     var path: String{
         switch self {
@@ -39,12 +40,14 @@ enum UserRouter: APITarget{
             return "/users/me/profile"
         case .image:
             return "/users/profile/image"
+        case .logout:
+            return "/users/logout"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .login, .apple, .image:
+        case .login, .apple, .image, .logout:
             return .post
         case .auth, .todayAuthor, .otherProfile, .search, .getProfile:
             return .get
@@ -71,7 +74,7 @@ enum UserRouter: APITarget{
             return ["email": email,
                     "password": password,
                     "deviceToken": NetworkConfig.apiKey]
-        case .auth, .todayAuthor, .otherProfile, .getProfile:
+        case .auth, .todayAuthor, .otherProfile, .getProfile, .logout:
             return nil
         case .apple(let idToken, let deviceToken):
             return ["idToken": idToken,
@@ -96,7 +99,7 @@ enum UserRouter: APITarget{
         switch self {
         case .login, .auth, .apple, .otherProfile, .getProfile, .putProfile, .image:
             return JSONEncoding.default
-        case .todayAuthor, .deviceToken, .search:
+        case .todayAuthor, .deviceToken, .search, .logout:
             return URLEncoding.default
         }
     }
