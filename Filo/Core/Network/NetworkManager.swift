@@ -53,6 +53,10 @@ private extension NetworkManager{
         do {
             return try await action()
         } catch let error as NetworkError {
+            if case .statusCodeError(let type) = error, type == .refreshTokenExpired {
+                await SessionExpiryHandler.shared.handleSessionExpired()
+                throw error
+            }
             guard retryCount < maxRetryCount else { throw error }
 
             if case .statusCodeError(let type) = error,
@@ -64,7 +68,7 @@ private extension NetworkManager{
                     })
                     return try await executeVoid(router: router, retryCount: retryCount + 1, action: action)
                 } catch {
-                    await TokenStorage.shared.clear()
+                    await SessionExpiryHandler.shared.handleSessionExpired()
                     throw NetworkError.statusCodeError(type: .refreshTokenExpired)
                 }
             }
@@ -77,6 +81,10 @@ private extension NetworkManager{
         do{
             return try await action()
         }catch let error as NetworkError{
+            if case .statusCodeError(let type) = error, type == .refreshTokenExpired {
+                await SessionExpiryHandler.shared.handleSessionExpired()
+                throw error
+            }
             //retry초과
             guard retryCount < maxRetryCount else{
                 throw error
@@ -99,7 +107,7 @@ private extension NetworkManager{
                     //retry
                     return try await execute(router: router, retryCount: retryCount + 1, action: action)
                 }catch{
-                    await TokenStorage.shared.clear()
+                    await SessionExpiryHandler.shared.handleSessionExpired()
                     throw NetworkError.statusCodeError(type: .refreshTokenExpired)
                 }
             }
