@@ -175,6 +175,7 @@ final class ChatLocalStore {
                     for room in rooms {
                         let object = realm.object(ofType: ChatRoomSummaryObject.self, forPrimaryKey: room.roomId)
                             ?? ChatRoomSummaryObject()
+                        let previousLastMessageAt = object.lastMessageAt
                         if object.roomId.isEmpty {
                             object.roomId = room.roomId
                         }
@@ -185,6 +186,16 @@ final class ChatLocalStore {
                         if incomingMessageAt > object.lastMessageAt {
                             object.lastMessageAt = incomingMessageAt
                             object.lastMessage = room.lastChat?.content ?? ""
+                            let isCurrentRoom = CurrentChatRoom.shared.roomId == room.roomId
+                            let isIncomingFromOtherUser = room.lastChat?.sender.userID != currentUserId
+                            
+                            // 목록 화면 비활성/백그라운드 동안 수신한 최신 메시지는
+                            // 소켓 실시간 경로를 타지 않으므로 동기화 시 unread를 보정한다.
+                            if !isCurrentRoom && isIncomingFromOtherUser && incomingMessageAt > previousLastMessageAt {
+                                object.unreadCount = min(300, object.unreadCount + 1)
+                            } else if isCurrentRoom {
+                                object.unreadCount = 0
+                            }
                         }
                         realm.add(object, update: .modified)
                     }
@@ -226,10 +237,42 @@ final class ChatLocalStore {
     func resetUnread(roomId: String) {
         queue.sync {
             guard let realm = try? Realm() else { return }
-            guard let object = realm.object(ofType: ChatRoomSummaryObject.self, forPrimaryKey: roomId) else { return }
+            let object = realm.object(ofType: ChatRoomSummaryObject.self, forPrimaryKey: roomId)
+                ?? ChatRoomSummaryObject()
+            let latestMessage = realm.objects(ChatMessageObject.self)
+                .where { $0.roomId == roomId }
+                .sorted(byKeyPath: "createdAt", ascending: false)
+                .first
             do {
                 try realm.write {
+                    if object.roomId.isEmpty {
+                        object.roomId = roomId
+                    }
                     object.unreadCount = 0
+                    if let latestMessage, latestMessage.createdAt > object.lastMessageAt {
+                        object.lastMessageAt = latestMessage.createdAt
+                        object.lastMessage = latestMessage.content
+                    }
+                    realm.add(object, update: .modified)
+                }
+            } catch {
+                return
+            }
+        }
+    }
+    
+    func incrementUnread(roomId: String) {
+        queue.sync {
+            guard let realm = try? Realm() else { return }
+            do {
+                try realm.write {
+                    let object = realm.object(ofType: ChatRoomSummaryObject.self, forPrimaryKey: roomId)
+                        ?? ChatRoomSummaryObject()
+                    if object.roomId.isEmpty {
+                        object.roomId = roomId
+                    }
+                    object.unreadCount = min(300, object.unreadCount + 1)
+                    realm.add(object, update: .modified)
                 }
             } catch {
                 return
