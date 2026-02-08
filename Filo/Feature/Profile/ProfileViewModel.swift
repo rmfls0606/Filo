@@ -1,0 +1,58 @@
+//
+//  ProfileViewModel.swift
+//  Filo
+//
+//  Created by 이상민 on 2/8/26.
+//
+
+import Foundation
+import RxSwift
+import RxCocoa
+
+final class ProfileViewModel: ViewModelType {
+    struct Input {
+        let viewWillAppear: Observable<Void>
+    }
+    
+    struct Output {
+        let profileItem: Driver<UserInfoResponseDTO?>
+        let networkError: Signal<NetworkError>
+    }
+    
+    private let service: NetworkManagerProtocol
+    private let disposeBag = DisposeBag()
+    
+    init(service: NetworkManagerProtocol = NetworkManager.shared) {
+        self.service = service
+    }
+    
+    func transform(input: Input) -> Output {
+        let profileRelay = BehaviorRelay<UserInfoResponseDTO?>(value: nil)
+        let errorRelay = PublishRelay<NetworkError>()
+        
+        input.viewWillAppear
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                Task {
+                    let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+                    guard !currentUserId.isEmpty else { return }
+                    do {
+                        let dto: UserInfoResponseDTO = try await self.service.request(
+                            UserRouter.otherProfile(userId: currentUserId)
+                        )
+                        profileRelay.accept(dto)
+                    } catch let error as NetworkError {
+                        errorRelay.accept(error)
+                    } catch {
+                        errorRelay.accept(.unknown(error))
+                    }
+                }
+            })
+            .disposed(by: disposeBag)
+        
+        return Output(
+            profileItem: profileRelay.asDriver(onErrorDriveWith: .empty()),
+            networkError: errorRelay.asSignal()
+        )
+    }
+}
