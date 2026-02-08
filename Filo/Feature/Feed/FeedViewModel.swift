@@ -10,6 +10,11 @@ import RxSwift
 import RxCocoa
 
 final class FeedViewModel: ViewModelType {
+    private struct QueryParams: Equatable {
+        let category: String
+        let order: OrderByItem
+    }
+    
     let category: String
     private let disposeBag = DisposeBag()
     
@@ -22,50 +27,122 @@ final class FeedViewModel: ViewModelType {
         let feedCellTapped: Observable<FilterSummaryResponseEntity>
         let feedFilterModeSelected: ControlEvent<Void>
         let likeTapped: Observable<LikeInputTap>
+        let loadNextPage: Observable<Void>
     }
     
     struct Output{
         let selectedOrder: Driver<OrderByItem>
         let filtersData: Driver<FilterSummaryPaginationListResponseEntity>
         let feedFilterMode: Driver<Bool>
+        let isInitialLoading: Driver<Bool>
         let likeUIUpdate: Driver<OutputLikeUpdate>
         let selectedFilterId: Driver<String>
         let networkError: Signal<NetworkError>
     }
     
+    private typealias PagingState = (
+        entity: FilterSummaryPaginationListResponseEntity,
+        isLastPage: Bool,
+        isLoading: Bool,
+        category: String,
+        order: OrderByItem
+    )
+    
     func transform(input: Input) -> Output {
         let selectedOrderRelay = BehaviorRelay<OrderByItem>(value: .popularity)
-        let filtersDataRelay = PublishRelay<FilterSummaryPaginationListResponseEntity>()
+        let filtersDataRelay = BehaviorRelay<FilterSummaryPaginationListResponseEntity>(
+            value: FilterSummaryPaginationListResponseEntity(data: [], nextCursor: "")
+        )
         let networkErrorRelay = PublishRelay<NetworkError>()
         let categoryRelay = BehaviorRelay<String>(value: category)
         let feedFileterModeRelay = BehaviorRelay<Bool>(value: true) //true: listMode, false: blockMode
         let likeUIUpdateRelay = PublishRelay<OutputLikeUpdate>()
         let selectedFilterIdRelay = PublishRelay<String>()
+        let isLoadingRelay = BehaviorRelay<Bool>(value: false)
+        let isLastPageRelay = BehaviorRelay<Bool>(value: false)
+        var currentQueryId = 0
         
         input.orderByItemSelected
             .bind(to: selectedOrderRelay)
             .disposed(by: disposeBag)
         
-        Observable
-            .combineLatest(categoryRelay, selectedOrderRelay){ category, selected in
-                return (category: category, selected: selected)
-            }
-            .distinctUntilChanged{ $0.selected == $1.selected}
-            .subscribe(onNext: { parm in
-                Task{
-                    do{
-                        let dto: FilterSummaryPaginationListResponseDTO = try await NetworkManager.shared.request(FilterRouter.filters(next: "", limit: "30", category: parm.category, orderBy: parm.selected.orderByName))
-                        let entity = dto.toEntity()
-                        entity.data.forEach { item in
-                            LikeStore.shared.setLiked(id: item.filterId, liked: item.isLiked, count: item.likeCount)
-                        }
-                        filtersDataRelay.accept(entity)
-                    }catch(let error as NetworkError){
-                        networkErrorRelay.accept(error)
-                    }catch(let error){
-                        networkErrorRelay.accept(NetworkError.unknown(error))
+        let requestPage: (_ next: String, _ append: Bool, _ queryId: Int, _ category: String, _ order: OrderByItem) -> Void = {
+            next, append, queryId, category, order in
+            isLoadingRelay.accept(true)
+            
+            Task {
+                do {
+                    let dto: FilterSummaryPaginationListResponseDTO = try await NetworkManager.shared.request(
+                        FilterRouter.filters(
+                            next: next,
+                            limit: "30",
+                            category: category,
+                            orderBy: order.orderByName
+                        )
+                    )
+                    let entity = dto.toEntity()
+                    entity.data.forEach { item in
+                        LikeStore.shared.setLiked(id: item.filterId, liked: item.isLiked, count: item.likeCount)
                     }
+                    
+                    guard currentQueryId == queryId else { return }
+                    let mergedData = append ? (filtersDataRelay.value.data + entity.data) : entity.data
+                    filtersDataRelay.accept(
+                        FilterSummaryPaginationListResponseEntity(
+                            data: mergedData,
+                            nextCursor: entity.nextCursor
+                        )
+                    )
+                    isLastPageRelay.accept(entity.nextCursor == "0")
+                    isLoadingRelay.accept(false)
+                } catch let error as NetworkError {
+                    guard currentQueryId == queryId else { return }
+                    isLoadingRelay.accept(false)
+                    networkErrorRelay.accept(error)
+                } catch {
+                    guard currentQueryId == queryId else { return }
+                    isLoadingRelay.accept(false)
+                    networkErrorRelay.accept(NetworkError.unknown(error))
                 }
+            }
+        }
+        
+        let queryParams: Observable<QueryParams> = Observable
+            .combineLatest(categoryRelay.asObservable(), selectedOrderRelay.asObservable())
+            .map { category, order in
+                QueryParams(category: category, order: order)
+            }
+            .distinctUntilChanged()
+        
+        queryParams
+            .subscribe(onNext: { params in
+                currentQueryId += 1
+                let queryId = currentQueryId
+                isLastPageRelay.accept(false)
+                filtersDataRelay.accept(FilterSummaryPaginationListResponseEntity(data: [], nextCursor: ""))
+                requestPage("", false, queryId, params.category, params.order)
+            })
+            .disposed(by: disposeBag)
+        
+        let pagingState: Observable<PagingState> = Observable.combineLatest(
+            filtersDataRelay.asObservable(),
+            isLastPageRelay.asObservable(),
+            isLoadingRelay.asObservable(),
+            categoryRelay.asObservable(),
+            selectedOrderRelay.asObservable()
+        ) { entity, isLastPage, isLoading, category, order in
+            (entity, isLastPage, isLoading, category, order)
+        }
+        
+        input.loadNextPage
+            .withLatestFrom(pagingState)
+            .filter { (_, isLastPage, isLoading, _, _) in
+                !isLastPage && !isLoading
+            }
+            .subscribe(onNext: { entity, _, _, category, order in
+                let next = entity.nextCursor
+                guard !next.isEmpty, next != "0" else { return }
+                requestPage(next, true, currentQueryId, category, order)
             })
             .disposed(by: disposeBag)
         
@@ -164,10 +241,19 @@ final class FeedViewModel: ViewModelType {
             .bind(to: feedFileterModeRelay)
             .disposed(by: disposeBag)
         
+        let isInitialLoading = Observable
+            .combineLatest(filtersDataRelay.asObservable(), isLoadingRelay.asObservable())
+            .map { entity, isLoading in
+                isLoading && entity.data.isEmpty
+            }
+            .distinctUntilChanged()
+            .asDriver(onErrorJustReturn: false)
+        
         return Output(
             selectedOrder: selectedOrderRelay.asDriver(),
-            filtersData: filtersDataRelay.asDriver(onErrorDriveWith: .empty()),
+            filtersData: filtersDataRelay.asDriver(),
             feedFilterMode: feedFileterModeRelay.asDriver(),
+            isInitialLoading: isInitialLoading,
             likeUIUpdate: likeUIUpdateRelay.asDriver(onErrorDriveWith: .empty()),
             selectedFilterId: selectedFilterIdRelay.asDriver(onErrorDriveWith: .empty()),
             networkError: networkErrorRelay.asSignal()

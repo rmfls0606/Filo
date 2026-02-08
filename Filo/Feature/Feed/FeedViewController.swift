@@ -20,6 +20,12 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
     
     private var feedBodyHeightConstraint: Constraint?
     
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .large)
+        view.hidesWhenStopped = true
+        return view
+    }()
+    
     init(viewModel: FeedViewModel = FeedViewModel()) {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
@@ -131,6 +137,7 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
     
     override func configureHierarchy() {
         view.addSubview(feedScrollView)
+        view.addSubview(loadingIndicator)
         
         feedScrollView.addSubview(contentView)
         
@@ -153,6 +160,10 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
     override func configureLayout() {
         feedScrollView.snp.makeConstraints { make in
             make.edges.equalTo(view.safeAreaLayoutGuide)
+        }
+        
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalTo(view.safeAreaLayoutGuide)
         }
         
         contentView.snp.makeConstraints { make in
@@ -220,6 +231,42 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
     }
     
     override func configureBind() {
+        let listWillDisplayTrigger: Observable<Void> = listTableView.rx.willDisplayCell
+            .compactMap { [weak self] _, indexPath -> Void? in
+                guard let self else { return nil }
+                let thresholdIndex = max(0, self.currentFeedItems.count - 5)
+                return indexPath.row >= thresholdIndex ? () : nil
+            }
+        
+        let blockWillDisplayTrigger: Observable<Void> = blockCollectionView.rx.willDisplayCell
+            .compactMap { [weak self] _, indexPath -> Void? in
+                guard let self else { return nil }
+                let thresholdIndex = max(0, self.currentFeedItems.count - 5)
+                return indexPath.item >= thresholdIndex ? () : nil
+            }
+        
+        let listPrefetchTrigger: Observable<Void> = listTableView.rx.prefetchRows
+            .compactMap { [weak self] indexPaths -> Void? in
+                guard let self else { return nil }
+                let rows = indexPaths.map { $0.row }
+                guard let maxRow = rows.max() else { return nil }
+                let thresholdIndex = max(0, self.currentFeedItems.count - 10)
+                return maxRow >= thresholdIndex ? () : nil
+            }
+        
+        let blockPrefetchTrigger: Observable<Void> = blockCollectionView.rx.prefetchItems
+            .compactMap { [weak self] indexPaths -> Void? in
+                guard let self else { return nil }
+                let items = indexPaths.map { $0.item }
+                guard let maxItem = items.max() else { return nil }
+                let thresholdIndex = max(0, self.currentFeedItems.count - 10)
+                return maxItem >= thresholdIndex ? () : nil
+            }
+        
+        let loadNextPageTrigger = Observable
+            .merge(listWillDisplayTrigger, blockWillDisplayTrigger, listPrefetchTrigger, blockPrefetchTrigger)
+            .throttle(.milliseconds(300), scheduler: MainScheduler.instance)
+        
         let orderByItemSelected = Observable.merge(
             orderByButtons.enumerated().map{ index, button in
                 button.rx.tap.map{ OrderByItem.allCases[index] }
@@ -240,10 +287,21 @@ final class FeedViewController: BaseViewController, PinterestLayoutDelegate {
             orderByItemSelected: orderByItemSelected,
             feedCellTapped: selectedCell,
             feedFilterModeSelected: filterFeedModeText.rx.tap,
-            likeTapped: likeTappedRelay.asObservable()
+            likeTapped: likeTappedRelay.asObservable(),
+            loadNextPage: loadNextPageTrigger
         )
         
         let output = viewModel.transform(input: input)
+        
+        output.isInitialLoading
+            .drive(with: self) { owner, isInitialLoading in
+                if isInitialLoading {
+                    owner.loadingIndicator.startAnimating()
+                } else {
+                    owner.loadingIndicator.stopAnimating()
+                }
+            }
+            .disposed(by: disposeBag)
       
         output.selectedOrder
             .drive(with: self) { owner, selected in
