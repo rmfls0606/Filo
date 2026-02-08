@@ -54,10 +54,16 @@ final class PurchaseHistoryViewModel: ViewModelType {
                 guard let self else { return }
                 Task {
                     do {
-                        let dto: ReceiptOrderResponseDTO = try await self.service.request(
+                        let dto: PaymentResponseDTO = try await self.service.request(
                             PaymentRouter.payments(orderCode: order.orderCode)
                         )
-                        receiptRelay.accept(dto)
+                        let receipt = ReceiptOrderResponseDTO(
+                            paymentId: dto.impUid,
+                            orderItem: order,
+                            createdAt: dto.createdAt,
+                            updatedAt: dto.updatedAt
+                        )
+                        receiptRelay.accept(receipt)
                     } catch let error as NetworkError {
                         errorRelay.accept(error)
                     } catch {

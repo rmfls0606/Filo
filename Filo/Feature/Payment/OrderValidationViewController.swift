@@ -15,13 +15,12 @@ final class OrderValidationViewController: BaseViewController {
     private let scrollView: UIScrollView = {
         let view = UIScrollView()
         view.alwaysBounceVertical = false
+        view.delaysContentTouches = false
+        view.canCancelContentTouches = false
         return view
     }()
 
-    private let contentView: UIView = {
-        let view = UIView()
-        return view
-    }()
+    private let contentView = UIView()
 
     private let orderDateLabel: UILabel = {
         let label = UILabel()
@@ -68,6 +67,7 @@ final class OrderValidationViewController: BaseViewController {
     
     private let paymentInfoContainer: UIView = {
         let view = UIView()
+        view.isUserInteractionEnabled = true
         return view
     }()
     
@@ -76,6 +76,7 @@ final class OrderValidationViewController: BaseViewController {
         view.axis = .horizontal
         view.spacing = 20
         view.distribution = .equalCentering
+        view.isUserInteractionEnabled = true
         return view
     }()
 
@@ -97,6 +98,9 @@ final class OrderValidationViewController: BaseViewController {
         config.contentInsets = .zero
         config.background.cornerRadius = .zero
         let button = UIButton(configuration: config)
+        button.isUserInteractionEnabled = true
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentCompressionResistancePriority(.required, for: .horizontal)
         return button
     }()
     
@@ -176,6 +180,8 @@ final class OrderValidationViewController: BaseViewController {
     private let viewModel: OrderValidationViewModel
     private let disposeBag = DisposeBag()
     private var orderListHeightConstraint: Constraint?
+    private var latestPaymentInfo: PaymentResponseDTO?
+    private var latestReceipt: ReceiptOrderResponseDTO?
     
     override var prefersCustomTabBarHidden: Bool{
         return true
@@ -261,6 +267,7 @@ final class OrderValidationViewController: BaseViewController {
         paymentInfoContainer.snp.makeConstraints { make in
             make.top.equalTo(secondLineView.snp.bottom).offset(20)
             make.horizontalEdges.equalToSuperview().inset(20)
+            make.bottom.equalToSuperview().inset(20)
         }
         
         paymentInfoHeaderStackView.snp.makeConstraints { make in
@@ -285,24 +292,28 @@ final class OrderValidationViewController: BaseViewController {
     }
 
     override func configureView() {
-        navigationItem.title = "주문 내역"
+        navigationItem.title = "주문 상세"
+        contentView.bringSubviewToFront(paymentInfoContainer)
+        scrollView.panGestureRecognizer.cancelsTouchesInView = false
     }
 
     override func configureBind() {
-        let input = OrderValidationViewModel.Input()
+        let input = OrderValidationViewModel.Input(
+            viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear(_:))).map { _ in }
+        )
         
         let output = viewModel.transform(input: input)
 
         output.receipt
             .drive(with: self) { owner, receipt in
+                owner.latestReceipt = receipt
                 let paidAt = receipt.orderItem?.paidAt.toOrderDateString() ?? "-"
                 let orderCode = receipt.orderItem?.orderCode ?? "-"
                 let price = receipt.orderItem?.filter?.price ?? 0
                 owner.orderDateLabel.text = "\(paidAt)"
                 owner.orderCodeLabel.text = "주문 번호 \(orderCode)"
-                owner.paymentPriceLabel.text = "결제 금액: \(price.formattedDecimal())원"
-            }
-            .disposed(by: disposeBag)
+                owner.paymentPriceLabel.text = "\(price.formattedDecimal())원"
+            }            .disposed(by: disposeBag)
 
         output.orderFilter
             .compactMap { $0 }
@@ -312,6 +323,20 @@ final class OrderValidationViewController: BaseViewController {
                 cellType: OrderListTableViewCell.self
             )) { _, element, cell in
                 cell.configure(orderFilter: element)
+            }
+            .disposed(by: disposeBag)
+        
+        output.paymentInfo
+            .compactMap { $0 }
+            .drive(with: self) { owner, payment in
+                owner.latestPaymentInfo = payment
+                owner.paymentMethodLabel.text = owner.formatPaymentMethod(payment)
+            }
+            .disposed(by: disposeBag)
+        
+        output.networkError
+            .emit(with: self) { owner, error in
+                owner.showAlert(title: "오류", message: error.errorDescription)
             }
             .disposed(by: disposeBag)
 
@@ -324,13 +349,46 @@ final class OrderValidationViewController: BaseViewController {
             })
             .disposed(by: disposeBag)
 
+        orderListTableView.rx.itemSelected
+            .withLatestFrom(output.orderFilter) { (_, filter) in filter }
+            .compactMap { $0 }
+            .bind(with: self) { owner, filter in
+                guard let filterId = filter.id else { return }
+                let vm = DetailViewModel(filterId: filterId)
+                let vc = DetailViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
+
         receiptButton.rx.tap
-            .withLatestFrom(output.receipt)
-            .bind(with: self, onNext: { owner, receipt in
-                let vc = ReceiptViewController(receipt: receipt)
+            .bind(with: self, onNext: { owner, _ in
+                print("B")
+                guard let receipt = owner.latestReceipt else { return }
+                print("C")
+                let vc = ReceiptViewController(receipt: receipt, payment: owner.latestPaymentInfo)
                 owner.navigationController?.pushViewController(vc, animated: true)
             })
             .disposed(by: disposeBag)
     }
 
+}
+
+private extension OrderValidationViewController {
+    func formatPaymentMethod(_ payment: PaymentResponseDTO) -> String {
+        let method = payment.payMethod ?? ""
+        if method.contains("card") || payment.cardName != nil {
+            let card = payment.cardName ?? "카드"
+            return card
+        }
+        if method.contains("vbank") {
+            return "가상계좌"
+        }
+        if method.contains("trans") || method.contains("bank") {
+            return payment.bankName ?? "계좌이체"
+        }
+        if method.contains("phone") {
+            return "휴대폰"
+        }
+        return method.isEmpty ? "-" : method
+    }
 }
