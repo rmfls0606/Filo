@@ -22,8 +22,8 @@ final class NetworkManager: NetworkManagerProtocol{
     private let maxRetryCount = 2
     private let uploadSession: Session = {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 120
+        config.timeoutIntervalForRequest = 180
+        config.timeoutIntervalForResource = 300
         return Session(configuration: config)
     }()
     
