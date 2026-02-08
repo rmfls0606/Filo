@@ -286,6 +286,9 @@ final class ProfileViewController: BaseViewController {
                 if item.title.contains("필터") {
                     let vc = MyFilterListViewController()
                     owner.navigationController?.pushViewController(vc, animated: true)
+                } else if item.title.contains("게시글") {
+                    let vc = MyPostListViewController()
+                    owner.navigationController?.pushViewController(vc, animated: true)
                 }
             }
             .disposed(by: disposeBag)
