@@ -46,6 +46,9 @@ final class ChatRoomListViewModel: ViewModelType {
         input.viewWillAppear
             .subscribe(onNext: { [weak self] in
                 guard let self else { return }
+                // ChatRoom 화면에서 unread를 0으로 바꾼 값을
+                // 목록 복귀 시 네트워크 대기 없이 즉시 반영한다.
+                roomsRelay.accept(self.localStore.fetchRoomSummaries())
                 Task {
                     do {
                         let rooms = try await self.service.fetchChatRooms()

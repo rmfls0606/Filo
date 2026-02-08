@@ -99,6 +99,9 @@ final class ChatRoomViewModel: ViewModelType {
                     let serverMessages = try await self.service.fetchChats(roomId: roomId, next: next)
                     if !serverMessages.isEmpty {
                         self.localStore.upsertMessages(serverMessages)
+                        if let latest = serverMessages.max(by: { $0.createdAt < $1.createdAt }) {
+                            self.localStore.updateRoomSummary(with: latest, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
+                        }
                         messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                         self.refreshUsersIfNeeded(senderIds: serverMessages.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
                             guard let self, updated else { return }
@@ -111,6 +114,9 @@ final class ChatRoomViewModel: ViewModelType {
                     let catchUp = try await self.service.fetchChats(roomId: roomId, next: nextAfterSync)
                     if !catchUp.isEmpty {
                         self.localStore.upsertMessages(catchUp)
+                        if let latest = catchUp.max(by: { $0.createdAt < $1.createdAt }) {
+                            self.localStore.updateRoomSummary(with: latest, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
+                        }
                         messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                         self.refreshUsersIfNeeded(senderIds: catchUp.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
                             guard let self, updated else { return }
@@ -241,6 +247,9 @@ final class ChatRoomViewModel: ViewModelType {
     private func flushPendingMessages(roomId: String, messagesRelay: BehaviorRelay<[ChatResponseDTO]>) {
         guard !pendingSocketMessages.isEmpty else { return }
         localStore.upsertMessages(pendingSocketMessages)
+        if let latest = pendingSocketMessages.max(by: { $0.createdAt < $1.createdAt }) {
+            localStore.updateRoomSummary(with: latest, currentUserId: currentUserIdValue, isCurrentRoom: true)
+        }
         messagesRelay.accept(localStore.fetchMessages(roomId: roomId))
         refreshUsersIfNeeded(senderIds: pendingSocketMessages.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
             guard let self, updated else { return }
