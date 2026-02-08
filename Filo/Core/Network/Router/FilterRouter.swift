@@ -17,6 +17,8 @@ enum FilterRouter: APITarget{
     case files
     case user(userId: String, next: String, limit: String, category: String)
     case likesMe(category: String, next: String, limit: String)
+    case updateFilter(filterId: String, requestBody: CreateFilterRequestBody)
+    case deleteFilter(filterId: String)
 
     var path: String{
         switch self {
@@ -38,6 +40,10 @@ enum FilterRouter: APITarget{
             return "/filters/users/\(userId)"
         case .likesMe:
             return "/filters/likes/me"
+        case .updateFilter(let filterId, _):
+            return "/filters/\(filterId)"
+        case .deleteFilter(let filterId):
+            return "/filters/\(filterId)"
         }
     }
     
@@ -47,6 +53,10 @@ enum FilterRouter: APITarget{
             return .get
         case .like, .createFilter, .files:
             return .post
+        case .updateFilter:
+            return .put
+        case .deleteFilter:
+            return .delete
         }
     }
     
@@ -57,7 +67,7 @@ enum FilterRouter: APITarget{
     
     var parameters: Parameters?{
         switch self {
-        case .todayFilter, .hotTrend, .detailFilter, .files:
+        case .todayFilter, .hotTrend, .detailFilter, .files, .deleteFilter:
             return nil
         case .filters(let next, let limit, let category, let orderBy):
             var parms = ["order_by": orderBy]
@@ -81,14 +91,16 @@ enum FilterRouter: APITarget{
             if !limit.isEmpty { parms["limit"] = limit }
             if !category.isEmpty { parms["category"] = category }
             return parms
+        case .updateFilter(_, let requestBody):
+            return requestBody.asParameters()
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .todayFilter, .hotTrend, .filters, .user, .likesMe:
+        case .todayFilter, .hotTrend, .filters, .user, .likesMe, .deleteFilter:
             return URLEncoding.default
-        case .like, .detailFilter, .createFilter, .files:
+        case .like, .detailFilter, .createFilter, .files, .updateFilter:
             return JSONEncoding.default
         }
     }
