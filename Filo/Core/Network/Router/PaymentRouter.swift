@@ -9,11 +9,14 @@ import Alamofire
 
 enum PaymentRouter: APITarget{
     case validation(impUId: String)
+    case payments(orderCode: String)
     
     var path: String{
         switch self {
         case .validation:
             return "/payments/validation"
+        case .payments(let ordercode):
+            return "/payments/\(ordercode)"
         }
     }
     
@@ -21,6 +24,8 @@ enum PaymentRouter: APITarget{
         switch self {
         case .validation:
             return .post
+        case .payments:
+            return .get
         }
     }
     
@@ -34,6 +39,8 @@ enum PaymentRouter: APITarget{
         case .validation(let impUId):
             print(impUId)
             return ["imp_uid": impUId]
+        case .payments:
+            return nil
         }
     }
     
@@ -41,7 +48,8 @@ enum PaymentRouter: APITarget{
         switch self {
         case .validation:
             return JSONEncoding.default
+        case .payments:
+            return URLEncoding.default
         }
     }
 }
-
