@@ -291,6 +291,14 @@ final class HomeViewController: BaseViewController {
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
+        
+        todayAuthorView.authorFilterTap
+            .emit(with: self) { owner, filterId in
+                let vm = DetailViewModel(filterId: filterId)
+                let vc = DetailViewController(viewModel: vm)
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
 
         output.networkError
             .emit(onNext: { [weak self] error in

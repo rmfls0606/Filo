@@ -15,9 +15,14 @@ final class TodayAuthorView: BaseView {
     private let disposeBag = DisposeBag()
     private let tapGesture = UITapGestureRecognizer()
     private let authorProfileTapRelay = PublishRelay<Void>()
+    private let authorFilterTapRelay = PublishRelay<String>()
     
     var authorProfileTap: Signal<Void> {
         authorProfileTapRelay.asSignal()
+    }
+    
+    var authorFilterTap: Signal<String> {
+        authorFilterTapRelay.asSignal()
     }
     
     //MARK: - UI
@@ -207,6 +212,11 @@ final class TodayAuthorView: BaseView {
         tapGesture.rx.event
             .map { _ in () }
             .bind(to: authorProfileTapRelay)
+            .disposed(by: disposeBag)
+        
+        authorImageCollectionView.rx.modelSelected(FilterSummaryResponseDTO.self)
+            .map { $0.filterId }
+            .bind(to: authorFilterTapRelay)
             .disposed(by: disposeBag)
     }
     
