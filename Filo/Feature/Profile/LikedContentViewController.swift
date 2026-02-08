@@ -69,6 +69,15 @@ final class LikedContentViewController: BaseViewController {
         return view
     }()
     
+    private let emptyBackgroundLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        return label
+    }()
+    
     init(viewModel: LikedContentViewModel = LikedContentViewModel()) {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
@@ -189,6 +198,22 @@ final class LikedContentViewController: BaseViewController {
         output.selectedSegment
             .drive(with: self) { owner, index in
                 owner.updateSegmentSelection(selectedIndex: index, animated: true)
+            }
+            .disposed(by: disposeBag)
+        
+        Driver
+            .combineLatest(output.filters, output.posts, output.selectedSegment)
+            .drive(with: self) { owner, element in
+                let (filters, posts, selectedIndex) = element
+                if selectedIndex == 0 {
+                    owner.emptyBackgroundLabel.text = "찜한 필터가 비어있습니다."
+                    owner.filterCollectionView.backgroundView = filters.isEmpty ? owner.emptyBackgroundLabel : nil
+                    owner.postCollectionView.backgroundView = nil
+                } else {
+                    owner.emptyBackgroundLabel.text = "찜한 게시글이 비어있습니다."
+                    owner.postCollectionView.backgroundView = posts.isEmpty ? owner.emptyBackgroundLabel : nil
+                    owner.filterCollectionView.backgroundView = nil
+                }
             }
             .disposed(by: disposeBag)
         

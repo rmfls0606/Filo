@@ -15,6 +15,16 @@ final class MyFilterListViewController: BaseViewController {
     private let disposeBag = DisposeBag()
     private let likeFilterRelay = PublishRelay<String>()
     
+    private let emptyBackgroundLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.text = "내가 작성한 필터가 없습니다."
+        return label
+    }()
+    
     private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .vertical
@@ -88,6 +98,12 @@ final class MyFilterListViewController: BaseViewController {
                     .map { item.filterId }
                     .bind(to: self.likeFilterRelay)
                     .disposed(by: cell.disposeBag)
+            }
+            .disposed(by: disposeBag)
+        
+        output.filters
+            .drive(with: self) { owner, items in
+                owner.collectionView.backgroundView = items.isEmpty ? owner.emptyBackgroundLabel : nil
             }
             .disposed(by: disposeBag)
         

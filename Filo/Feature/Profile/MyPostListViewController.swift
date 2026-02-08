@@ -16,6 +16,16 @@ final class MyPostListViewController: BaseViewController {
     private let refreshRelay = PublishRelay<Void>()
     private let likePostRelay = PublishRelay<PostSummaryResponseDTO>()
     
+    private let emptyBackgroundLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.text = "내가 작성한 게시글이 없습니다."
+        return label
+    }()
+    
     private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .vertical
@@ -86,6 +96,12 @@ final class MyPostListViewController: BaseViewController {
                     .map { item }
                     .bind(to: self.likePostRelay)
                     .disposed(by: cell.disposeBag)
+            }
+            .disposed(by: disposeBag)
+        
+        output.posts
+            .drive(with: self) { owner, items in
+                owner.collectionView.backgroundView = items.isEmpty ? owner.emptyBackgroundLabel : nil
             }
             .disposed(by: disposeBag)
         

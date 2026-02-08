@@ -16,6 +16,11 @@ final class ProfileViewController: BaseViewController {
     private let hashTagsRelay = BehaviorRelay<[String]>(value: [])
     private let logoutRelay = PublishRelay<Void>()
     private var currentHashTags: [String] = []
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .large)
+        view.hidesWhenStopped = true
+        return view
+    }()
 
     private let menuItems: [ProfileMenuCell.Item] = [
         .init(title: "내가 작성한\n필터", iconName: "camera.filters"),
@@ -153,6 +158,7 @@ final class ProfileViewController: BaseViewController {
         contentView.addSubview(hashTagCollectionView)
         contentView.addSubview(collectionView)
         contentView.addSubview(logoutButton)
+        view.addSubview(loadingIndicator)
     }
 
     override func configureLayout() {
@@ -203,6 +209,10 @@ final class ProfileViewController: BaseViewController {
         logoutButton.snp.makeConstraints { make in
             make.centerX.equalToSuperview()
             make.bottom.equalToSuperview().inset(20)
+        }
+
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalToSuperview()
         }
     }
 
@@ -274,6 +284,18 @@ final class ProfileViewController: BaseViewController {
         output.logoutSuccess
             .emit(with: self) { owner, _ in
                 owner.switchToLogin()
+            }
+            .disposed(by: disposeBag)
+
+        output.isLoading
+            .drive(with: self) { owner, isLoading in
+                owner.logoutButton.isUserInteractionEnabled = !isLoading
+                owner.navigationItem.rightBarButtonItem?.isEnabled = !isLoading
+                if isLoading {
+                    owner.loadingIndicator.startAnimating()
+                } else {
+                    owner.loadingIndicator.stopAnimating()
+                }
             }
             .disposed(by: disposeBag)
         
