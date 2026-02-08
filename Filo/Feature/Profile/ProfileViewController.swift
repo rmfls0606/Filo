@@ -213,6 +213,17 @@ final class ProfileViewController: BaseViewController {
         hashTagCollectionView.rx.setDelegate(self)
             .disposed(by: disposeBag)
 
+        let profileTap = UITapGestureRecognizer()
+        profileBox.addGestureRecognizer(profileTap)
+        profileBox.isUserInteractionEnabled = true
+        profileTap.rx.event
+            .filter { $0.state == .recognized }
+            .bind(with: self) { owner, _ in
+                let vc = ProfileEditViewController()
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
+
         hashTagsRelay
             .bind(to: hashTagCollectionView.rx.items(
                 cellIdentifier: TodayAuthorHashtagCollectionViewCell.identifier,

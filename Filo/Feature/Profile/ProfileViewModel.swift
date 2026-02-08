@@ -15,7 +15,7 @@ final class ProfileViewModel: ViewModelType {
     }
     
     struct Output {
-        let profileItem: Driver<UserInfoResponseDTO?>
+        let profileItem: Driver<MyInfoResponseDTO?>
         let networkError: Signal<NetworkError>
     }
     
@@ -27,18 +27,18 @@ final class ProfileViewModel: ViewModelType {
     }
     
     func transform(input: Input) -> Output {
-        let profileRelay = BehaviorRelay<UserInfoResponseDTO?>(value: nil)
+        let profileRelay = BehaviorRelay<MyInfoResponseDTO?>(value: nil)
         let errorRelay = PublishRelay<NetworkError>()
         
         input.viewWillAppear
             .subscribe(onNext: { [weak self] in
                 guard let self else { return }
                 Task {
-                    let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
-                    guard !currentUserId.isEmpty else { return }
+//                    let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+//                    guard !currentUserId.isEmpty else { return }
                     do {
-                        let dto: UserInfoResponseDTO = try await self.service.request(
-                            UserRouter.otherProfile(userId: currentUserId)
+                        let dto: MyInfoResponseDTO = try await self.service.request(
+                            UserRouter.getProfile
                         )
                         profileRelay.accept(dto)
                     } catch let error as NetworkError {
