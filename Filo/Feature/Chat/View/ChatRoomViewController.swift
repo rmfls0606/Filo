@@ -9,6 +9,7 @@ import UIKit
 import SnapKit
 import RxSwift
 import RxCocoa
+import IQKeyboardManagerSwift
 import PhotosUI
 import UniformTypeIdentifiers
 
@@ -37,9 +38,11 @@ final class ChatRoomViewController: BaseViewController {
     private let viewModel: ChatRoomViewModel
     private let initialTitle: String?
     private let disposeBag = DisposeBag()
+    private let dismissKeyboardTapGesture = UITapGestureRecognizer()
     private var listItems: [ChatListItem] = []
     private var currentAttachments: [ChatAttachmentItem] = []
     private let addAttachmentsRelay = PublishRelay<[ChatAttachmentItem]>()
+    private var inputBottomConstraint: Constraint?
     
     override var prefersCustomTabBarHidden: Bool { true }
     
@@ -63,7 +66,7 @@ final class ChatRoomViewController: BaseViewController {
 
         inputViewContainer.snp.makeConstraints { make in
             make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
-            make.bottom.equalTo(view.safeAreaLayoutGuide)
+            inputBottomConstraint = make.bottom.equalTo(view.safeAreaLayoutGuide).constraint
         }
 
         inputBottomFillView.snp.makeConstraints { make in
@@ -77,10 +80,13 @@ final class ChatRoomViewController: BaseViewController {
         inputViewContainer.textView.delegate = self
         inputBottomFillView.backgroundColor = inputViewContainer.backgroundColor
         navigationItem.title = initialTitle ?? "채팅"
+        dismissKeyboardTapGesture.cancelsTouchesInView = false
+        tableView.addGestureRecognizer(dismissKeyboardTapGesture)
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        IQKeyboardManager.shared.isEnabled = false
         CurrentChatRoom.shared.roomId = viewModel.currentRoomId
         if let roomId = viewModel.currentRoomId {
             ChatLocalStore.shared.resetUnread(roomId: roomId)
@@ -89,6 +95,7 @@ final class ChatRoomViewController: BaseViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        IQKeyboardManager.shared.isEnabled = true
         if CurrentChatRoom.shared.roomId == viewModel.currentRoomId {
             CurrentChatRoom.shared.roomId = nil
         }
@@ -144,7 +151,7 @@ final class ChatRoomViewController: BaseViewController {
         listItemsDriver
             .drive(with: self) { owner, _ in
                 owner.updateTitleIfNeeded()
-                owner.scrollToBottom()
+                owner.scrollToBottom(animated: false)
             }
             .disposed(by: disposeBag)
 
@@ -159,6 +166,7 @@ final class ChatRoomViewController: BaseViewController {
             .emit(with: self) { owner, _ in
                 owner.inputViewContainer.textView.text = ""
                 owner.inputViewContainer.updateTextViewHeight()
+                owner.scrollToBottom(animated: true)
             }
             .disposed(by: disposeBag)
 
@@ -192,12 +200,31 @@ final class ChatRoomViewController: BaseViewController {
                 self?.handleAttachMenuSelection(item)
             })
             .disposed(by: disposeBag)
+        
+        NotificationCenter.default.rx.notification(UIResponder.keyboardWillChangeFrameNotification)
+            .bind(with: self) { owner, notification in
+                owner.handleKeyboard(notification: notification)
+            }
+            .disposed(by: disposeBag)
+        
+        dismissKeyboardTapGesture.rx.event
+            .bind(with: self) { owner, _ in
+                owner.view.endEditing(true)
+            }
+            .disposed(by: disposeBag)
     }
 
-    private func scrollToBottom() {
+    private func scrollToBottom(animated: Bool) {
         guard !listItems.isEmpty else { return }
-        let indexPath = IndexPath(row: listItems.count - 1, section: 0)
-        tableView.scrollToRow(at: indexPath, at: .bottom, animated: false)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tableView.layoutIfNeeded()
+            let lastRow = self.listItems.count - 1
+            guard lastRow >= 0 else { return }
+            let indexPath = IndexPath(row: lastRow, section: 0)
+            guard self.tableView.numberOfRows(inSection: 0) > lastRow else { return }
+            self.tableView.scrollToRow(at: indexPath, at: .bottom, animated: animated)
+        }
     }
 
     private func updateTitleIfNeeded() {
@@ -210,6 +237,27 @@ final class ChatRoomViewController: BaseViewController {
 
         if let opponent {
             navigationItem.title = opponent.nick
+        }
+    }
+    
+    private func handleKeyboard(notification: Notification) {
+        guard
+            let userInfo = notification.userInfo,
+            let frame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+        else { return }
+        
+        let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval ?? 0.25
+        let curveRaw = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int ?? UIView.AnimationCurve.easeInOut.rawValue
+        let curve = UIView.AnimationOptions(rawValue: UInt(curveRaw << 16))
+        
+        let keyboardFrameInView = view.convert(frame, from: nil)
+        let overlap = max(0, view.bounds.maxY - keyboardFrameInView.minY - view.safeAreaInsets.bottom)
+        inputBottomConstraint?.update(offset: -overlap)
+        
+        UIView.animate(withDuration: duration, delay: 0, options: [curve, .beginFromCurrentState, .allowUserInteraction]) {
+            self.view.layoutIfNeeded()
+        } completion: { _ in
+            self.scrollToBottom(animated: false)
         }
     }
 }
