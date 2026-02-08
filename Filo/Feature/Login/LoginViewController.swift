@@ -15,6 +15,8 @@ final class LoginViewController: BaseViewController {
     private let disposeBag = DisposeBag()
     private let viewModel = LoginViewModel()
     private let viewTapGesture = UITapGestureRecognizer()
+    private let rememberEmailEnabledKey = "rememberEmailEnabled"
+    private let rememberedEmailKey = "rememberedEmail"
     
     private let titleLabel: UILabel = {
         let label = UILabel()
@@ -147,6 +149,7 @@ final class LoginViewController: BaseViewController {
     
     override func configureView() {
         view.backgroundColor = .black
+        applyRememberedEmail()
         rememberMeButton.setNeedsUpdateConfiguration()
     }
     
@@ -165,6 +168,7 @@ final class LoginViewController: BaseViewController {
         
         output.loginSuccess
             .drive(with: self) { owner, _ in
+                owner.persistRememberedEmailIfNeeded()
                 owner.switchToMain()
             }
             .disposed(by: disposeBag)
@@ -184,6 +188,13 @@ final class LoginViewController: BaseViewController {
         rememberMeButton.rx.tap
             .bind(with: self) { owner, _ in
                 owner.rememberMeButton.isSelected.toggle()
+                owner.persistRememberToggleState()
+            }
+            .disposed(by: disposeBag)
+        
+        signUpButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.moveToSignUp()
             }
             .disposed(by: disposeBag)
     }
@@ -192,5 +203,352 @@ final class LoginViewController: BaseViewController {
         guard let scene = view.window?.windowScene,
               let delegate = scene.delegate as? SceneDelegate else { return }
         delegate.setRootViewController(MainTabBarController())
+    }
+    
+    private func moveToSignUp() {
+        let vc = SignUpViewController()
+        if let navigationController {
+            navigationController.pushViewController(vc, animated: true)
+        } else {
+            let nav = UINavigationController(rootViewController: vc)
+            present(nav, animated: true)
+        }
+    }
+    
+    private func applyRememberedEmail() {
+        let defaults = UserDefaults.standard
+        let isEnabled = defaults.bool(forKey: rememberEmailEnabledKey)
+        rememberMeButton.isSelected = isEnabled
+        if isEnabled {
+            emailField.text = defaults.string(forKey: rememberedEmailKey) ?? ""
+        } else {
+            emailField.text = ""
+        }
+    }
+    
+    private func persistRememberToggleState() {
+        let defaults = UserDefaults.standard
+        defaults.set(rememberMeButton.isSelected, forKey: rememberEmailEnabledKey)
+        if !rememberMeButton.isSelected {
+            defaults.removeObject(forKey: rememberedEmailKey)
+        }
+    }
+    
+    private func persistRememberedEmailIfNeeded() {
+        let defaults = UserDefaults.standard
+        defaults.set(rememberMeButton.isSelected, forKey: rememberEmailEnabledKey)
+        if rememberMeButton.isSelected {
+            let email = emailField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            defaults.set(email, forKey: rememberedEmailKey)
+        } else {
+            defaults.removeObject(forKey: rememberedEmailKey)
+        }
+    }
+}
+
+final class SignUpViewController: BaseViewController {
+    private let disposeBag = DisposeBag()
+    private let viewTapGesture = UITapGestureRecognizer()
+    
+    private let scrollView: UIScrollView = {
+        let view = UIScrollView()
+        view.keyboardDismissMode = .interactive
+        return view
+    }()
+    
+    private let contentView = UIView()
+    
+    private let titleLabel: UILabel = {
+        let label = UILabel()
+        label.text = "회원가입"
+        label.font = .Mulggeol.title1
+        label.textColor = GrayStyle.gray30.color
+        label.textAlignment = .center
+        return label
+    }()
+    
+    private let emailField = SignUpViewController.makeField(placeholder: "이메일")
+    private let nickField = SignUpViewController.makeField(placeholder: "닉네임")
+    private let nameField = SignUpViewController.makeField(placeholder: "이름")
+    private let introductionField = SignUpViewController.makeField(placeholder: "소개")
+    private let phoneField: InsetTextField = {
+        let field = InsetTextField()
+        field.placeholder = "전화번호"
+        field.keyboardType = .phonePad
+        field.autocapitalizationType = .none
+        return field
+    }()
+    private let hashTagsField = SignUpViewController.makeField(placeholder: "해시태그(예: #감성 #필름)")
+    private let passwordField: InsetTextField = {
+        let field = InsetTextField()
+        field.placeholder = "비밀번호"
+        field.autocapitalizationType = .none
+        field.isSecureTextEntry = true
+        return field
+    }()
+    
+    private let signUpButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.baseBackgroundColor = Brand.brightTurquoise.color
+        config.baseForegroundColor = GrayStyle.gray45.color
+        config.cornerStyle = .medium
+        config.title = "회원가입"
+        let button = UIButton(configuration: config)
+        return button
+    }()
+    
+    private let contentStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 12
+        return view
+    }()
+    
+    override func configureHierarchy() {
+        view.addSubview(scrollView)
+        scrollView.addSubview(contentView)
+        contentView.addSubview(contentStackView)
+        contentStackView.addArrangedSubview(titleLabel)
+        contentStackView.addArrangedSubview(emailField)
+        contentStackView.addArrangedSubview(nickField)
+        contentStackView.addArrangedSubview(nameField)
+        contentStackView.addArrangedSubview(introductionField)
+        contentStackView.addArrangedSubview(phoneField)
+        contentStackView.addArrangedSubview(hashTagsField)
+        contentStackView.addArrangedSubview(passwordField)
+        contentStackView.addArrangedSubview(signUpButton)
+        view.addGestureRecognizer(viewTapGesture)
+    }
+    
+    override func configureLayout() {
+        scrollView.snp.makeConstraints { make in
+            make.edges.equalTo(view.safeAreaLayoutGuide)
+        }
+        
+        contentView.snp.makeConstraints { make in
+            make.edges.equalTo(scrollView.contentLayoutGuide)
+            make.width.equalTo(scrollView.frameLayoutGuide)
+        }
+        
+        contentStackView.snp.makeConstraints { make in
+            make.top.equalToSuperview().inset(24)
+            make.horizontalEdges.equalToSuperview().inset(20)
+            make.bottom.equalToSuperview().inset(24)
+        }
+        
+        emailField.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+        
+        nickField.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+        
+        nameField.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+        
+        introductionField.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+        
+        phoneField.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+        
+        hashTagsField.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+        
+        passwordField.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+        
+        signUpButton.snp.makeConstraints { make in
+            make.height.equalTo(48)
+        }
+    }
+    
+    override func configureView() {
+        view.backgroundColor = GrayStyle.gray100.color
+        navigationItem.title = "회원가입"
+        if presentingViewController != nil {
+            navigationItem.leftBarButtonItem = UIBarButtonItem(
+                barButtonSystemItem: .close,
+                target: self,
+                action: #selector(closeTapped)
+            )
+        }
+    }
+    
+    override func configureBind() {
+        signUpButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.requestSignUp()
+            }
+            .disposed(by: disposeBag)
+        
+        viewTapGesture.rx.event
+            .bind(with: self) { owner, _ in
+                owner.view.endEditing(true)
+            }
+            .disposed(by: disposeBag)
+        
+        NotificationCenter.default.rx.notification(UIResponder.keyboardWillChangeFrameNotification)
+            .observe(on: MainScheduler.instance)
+            .bind(with: self) { owner, notification in
+                owner.updateKeyboardInset(notification: notification)
+            }
+            .disposed(by: disposeBag)
+        
+        NotificationCenter.default.rx.notification(UIResponder.keyboardWillHideNotification)
+            .observe(on: MainScheduler.instance)
+            .bind(with: self) { owner, _ in
+                owner.scrollView.contentInset.bottom = 0
+                owner.scrollView.verticalScrollIndicatorInsets.bottom = 0
+            }
+            .disposed(by: disposeBag)
+        
+        Observable.merge(
+            emailField.rx.controlEvent(.editingDidBegin).asObservable().map { [weak self] in self?.emailField },
+            nickField.rx.controlEvent(.editingDidBegin).asObservable().map { [weak self] in self?.nickField },
+            nameField.rx.controlEvent(.editingDidBegin).asObservable().map { [weak self] in self?.nameField },
+            introductionField.rx.controlEvent(.editingDidBegin).asObservable().map { [weak self] in self?.introductionField },
+            phoneField.rx.controlEvent(.editingDidBegin).asObservable().map { [weak self] in self?.phoneField },
+            hashTagsField.rx.controlEvent(.editingDidBegin).asObservable().map { [weak self] in self?.hashTagsField },
+            passwordField.rx.controlEvent(.editingDidBegin).asObservable().map { [weak self] in self?.passwordField }
+        )
+        .compactMap { $0 }
+        .bind(with: self) { owner, field in
+            owner.scrollToField(field)
+        }
+        .disposed(by: disposeBag)
+    }
+    
+    @objc private func closeTapped() {
+        dismiss(animated: true)
+    }
+    
+    private func requestSignUp() {
+        let email = emailField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let nick = nickField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let name = nameField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let introduction = introductionField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let phoneNum = phoneField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hashTagsText = hashTagsField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let password = passwordField.text ?? ""
+        
+        guard validateEmail(email) else {
+            showAlert(title: "회원가입 실패", message: "이메일은 유효한 형식이어야 합니다 (예: user@example.com)")
+            return
+        }
+        
+        guard validateNick(nick) else {
+            showAlert(title: "회원가입 실패", message: ".,?*-@+^${}()|[]\\\\ 문자는 nick에 포함할 수 없습니다.")
+            return
+        }
+        
+        guard validatePassword(password) else {
+            showAlert(title: "회원가입 실패", message: "비밀번호는 최소 8자 이상이며, 영문자/숫자/특수문자(@$!%*#?&)를 각각 1개 이상 포함해야 합니다.")
+            return
+        }
+        
+        guard !name.isEmpty else {
+            showAlert(title: "회원가입 실패", message: "이름을 입력해주세요.")
+            return
+        }
+        
+        let hashTags = parseHashTags(hashTagsText)
+        
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let _: ServerErrorDTO = try await NetworkManager.shared.request(
+                    UserRouter.email(email: email)
+                )
+                
+                let deviceToken = UserDefaults.standard.string(forKey: "fcmToken") ?? ""
+                let _: JoinResponseDTO = try await NetworkManager.shared.request(
+                    UserRouter.join(
+                        email: email,
+                        password: password,
+                        nick: nick,
+                        name: name,
+                        introduction: introduction,
+                        phoneNum: phoneNum,
+                        hashTags: hashTags,
+                        deviceToken: deviceToken
+                    )
+                )
+                await MainActor.run {
+                    self.showAlert(title: "완료", message: "회원가입이 완료되었습니다.") { [weak self] in
+                        guard let self else { return }
+                        if let nav = self.navigationController {
+                            nav.popViewController(animated: true)
+                        } else {
+                            self.dismiss(animated: true)
+                        }
+                    }
+                }
+            } catch let error as NetworkError {
+                await MainActor.run {
+                    self.showAlert(title: "회원가입 실패", message: error.errorDescription)
+                }
+            } catch {
+                await MainActor.run {
+                    self.showAlert(title: "회원가입 실패", message: error.localizedDescription)
+                }
+            }
+        }
+    }
+    
+    private func validateEmail(_ email: String) -> Bool {
+        let pattern = "^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+        return NSPredicate(format: "SELF MATCHES %@", pattern).evaluate(with: email)
+    }
+    
+    private func validateNick(_ nick: String) -> Bool {
+        guard !nick.isEmpty else { return false }
+        let invalidPattern = "[\\.,\\?\\*\\-@\\+\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\]"
+        let hasInvalid = NSPredicate(format: "SELF MATCHES %@", ".*\(invalidPattern).*").evaluate(with: nick)
+        return !hasInvalid
+    }
+    
+    private func validatePassword(_ password: String) -> Bool {
+        let pattern = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*#?&]).{8,}$"
+        return NSPredicate(format: "SELF MATCHES %@", pattern).evaluate(with: password)
+    }
+    
+    private func parseHashTags(_ text: String) -> [String] {
+        text
+            .split(separator: " ")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { $0.replacingOccurrences(of: "#", with: "") }
+            .filter { !$0.isEmpty }
+    }
+    
+    private static func makeField(placeholder: String) -> InsetTextField {
+        let field = InsetTextField()
+        field.placeholder = placeholder
+        field.autocapitalizationType = .none
+        return field
+    }
+    
+    private func updateKeyboardInset(notification: Notification) {
+        guard
+            let userInfo = notification.userInfo,
+            let frame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+        else { return }
+        
+        let keyboardFrameInView = view.convert(frame, from: nil)
+        let overlap = view.bounds.intersection(keyboardFrameInView).height
+        let bottomInset = max(0, overlap - view.safeAreaInsets.bottom) + 16
+        scrollView.contentInset.bottom = bottomInset
+        scrollView.verticalScrollIndicatorInsets.bottom = bottomInset
+    }
+    
+    private func scrollToField(_ field: UIView) {
+        let frame = field.convert(field.bounds, to: scrollView)
+        scrollView.scrollRectToVisible(frame.insetBy(dx: 0, dy: -20), animated: true)
     }
 }
