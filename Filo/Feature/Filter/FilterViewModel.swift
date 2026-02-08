@@ -11,6 +11,7 @@ import RxCocoa
 import ImageIO
 import Photos
 import CoreLocation
+import UIKit
 
 final class FilterViewModel: ViewModelType{
     private let disposeBag = DisposeBag()
@@ -218,12 +219,21 @@ final class FilterViewModel: ViewModelType{
         if let original {
             let mime = detectMimeType(original)
             let ext = fileExtension(for: mime)
-            files.append(MultipartFile(
-                data: original,
-                name: "files",
-                fileName: "previews_original.\(ext)",
-                mimeType: mime
-            ))
+            if mime == "image/png", let image = UIImage(data: original), let jpg = image.jpegData(compressionQuality: 0.9) {
+                files.append(MultipartFile(
+                    data: jpg,
+                    name: "files",
+                    fileName: "previews_original.jpg",
+                    mimeType: "image/jpeg"
+                ))
+            } else {
+                files.append(MultipartFile(
+                    data: original,
+                    name: "files",
+                    fileName: "previews_original.\(ext)",
+                    mimeType: mime
+                ))
+            }
         }
 
         let filteredMime = detectMimeType(filtered)
@@ -297,32 +307,32 @@ final class FilterViewModel: ViewModelType{
         let metadataBody = CreateFilterMetadata(
             camera: cameraValue,
             lensInfo: metadata?.lensModel,
-            focalLength: metadata?.focalLength,
-            aperture: metadata?.fNumber,
+            focalLength: sanitize(metadata?.focalLength),
+            aperture: sanitize(metadata?.fNumber),
             iso: metadata?.iso,
             shutterSpeed: metadata?.shutterSpeed,
             pixelWidth: metadata?.width,
             pixelHeight: metadata?.height,
-            fileSize: metadata?.fileSizeBytes,
+            fileSize: sanitize(metadata?.fileSizeBytes),
             format: metadata?.format,
             dateTimeOriginal: dateText,
-            latitude: metadata?.latitude,
-            longitude: metadata?.longitude
+            latitude: sanitize(metadata?.latitude),
+            longitude: sanitize(metadata?.longitude)
         )
 
         let valuesBody = CreateFilterValues(
-            brightness: values.brightness,
-            exposure: values.exposure,
-            contrast: values.contrast,
-            saturation: values.saturation,
-            sharpness: values.sharpness,
-            blur: values.blur,
-            vignette: values.vignette,
-            noise_reduction: values.noise,
-            highlights: values.highlights,
-            shadows: values.shadows,
-            temperature: values.temperature,
-            black_point: values.blackPoint
+            brightness: sanitize(values.brightness),
+            exposure: sanitize(values.exposure),
+            contrast: sanitize(values.contrast),
+            saturation: sanitize(values.saturation),
+            sharpness: sanitize(values.sharpness),
+            blur: sanitize(values.blur),
+            vignette: sanitize(values.vignette),
+            noise_reduction: sanitize(values.noise),
+            highlights: sanitize(values.highlights),
+            shadows: sanitize(values.shadows) ?? 0,
+            temperature: sanitize(values.temperature),
+            black_point: sanitize(values.blackPoint)
         )
 
         return CreateFilterRequestBody(
@@ -339,6 +349,11 @@ final class FilterViewModel: ViewModelType{
     private func parsePrice(_ text: String) -> Int {
         let digits = text.filter { $0.isNumber }
         return Int(digits) ?? 0
+    }
+
+    private func sanitize(_ value: Double?) -> Double? {
+        guard let value, value.isFinite else { return nil }
+        return value
     }
     
     //data 기반 메타데이터 추출
