@@ -13,6 +13,8 @@ import RxCocoa
 final class LikedContentViewController: BaseViewController {
     private let viewModel: LikedContentViewModel
     private let disposeBag = DisposeBag()
+    private let likeFilterRelay = PublishRelay<String>()
+    private let likePostRelay = PublishRelay<PostSummaryResponseDTO>()
     
     private let filterButton: UIButton = {
         let button = UIButton(type: .system)
@@ -146,7 +148,9 @@ final class LikedContentViewController: BaseViewController {
             filterTabTapped: filterButton.rx.tap.asObservable(),
             postTabTapped: postButton.rx.tap.asObservable(),
             selectedFilter: filterCollectionView.rx.modelSelected(FilterSummaryResponseEntity.self).asObservable(),
-            selectedPost: postCollectionView.rx.modelSelected(PostSummaryResponseDTO.self).asObservable()
+            selectedPost: postCollectionView.rx.modelSelected(PostSummaryResponseDTO.self).asObservable(),
+            likeFilterTap: likeFilterRelay.asObservable(),
+            likePostTap: likePostRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -155,8 +159,15 @@ final class LikedContentViewController: BaseViewController {
             .drive(filterCollectionView.rx.items(
                 cellIdentifier: MyFilterCardCell.identifier,
                 cellType: MyFilterCardCell.self
-            )) { _, item, cell in
-                cell.configure(item)
+            )) { [weak self] _, item, cell in
+                guard let self else { return }
+                let isLiked = LikeStore.shared.isLiked(id: item.filterId)
+                cell.configure(item, isLiked: isLiked)
+                cell.likeTapped
+                    .throttle(.milliseconds(400), scheduler: MainScheduler.instance)
+                    .map { item.filterId }
+                    .bind(to: self.likeFilterRelay)
+                    .disposed(by: cell.disposeBag)
             }
             .disposed(by: disposeBag)
         
@@ -164,8 +175,14 @@ final class LikedContentViewController: BaseViewController {
             .drive(postCollectionView.rx.items(
                 cellIdentifier: SearchPostCollectionViewCell.identifier,
                 cellType: SearchPostCollectionViewCell.self
-            )) { _, item, cell in
-                cell.configure(item: item)
+            )) { [weak self] _, item, cell in
+                guard let self else { return }
+                cell.configure(item: item, showLike: true)
+                cell.likeTapped
+                    .throttle(.milliseconds(400), scheduler: MainScheduler.instance)
+                    .map { item }
+                    .bind(to: self.likePostRelay)
+                    .disposed(by: cell.disposeBag)
             }
             .disposed(by: disposeBag)
         

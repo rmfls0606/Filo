@@ -13,6 +13,7 @@ import RxCocoa
 final class MyFilterListViewController: BaseViewController {
     private let viewModel: MyFilterListViewModel
     private let disposeBag = DisposeBag()
+    private let likeFilterRelay = PublishRelay<String>()
     
     private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
@@ -68,7 +69,8 @@ final class MyFilterListViewController: BaseViewController {
     override func configureBind() {
         let input = MyFilterListViewModel.Input(
             viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear(_:))).map { _ in },
-            selectedItem: collectionView.rx.modelSelected(FilterSummaryResponseEntity.self).asObservable()
+            selectedItem: collectionView.rx.modelSelected(FilterSummaryResponseEntity.self).asObservable(),
+            likeFilterTap: likeFilterRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -77,8 +79,15 @@ final class MyFilterListViewController: BaseViewController {
             .drive(collectionView.rx.items(
                 cellIdentifier: MyFilterCardCell.identifier,
                 cellType: MyFilterCardCell.self
-            )) { _, item, cell in
-                cell.configure(item)
+            )) { [weak self] _, item, cell in
+                guard let self else { return }
+                let isLiked = LikeStore.shared.isLiked(id: item.filterId)
+                cell.configure(item, isLiked: isLiked)
+                cell.likeTapped
+                    .throttle(.milliseconds(400), scheduler: MainScheduler.instance)
+                    .map { item.filterId }
+                    .bind(to: self.likeFilterRelay)
+                    .disposed(by: cell.disposeBag)
             }
             .disposed(by: disposeBag)
         

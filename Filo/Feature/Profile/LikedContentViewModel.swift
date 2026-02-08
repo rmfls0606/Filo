@@ -16,6 +16,8 @@ final class LikedContentViewModel: ViewModelType {
         let postTabTapped: Observable<Void>
         let selectedFilter: Observable<FilterSummaryResponseEntity>
         let selectedPost: Observable<PostSummaryResponseDTO>
+        let likeFilterTap: Observable<String>
+        let likePostTap: Observable<PostSummaryResponseDTO>
     }
     
     struct Output {
@@ -77,6 +79,9 @@ final class LikedContentViewModel: ViewModelType {
                         let postDto: PostSummaryPaginationResponseDTO = try await self.service.request(
                             CommunityRouter.likesMe(category: "", limit: "30", next: "")
                         )
+                        postDto.data.forEach { item in
+                            LikeStore.shared.setLiked(id: item.postId, liked: item.isLike, count: item.likeCount)
+                        }
                         postsRelay.accept(postDto.data)
                     } catch let error as NetworkError {
                         errorRelay.accept(error)
@@ -95,6 +100,147 @@ final class LikedContentViewModel: ViewModelType {
         input.selectedPost
             .map { $0.postId }
             .bind(to: selectedPostRelay)
+            .disposed(by: disposeBag)
+        
+        var filterRequestIdById: [String: Int] = [:]
+        var filterLatestRequestIdById: [String: Int] = [:]
+        
+        input.likeFilterTap
+            .groupBy { $0 }
+            .flatMap { [weak self] group -> Observable<Void> in
+                guard let self else { return .empty() }
+                return group
+                    .map { filterId -> (id: String, desiredLiked: Bool, requestId: Int, prevLiked: Bool, prevCount: Int, optimisticCount: Int) in
+                        let prevLiked = LikeStore.shared.isLiked(id: filterId)
+                        let prevCount = LikeStore.shared.likeCount(id: filterId) ?? 0
+                        let desiredLiked = !prevLiked
+                        let optimisticCount = max(0, prevCount + (desiredLiked ? 1 : -1))
+                        LikeStore.shared.setLiked(id: filterId, liked: desiredLiked, count: optimisticCount)
+                        
+                        let requestId = (filterRequestIdById[filterId] ?? 0) + 1
+                        filterRequestIdById[filterId] = requestId
+                        filterLatestRequestIdById[filterId] = requestId
+                        
+                        return (filterId, desiredLiked, requestId, prevLiked, prevCount, optimisticCount)
+                    }
+                    .debounce(.milliseconds(300), scheduler: MainScheduler.instance)
+                    .flatMapLatest { payload -> Observable<Void> in
+                        let id = payload.id
+                        let requestId = payload.requestId
+                        let desiredLiked = payload.desiredLiked
+                        let prevLiked = payload.prevLiked
+                        let prevCount = payload.prevCount
+                        
+                        return Observable<Bool>.create { observer in
+                            Task {
+                                do {
+                                    let dto: FilterLikeResponseDTO = try await self.service.request(
+                                        FilterRouter.like(filterId: id, liked: desiredLiked)
+                                    )
+                                    observer.onNext(dto.likeStatus)
+                                    observer.onCompleted()
+                                } catch {
+                                    observer.onError(error)
+                                }
+                            }
+                            return Disposables.create()
+                        }
+                        .flatMap { likedNow -> Observable<Void> in
+                            guard filterLatestRequestIdById[id] == requestId else { return .empty() }
+                            let baseCount = LikeStore.shared.likeCount(id: id) ?? prevCount
+                            let finalCount: Int
+                            if likedNow == desiredLiked {
+                                finalCount = baseCount
+                            } else {
+                                finalCount = max(0, baseCount + (likedNow ? 1 : -1))
+                            }
+                            LikeStore.shared.setLiked(id: id, liked: likedNow, count: finalCount)
+                            if !likedNow {
+                                let filtered = filtersRelay.value.filter { $0.filterId != id }
+                                filtersRelay.accept(filtered)
+                            }
+                            return .just(())
+                        }
+                        .catch { error in
+                            guard filterLatestRequestIdById[id] == requestId else { return .empty() }
+                            LikeStore.shared.setLiked(id: id, liked: prevLiked, count: prevCount)
+                            errorRelay.accept(error as? NetworkError ?? .unknown(error))
+                            return .just(())
+                        }
+                    }
+            }
+            .subscribe()
+            .disposed(by: disposeBag)
+        
+        var postRequestIdById: [String: Int] = [:]
+        var postLatestRequestIdById: [String: Int] = [:]
+        
+        input.likePostTap
+            .groupBy { $0.postId }
+            .flatMap { [weak self] group -> Observable<Void> in
+                guard let self else { return .empty() }
+                return group
+                    .map { item -> (id: String, desiredLiked: Bool, requestId: Int, prevLiked: Bool, prevCount: Int, optimisticCount: Int, originalCount: Int) in
+                        let prevLiked = LikeStore.shared.isLiked(id: item.postId)
+                        let prevCount = LikeStore.shared.likeCount(id: item.postId) ?? item.likeCount
+                        let desiredLiked = !prevLiked
+                        let optimisticCount = max(0, prevCount + (desiredLiked ? 1 : -1))
+                        LikeStore.shared.setLiked(id: item.postId, liked: desiredLiked, count: optimisticCount)
+                        
+                        let requestId = (postRequestIdById[item.postId] ?? 0) + 1
+                        postRequestIdById[item.postId] = requestId
+                        postLatestRequestIdById[item.postId] = requestId
+                        
+                        return (item.postId, desiredLiked, requestId, prevLiked, prevCount, optimisticCount, item.likeCount)
+                    }
+                    .debounce(.milliseconds(300), scheduler: MainScheduler.instance)
+                    .flatMapLatest { payload -> Observable<Void> in
+                        let id = payload.id
+                        let requestId = payload.requestId
+                        let desiredLiked = payload.desiredLiked
+                        let prevLiked = payload.prevLiked
+                        let prevCount = payload.prevCount
+                        let originalCount = payload.originalCount
+                        
+                        return Observable<Bool>.create { observer in
+                            Task {
+                                do {
+                                    let dto: PostLikeResponseDTO = try await self.service.request(
+                                        CommunityRouter.like(postId: id, isLike: desiredLiked)
+                                    )
+                                    observer.onNext(dto.likeStatus)
+                                    observer.onCompleted()
+                                } catch {
+                                    observer.onError(error)
+                                }
+                            }
+                            return Disposables.create()
+                        }
+                        .flatMap { likedNow -> Observable<Void> in
+                            guard postLatestRequestIdById[id] == requestId else { return .empty() }
+                            let baseCount = LikeStore.shared.likeCount(id: id) ?? originalCount
+                            let finalCount: Int
+                            if likedNow == desiredLiked {
+                                finalCount = baseCount
+                            } else {
+                                finalCount = max(0, baseCount + (likedNow ? 1 : -1))
+                            }
+                            LikeStore.shared.setLiked(id: id, liked: likedNow, count: finalCount)
+                            if !likedNow {
+                                let filtered = postsRelay.value.filter { $0.postId != id }
+                                postsRelay.accept(filtered)
+                            }
+                            return .just(())
+                        }
+                        .catch { error in
+                            guard postLatestRequestIdById[id] == requestId else { return .empty() }
+                            LikeStore.shared.setLiked(id: id, liked: prevLiked, count: prevCount)
+                            errorRelay.accept(error as? NetworkError ?? .unknown(error))
+                            return .just(())
+                        }
+                    }
+            }
+            .subscribe()
             .disposed(by: disposeBag)
         
         return Output(

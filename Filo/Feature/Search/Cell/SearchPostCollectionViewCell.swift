@@ -8,8 +8,16 @@
 import UIKit
 import SnapKit
 import AVFoundation
+import RxSwift
+import RxCocoa
 
 final class SearchPostCollectionViewCell: BaseCollectionViewCell {
+    private(set) var disposeBag = DisposeBag()
+    
+    var likeTapped: ControlEvent<Void> {
+        likeButton.rx.tap
+    }
+    
     private let imageView: UIImageView = {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
@@ -44,6 +52,24 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         return label
     }()
     
+    private let likeButton = LikeButton()
+    
+    private let likeCountLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption2
+        label.textColor = GrayStyle.gray30.color
+        return label
+    }()
+    
+    private let likeStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .horizontal
+        view.spacing = 4
+        view.alignment = .center
+        view.isHidden = true
+        return view
+    }()
+    
     private var currentURL: String?
     private var thumbnailRequestId = UUID()
     private var playerLayer: AVPlayerLayer?
@@ -57,6 +83,9 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         contentView.addSubview(playIconView)
         contentView.addSubview(loadingIndicator)
         contentView.addSubview(durationLabel)
+        contentView.addSubview(likeStackView)
+        likeStackView.addArrangedSubview(likeButton)
+        likeStackView.addArrangedSubview(likeCountLabel)
     }
 
     override func configureLayout() {
@@ -74,9 +103,14 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         }
         
         durationLabel.snp.makeConstraints { make in
-            make.trailing.equalToSuperview().inset(6)
+            make.leading.equalToSuperview().inset(6)
             make.bottom.equalToSuperview().inset(6)
             make.height.equalTo(16)
+        }
+        
+        likeStackView.snp.makeConstraints { make in
+            make.trailing.equalToSuperview().inset(6)
+            make.bottom.equalToSuperview().inset(6)
         }
     }
 
@@ -86,6 +120,7 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        disposeBag = DisposeBag()
         imageView.image = nil
         imageView.contentMode = .scaleAspectFill
         imageView.alpha = 1.0
@@ -93,13 +128,30 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
         loadingIndicator.stopAnimating()
         durationLabel.isHidden = true
         durationLabel.text = nil
+        likeButton.isSelected = false
+        likeCountLabel.text = nil
+        likeStackView.isHidden = true
         currentURL = nil
         thumbnailRequestId = UUID()
         stopPlayback()
     }
 
-    func configure(item: PostSummaryResponseDTO) {
-        guard let urlString = item.files.first else { return }
+    func configure(item: PostSummaryResponseDTO, showLike: Bool = false) {
+        likeStackView.isHidden = !showLike
+        
+        if showLike {
+            bindLikeState(item: item)
+        }
+        
+        guard let urlString = item.files.first else {
+            currentURL = nil
+            isVideoItem = false
+            playIconView.isHidden = true
+            imageView.image = nil
+            imageView.backgroundColor = GrayStyle.gray90.color
+            return
+        }
+        
         currentURL = urlString
         let isVideo = isVideoURL(urlString)
         isVideoItem = isVideo
@@ -118,6 +170,21 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
             imageView.setKFImage(urlString: urlString)
             imageView.contentMode = .scaleAspectFill
         }
+    }
+    
+    private func bindLikeState(item: PostSummaryResponseDTO) {
+        let id = item.postId
+        likeButton.isSelected = LikeStore.shared.isLiked(id: id)
+        likeCountLabel.text = "\(LikeStore.shared.likeCount(id: id) ?? item.likeCount)"
+        
+        Observable
+            .combineLatest(LikeStore.shared.likedIds, LikeStore.shared.likeCounts)
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] ids, counts in
+                self?.likeButton.isSelected = ids.contains(id)
+                self?.likeCountLabel.text = "\(counts[id] ?? item.likeCount)"
+            })
+            .disposed(by: disposeBag)
     }
     
     private func isVideoURL(_ urlString: String) -> Bool {

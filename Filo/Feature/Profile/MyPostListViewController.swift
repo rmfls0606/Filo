@@ -14,6 +14,7 @@ final class MyPostListViewController: BaseViewController {
     private let viewModel: MyPostListViewModel
     private let disposeBag = DisposeBag()
     private let refreshRelay = PublishRelay<Void>()
+    private let likePostRelay = PublishRelay<PostSummaryResponseDTO>()
     
     private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
@@ -67,7 +68,8 @@ final class MyPostListViewController: BaseViewController {
         let input = MyPostListViewModel.Input(
             viewWillAppear: rx.methodInvoked(#selector(UIViewController.viewWillAppear(_:))).map { _ in },
             refresh: refreshRelay.asObservable(),
-            selectedItem: collectionView.rx.modelSelected(PostSummaryResponseDTO.self).asObservable()
+            selectedItem: collectionView.rx.modelSelected(PostSummaryResponseDTO.self).asObservable(),
+            likePostTap: likePostRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
@@ -76,8 +78,14 @@ final class MyPostListViewController: BaseViewController {
             .drive(collectionView.rx.items(
                 cellIdentifier: SearchPostCollectionViewCell.identifier,
                 cellType: SearchPostCollectionViewCell.self
-            )) { _, item, cell in
-                cell.configure(item: item)
+            )) { [weak self] _, item, cell in
+                guard let self else { return }
+                cell.configure(item: item, showLike: true)
+                cell.likeTapped
+                    .throttle(.milliseconds(400), scheduler: MainScheduler.instance)
+                    .map { item }
+                    .bind(to: self.likePostRelay)
+                    .disposed(by: cell.disposeBag)
             }
             .disposed(by: disposeBag)
         

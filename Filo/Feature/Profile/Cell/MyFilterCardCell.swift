@@ -7,6 +7,8 @@
 
 import UIKit
 import SnapKit
+import RxSwift
+import RxCocoa
 
 private final class PaddingLabel: UILabel {
     var textInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
@@ -29,6 +31,12 @@ private final class PaddingLabel: UILabel {
 }
 
 final class MyFilterCardCell: BaseCollectionViewCell {
+    private(set) var disposeBag = DisposeBag()
+    
+    var likeTapped: ControlEvent<Void> {
+        likeButton.rx.tap
+    }
+    
     private let thumbnailImageView: UIImageView = {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
@@ -37,6 +45,8 @@ final class MyFilterCardCell: BaseCollectionViewCell {
         view.backgroundColor = GrayStyle.gray90.color
         return view
     }()
+
+    private let likeButton = LikeButton()
     
     private let titleLabel: UILabel = {
         let label = UILabel()
@@ -85,6 +95,7 @@ final class MyFilterCardCell: BaseCollectionViewCell {
     
     override func configureHierarchy() {
         contentView.addSubview(thumbnailImageView)
+        contentView.addSubview(likeButton)
         contentView.addSubview(contentStack)
         contentStack.addArrangedSubview(titleLabel)
         contentStack.addArrangedSubview(categoryBadge)
@@ -96,6 +107,11 @@ final class MyFilterCardCell: BaseCollectionViewCell {
         thumbnailImageView.snp.makeConstraints { make in
             make.top.horizontalEdges.equalToSuperview()
             make.height.equalTo(thumbnailImageView.snp.width).multipliedBy(1.0)
+        }
+        
+        likeButton.snp.makeConstraints { make in
+            make.trailing.equalTo(thumbnailImageView).inset(6)
+            make.bottom.equalTo(thumbnailImageView).inset(6)
         }
         
         contentStack.snp.makeConstraints { make in
@@ -113,7 +129,13 @@ final class MyFilterCardCell: BaseCollectionViewCell {
         contentView.backgroundColor = .clear
     }
     
-    func configure(_ item: FilterSummaryResponseEntity) {
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        disposeBag = DisposeBag()
+        likeButton.isSelected = false
+    }
+    
+    func configure(_ item: FilterSummaryResponseEntity, isLiked: Bool) {
         if item.files.indices.contains(1) {
             thumbnailImageView.setKFImage(urlString: item.files[1])
         } else if let first = item.files.first {
@@ -129,6 +151,23 @@ final class MyFilterCardCell: BaseCollectionViewCell {
             categoryBadge.isHidden = true
         }
         descriptionLabel.text = item.description
-        statsLabel.text = "좋아요 \(item.likeCount) · 구매 \(item.buyerCount)"
+        let initialCount = LikeStore.shared.likeCount(id: item.filterId) ?? item.likeCount
+        setLiked(isLiked, likeCount: initialCount, buyerCount: item.buyerCount)
+        
+        Observable
+            .combineLatest(LikeStore.shared.likedIds, LikeStore.shared.likeCounts)
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] likedIds, counts in
+                guard let self else { return }
+                let liked = likedIds.contains(item.filterId)
+                let count = counts[item.filterId] ?? item.likeCount
+                self.setLiked(liked, likeCount: count, buyerCount: item.buyerCount)
+            })
+            .disposed(by: disposeBag)
+    }
+    
+    private func setLiked(_ isLiked: Bool, likeCount: Int, buyerCount: Int) {
+        likeButton.isSelected = isLiked
+        statsLabel.text = "좋아요 \(likeCount) · 구매 \(buyerCount)"
     }
 }
