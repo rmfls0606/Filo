@@ -16,6 +16,7 @@ enum FilterRouter: APITarget{
     case createFilter(requestBody: CreateFilterRequestBody)
     case files
     case user(userId: String, next: String, limit: String, category: String)
+    case likesMe(category: String, next: String, limit: String)
 
     var path: String{
         switch self {
@@ -35,12 +36,14 @@ enum FilterRouter: APITarget{
             return "/filters/files"
         case .user(let userId, _, _, _):
             return "/filters/users/\(userId)"
+        case .likesMe:
+            return "/filters/likes/me"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .hotTrend, .todayFilter, .filters, .detailFilter, .user:
+        case .hotTrend, .todayFilter, .filters, .detailFilter, .user, .likesMe:
             return .get
         case .like, .createFilter, .files:
             return .post
@@ -72,12 +75,18 @@ enum FilterRouter: APITarget{
             if !limit.isEmpty { parms["limit"] = limit }
             if !category.isEmpty { parms["category"] = category }
             return parms
+        case .likesMe(let category, let next, let limit): //마지막 페이지 경우 next_cursor 응닶값은 "0"
+            var parms = [String: Any]()
+            if !next.isEmpty { parms["next"] = next }
+            if !limit.isEmpty { parms["limit"] = limit }
+            if !category.isEmpty { parms["category"] = category }
+            return parms
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .todayFilter, .hotTrend, .filters, .user:
+        case .todayFilter, .hotTrend, .filters, .user, .likesMe:
             return URLEncoding.default
         case .like, .detailFilter, .createFilter, .files:
             return JSONEncoding.default

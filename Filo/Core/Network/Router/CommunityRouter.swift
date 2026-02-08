@@ -18,6 +18,7 @@ enum CommunityRouter: APITarget{
     case like(postId: String, isLike: Bool)
     case user(category: String, limit: String, next: String, userId: String)
     case me(category: String, limit: String, next: String)
+    case likesMe(category: String, limit: String, next: String)
     
     var path: String{
         switch self {
@@ -37,6 +38,8 @@ enum CommunityRouter: APITarget{
             return "/posts/users/\(userId)"
         case .me:
             return "/posts/likes/me"
+        case .likesMe:
+            return "/posts/likes/me"
         }
     }
     
@@ -44,7 +47,7 @@ enum CommunityRouter: APITarget{
         switch self {
         case .files, .posts, .like:
             return .post
-        case .user, .geolocation, .search, .detail, .me:
+        case .user, .geolocation, .search, .detail, .me, .likesMe:
             return .get
         case .put:
             return .put
@@ -104,14 +107,20 @@ enum CommunityRouter: APITarget{
             if !limit.isEmpty { parms["limit"] = limit }
             if !next.isEmpty { parms["next"] = next }
             return parms
+        case .likesMe(let category, let limit, let next):
+            var parms = [String: Any]()
+            if !category.isEmpty { parms["category"] = category }
+            if !limit.isEmpty { parms["limit"] = limit }
+            if !next.isEmpty { parms["next"] = next }
+            return parms
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .files, .posts, .detail, .put, .like, .me:
+        case .files, .posts, .detail, .put, .like:
             return JSONEncoding.default
-        case .geolocation, .user, .delete, .search:
+        case .geolocation, .user, .delete, .search, .me, .likesMe:
             return URLEncoding.default
         }
     }
