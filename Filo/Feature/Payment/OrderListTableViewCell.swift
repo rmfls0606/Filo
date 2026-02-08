@@ -110,4 +110,15 @@ final class OrderListTableViewCell: BaseTableViewCell {
         productContent.text = orderFilter.description
         productPrice.text = "\(orderFilter.price.formattedDecimal())원"
     }
+    
+    func configure(order: OrderResponseDTO) {
+        guard let filter = order.filter else {
+            productImage.image = nil
+            productName.text = "상품 정보를 불러올 수 없습니다."
+            productContent.text = nil
+            productPrice.text = nil
+            return
+        }
+        configure(orderFilter: filter)
+    }
 }
