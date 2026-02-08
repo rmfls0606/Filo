@@ -9,10 +9,11 @@ import Alamofire
 
 enum OrderRouter: APITarget{
     case order(filterId: String, totalPrice: Int)
+    case fetchOrders
     
     var path: String{
         switch self {
-        case .order:
+        case .order, .fetchOrders:
             return "/orders"
         }
     }
@@ -21,6 +22,8 @@ enum OrderRouter: APITarget{
         switch self {
         case .order:
             return .post
+        case .fetchOrders:
+            return .get
         }
     }
     
@@ -34,6 +37,8 @@ enum OrderRouter: APITarget{
         case .order(let filterId, let totalPrice):
             return ["filter_id": filterId,
                     "total_price": totalPrice]
+        case .fetchOrders:
+            return nil
         }
     }
     
@@ -41,7 +46,8 @@ enum OrderRouter: APITarget{
         switch self {
         case .order:
             return JSONEncoding.default
+        case .fetchOrders:
+            return URLEncoding.default
         }
     }
 }
-
