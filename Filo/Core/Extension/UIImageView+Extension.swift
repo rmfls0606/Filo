@@ -29,13 +29,13 @@ extension UIImageView{
         let options: KingfisherOptionsInfo = [
             .scaleFactor(UIScreen.main.scale),
             .processor(processor),
-            .transition(.fade(0.3)),
             .cacheOriginalImage,
             .requestModifier(RequestModifier.modifer)
         ]
 
         let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
         kf.cancelDownloadTask()
+        kf.indicatorType = .activity
         kf.setImage(with: resource, options: options)
     }
 
@@ -47,13 +47,13 @@ extension UIImageView{
         let options: KingfisherOptionsInfo = [
             .scaleFactor(UIScreen.main.scale),
             .processor(processor),
-            .transition(.fade(0.3)),
             .cacheOriginalImage,
             .requestModifier(RequestModifier.modifer)
         ]
 
         let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
         kf.cancelDownloadTask()
+        kf.indicatorType = .activity
         kf.setImage(with: resource, options: options) { result in
             completion?(result)
         }
