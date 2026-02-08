@@ -19,6 +19,8 @@ enum UserRouter: APITarget{
     case putProfile(nick: String, name: String, introduction: String, phoneNum: String, profileImage: String, hashTags: [String]) //내 프로필 수정
     case image(profile: String)
     case logout
+    case join(email: String, password: String, nick: String, name: String, introduction: String, phoneNum: String, hashTags: [String], deviceToken: String)
+    case email(email: String)
     
     var path: String{
         switch self {
@@ -42,12 +44,16 @@ enum UserRouter: APITarget{
             return "/users/profile/image"
         case .logout:
             return "/users/logout"
+        case .join:
+            return "/users/join"
+        case .email:
+            return "/users/validation/email"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .login, .apple, .image, .logout:
+        case .login, .apple, .image, .logout, .join, .email:
             return .post
         case .auth, .todayAuthor, .otherProfile, .search, .getProfile:
             return .get
@@ -90,14 +96,25 @@ enum UserRouter: APITarget{
                     "phoneNum": phoneNum,
                     "profileImage": profileImage,
                     "hashTags": hashTags]
+        case .join(let email, let password, let nick, let name, let introduction, let phoneNum, let hashTags, let deviceToken):
+            return ["email": email,
+                    "password": password,
+                    "nick": nick,
+                    "name": name,
+                    "introduction": introduction,
+                    "phoneNum": phoneNum,
+                    "hashTags": hashTags,
+                    "deviceToken": deviceToken]
         case .image(let profile):
             return ["profile": profile]
+        case .email(let email):
+            return ["email": email]
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .login, .auth, .apple, .otherProfile, .getProfile, .putProfile, .image:
+        case .login, .auth, .apple, .otherProfile, .getProfile, .putProfile, .image, .join, .email:
             return JSONEncoding.default
         case .todayAuthor, .deviceToken, .search, .logout:
             return URLEncoding.default
