@@ -36,12 +36,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 } catch {
                     await TokenStorage.shared.clear()
                     await MainActor.run {
-                        self.setRootViewController(LoginViewController())
+                        self.setRootViewController(UINavigationController(rootViewController: LoginViewController()))
                     }
                 }
             } else {
                 await MainActor.run {
-                    self.setRootViewController(LoginViewController())
+                    self.setRootViewController(UINavigationController(rootViewController: LoginViewController()))
                 }
             }
         }

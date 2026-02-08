@@ -373,7 +373,7 @@ private extension ProfileViewController {
     func switchToLogin() {
         guard let scene = view.window?.windowScene,
               let delegate = scene.delegate as? SceneDelegate else { return }
-        delegate.setRootViewController(LoginViewController())
+        delegate.setRootViewController(UINavigationController(rootViewController: LoginViewController()))
     }
     
     func presentLogoutAlert() {
