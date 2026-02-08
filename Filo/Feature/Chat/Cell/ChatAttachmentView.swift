@@ -69,11 +69,15 @@ final class ChatAttachmentView: UIView {
 
     private var currentURLString: String?
     private var alignThumbnailOnLeft: Bool = true
+    var onTap: (() -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         configureHierarchy()
         configureLayout()
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        addGestureRecognizer(tap)
+        isUserInteractionEnabled = true
     }
 
     @available(*, unavailable)
@@ -236,6 +240,11 @@ final class ChatAttachmentView: UIView {
             self.fileBadge.isHidden = true
             self.fileIconView.isHidden = false
         }
+    }
+
+    @objc
+    private func handleTap() {
+        onTap?()
     }
 }
 

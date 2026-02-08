@@ -12,6 +12,8 @@ import RxCocoa
 import IQKeyboardManagerSwift
 import PhotosUI
 import UniformTypeIdentifiers
+import QuickLook
+import Kingfisher
 
 final class ChatRoomViewController: BaseViewController {
     //MARK: - UI
@@ -43,6 +45,8 @@ final class ChatRoomViewController: BaseViewController {
     private var currentAttachments: [ChatAttachmentItem] = []
     private let addAttachmentsRelay = PublishRelay<[ChatAttachmentItem]>()
     private var inputBottomConstraint: Constraint?
+    private let attachmentPreviewDataSource = ChatAttachmentPreviewDataSource()
+    private var previewTempURLs: [URL] = []
     
     override var prefersCustomTabBarHidden: Bool { true }
     
@@ -96,6 +100,9 @@ final class ChatRoomViewController: BaseViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         IQKeyboardManager.shared.isEnabled = true
+        if isMovingFromParent || isBeingDismissed {
+            clearPreviewTempFiles()
+        }
         if CurrentChatRoom.shared.roomId == viewModel.currentRoomId {
             CurrentChatRoom.shared.roomId = nil
         }
@@ -136,12 +143,18 @@ final class ChatRoomViewController: BaseViewController {
                             return UITableViewCell()
                         }
                         cell.configure(message: messageItem.message)
+                        cell.onAttachmentTap = { [weak self] files, selectedIndex in
+                            self?.presentMessageAttachmentsPreview(urlStrings: files, selectedIndex: selectedIndex)
+                        }
                         return cell
                     } else {
                         guard let cell = tableView.dequeueReusableCell(withIdentifier: ChatOtherMessageCell.identifier) as? ChatOtherMessageCell else {
                             return UITableViewCell()
                         }
                         cell.configure(message: messageItem.message)
+                        cell.onAttachmentTap = { [weak self] files, selectedIndex in
+                            self?.presentMessageAttachmentsPreview(urlStrings: files, selectedIndex: selectedIndex)
+                        }
                         return cell
                     }
                 }
@@ -200,6 +213,12 @@ final class ChatRoomViewController: BaseViewController {
                 self?.handleAttachMenuSelection(item)
             })
             .disposed(by: disposeBag)
+
+        inputViewContainer.previewAttachment
+            .subscribe(with: self) { owner, selected in
+                owner.presentAttachmentPreview(selected: selected)
+            }
+            .disposed(by: disposeBag)
         
         NotificationCenter.default.rx.notification(UIResponder.keyboardWillChangeFrameNotification)
             .bind(with: self) { owner, notification in
@@ -238,6 +257,57 @@ final class ChatRoomViewController: BaseViewController {
         if let opponent {
             navigationItem.title = opponent.nick
         }
+    }
+
+    private func presentAttachmentPreview(selected: ChatAttachmentItem) {
+        clearPreviewTempFiles()
+        let built: [(id: UUID, url: URL)] = currentAttachments.compactMap { item in
+            guard let url = makePreviewURL(item: item) else { return nil }
+            return (item.id, url)
+        }
+        guard !built.isEmpty else { return }
+
+        let urls = built.map { $0.url }
+        previewTempURLs = urls
+        attachmentPreviewDataSource.urls = urls
+        let selectedIndex = built.firstIndex { $0.id == selected.id } ?? 0
+
+        let preview = QLPreviewController()
+        preview.dataSource = attachmentPreviewDataSource
+        preview.currentPreviewItemIndex = selectedIndex
+        present(preview, animated: true)
+    }
+
+    private func makePreviewURL(item: ChatAttachmentItem) -> URL? {
+        let ext = (item.fileName as NSString).pathExtension.lowercased()
+        let fallback = item.isImage ? "jpg" : "pdf"
+        let fileExt = ext.isEmpty ? fallback : ext
+        let fileName = "chat-preview-\(UUID().uuidString).\(fileExt)"
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        do {
+            try item.data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            return nil
+        }
+    }
+
+    private func presentMessageAttachmentsPreview(urlStrings: [String], selectedIndex: Int) {
+        guard urlStrings.indices.contains(selectedIndex) else { return }
+        let vc = ChatMessageAttachmentPreviewViewController(sources: urlStrings, initialIndex: selectedIndex)
+        vc.modalPresentationStyle = .fullScreen
+        present(vc, animated: true)
+    }
+
+    private func clearPreviewTempFiles() {
+        guard !previewTempURLs.isEmpty else { return }
+        let fileManager = FileManager.default
+        for url in previewTempURLs {
+            try? fileManager.removeItem(at: url)
+        }
+        previewTempURLs.removeAll()
+        attachmentPreviewDataSource.urls = []
     }
     
     private func handleKeyboard(notification: Notification) {
@@ -361,5 +431,350 @@ private enum ChatListItemBuilder {
             result.append(.message(item))
         }
         return result
+    }
+}
+
+private final class ChatAttachmentPreviewDataSource: NSObject, QLPreviewControllerDataSource {
+    var urls: [URL] = []
+
+    func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+        urls.count
+    }
+
+    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+        urls[index] as NSURL
+    }
+}
+
+private final class ChatMessageAttachmentPreviewViewController: UIViewController {
+    private let sources: [String]
+    private var currentIndex: Int
+    private var previewFileURL: URL?
+    private var loadRequestID = UUID()
+    private let quickLookDataSource = SinglePreviewDataSource()
+
+    private let imageView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .scaleAspectFit
+        view.backgroundColor = .black
+        return view
+    }()
+
+    private let closeButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+        button.tintColor = .white
+        return button
+    }()
+
+    private let openButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("PDF 열기", for: .normal)
+        button.titleLabel?.font = .Pretendard.body2
+        button.setTitleColor(.white, for: .normal)
+        button.backgroundColor = Brand.deepTurquoise.color
+        button.layer.cornerRadius = 12
+        button.contentEdgeInsets = UIEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
+        button.isHidden = true
+        return button
+    }()
+
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .large)
+        view.hidesWhenStopped = true
+        return view
+    }()
+    private let pageLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = .white
+        label.textAlignment = .center
+        return label
+    }()
+
+    init(sources: [String], initialIndex: Int) {
+        self.sources = sources
+        self.currentIndex = max(0, min(initialIndex, max(0, sources.count - 1)))
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        configureUI()
+        bindActions()
+        bindSwipeGestures()
+        loadPreview()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if isBeingDismissed || isMovingFromParent {
+            clearPreviewFile()
+        }
+    }
+
+    private func configureUI() {
+        view.addSubview(imageView)
+        view.addSubview(closeButton)
+        view.addSubview(openButton)
+        view.addSubview(loadingIndicator)
+        view.addSubview(pageLabel)
+
+        imageView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        closeButton.snp.makeConstraints { make in
+            make.top.equalTo(view.safeAreaLayoutGuide.snp.top).offset(12)
+            make.trailing.equalToSuperview().inset(16)
+            make.size.equalTo(30)
+        }
+
+        openButton.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview().inset(20)
+            make.bottom.equalTo(view.safeAreaLayoutGuide.snp.bottom).inset(24)
+            make.height.equalTo(50)
+        }
+
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+        }
+
+        pageLabel.snp.makeConstraints { make in
+            make.centerX.equalToSuperview()
+            make.bottom.equalTo(openButton.snp.top).offset(-12)
+        }
+    }
+
+    private func bindActions() {
+        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+        openButton.addTarget(self, action: #selector(openPDFTapped), for: .touchUpInside)
+    }
+
+    private func bindSwipeGestures() {
+        let left = UISwipeGestureRecognizer(target: self, action: #selector(showNext))
+        left.direction = .left
+        let right = UISwipeGestureRecognizer(target: self, action: #selector(showPrevious))
+        right.direction = .right
+        imageView.isUserInteractionEnabled = true
+        imageView.addGestureRecognizer(left)
+        imageView.addGestureRecognizer(right)
+    }
+
+    private func loadPreview() {
+        guard sources.indices.contains(currentIndex) else { return }
+        clearPreviewFile()
+        imageView.image = nil
+        openButton.isHidden = true
+        pageLabel.text = "\(currentIndex + 1) / \(sources.count)"
+        loadingIndicator.startAnimating()
+        let requestID = UUID()
+        loadRequestID = requestID
+        Task { [weak self] in
+            guard let self else { return }
+            let source = self.sources[self.currentIndex]
+
+            if let dataURI = decodeDataURI(source) {
+                await renderPreview(data: dataURI.data, fileExtension: dataURI.fileExtension, requestID: requestID)
+                return
+            }
+
+            if let url = resolveAttachmentURL(from: source),
+               isImageSource(source) {
+                await MainActor.run {
+                    guard self.loadRequestID == requestID else { return }
+                    self.loadRemoteImageFast(url: url, requestID: requestID)
+                }
+                return
+            }
+
+            guard let url = resolveAttachmentURL(from: source),
+                  let fetched = await fetchAttachmentData(url: url) else {
+                await MainActor.run {
+                    guard self.loadRequestID == requestID else { return }
+                    self.loadingIndicator.stopAnimating()
+                }
+                return
+            }
+            let ext = inferFileExtension(from: source, mimeType: fetched.mimeType)
+            await renderPreview(data: fetched.data, fileExtension: ext, requestID: requestID)
+        }
+    }
+
+    private func renderPreview(data: Data, fileExtension: String?, requestID: UUID) async {
+        let ext = (fileExtension ?? "").lowercased()
+        let isPDF = ext == "pdf" || looksLikePDF(data: data)
+
+        if isPDF {
+            let thumbnail = await makePDFThumbnail(data: data)
+            let fileURL = makeTempFile(data: data, fileExtension: "pdf")
+            await MainActor.run {
+                guard self.loadRequestID == requestID else { return }
+                self.imageView.image = thumbnail
+                self.previewFileURL = fileURL
+                self.openButton.isHidden = (fileURL == nil)
+                self.loadingIndicator.stopAnimating()
+            }
+            return
+        }
+
+        let image = UIImage(data: data)
+        await MainActor.run {
+            guard self.loadRequestID == requestID else { return }
+            self.imageView.image = image
+            self.openButton.isHidden = true
+            self.loadingIndicator.stopAnimating()
+        }
+    }
+
+    private func loadRemoteImageFast(url: URL, requestID: UUID) {
+        let resource = KF.ImageResource(downloadURL: url, cacheKey: url.absoluteString)
+        let options: KingfisherOptionsInfo = [
+            .requestModifier(RequestModifier.modifer),
+            .cacheOriginalImage
+        ]
+        imageView.kf.cancelDownloadTask()
+        imageView.kf.setImage(with: resource, options: options) { [weak self] result in
+            guard let self else { return }
+            guard self.loadRequestID == requestID else { return }
+            self.loadingIndicator.stopAnimating()
+            if case .failure = result {
+                self.imageView.image = UIImage(systemName: "exclamationmark.triangle")
+                self.imageView.tintColor = .white
+            }
+        }
+    }
+
+    @objc
+    private func closeTapped() {
+        dismiss(animated: true)
+    }
+
+    @objc
+    private func openPDFTapped() {
+        guard let previewFileURL else { return }
+        quickLookDataSource.url = previewFileURL
+        let preview = QLPreviewController()
+        preview.dataSource = quickLookDataSource
+        present(preview, animated: true)
+    }
+
+    @objc
+    private func showNext() {
+        guard currentIndex + 1 < sources.count else { return }
+        currentIndex += 1
+        loadPreview()
+    }
+
+    @objc
+    private func showPrevious() {
+        guard currentIndex - 1 >= 0 else { return }
+        currentIndex -= 1
+        loadPreview()
+    }
+
+    private func makePDFThumbnail(data: Data) async -> UIImage? {
+        await withCheckedContinuation { continuation in
+            ThumbnailCache.shared.loadPDFThumbnail(data: data, size: CGSize(width: 360, height: 360)) { image in
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
+    private func makeTempFile(data: Data, fileExtension: String) -> URL? {
+        let fileName = "chat-message-preview-\(UUID().uuidString).\(fileExtension)"
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            return nil
+        }
+    }
+
+    private func fetchAttachmentData(url: URL) async -> (data: Data, mimeType: String?)? {
+        var request = URLRequest(url: url)
+        request.setValue(NetworkConfig.apiKey, forHTTPHeaderField: "SeSACKey")
+        request.setValue(NetworkConfig.authorization, forHTTPHeaderField: "Authorization")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse,
+               !(200..<300).contains(httpResponse.statusCode) {
+                return nil
+            }
+            return (data: data, mimeType: response.mimeType)
+        } catch {
+            return nil
+        }
+    }
+
+    private func resolveAttachmentURL(from urlString: String) -> URL? {
+        if let url = URL(string: urlString), url.scheme != nil {
+            return url
+        }
+        let trimmed = urlString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return URL(string: "\(NetworkConfig.baseURL)/\(trimmed)")
+    }
+
+    private func decodeDataURI(_ source: String) -> (data: Data, fileExtension: String?)? {
+        guard source.hasPrefix("data:") else { return nil }
+        guard let commaIndex = source.firstIndex(of: ",") else { return nil }
+        let header = String(source[source.index(source.startIndex, offsetBy: 5)..<commaIndex])
+        let payload = String(source[source.index(after: commaIndex)...])
+        let mimeType = header.components(separatedBy: ";").first ?? ""
+        guard let data = Data(base64Encoded: payload) else { return nil }
+        return (data: data, fileExtension: mapExtension(mimeType: mimeType))
+    }
+
+    private func mapExtension(mimeType: String) -> String? {
+        let lower = mimeType.lowercased()
+        if lower.contains("pdf") { return "pdf" }
+        if lower.contains("png") { return "png" }
+        if lower.contains("jpeg") || lower.contains("jpg") { return "jpg" }
+        if lower.contains("gif") { return "gif" }
+        return nil
+    }
+
+    private func inferFileExtension(from source: String, mimeType: String?) -> String? {
+        let ext = (source as NSString).pathExtension.lowercased()
+        if !ext.isEmpty { return ext }
+        if let mimeType {
+            return mapExtension(mimeType: mimeType)
+        }
+        return nil
+    }
+
+    private func isImageSource(_ source: String) -> Bool {
+        let ext = (source as NSString).pathExtension.lowercased()
+        return ["jpg", "jpeg", "png", "gif", "heic", "webp"].contains(ext)
+    }
+
+    private func looksLikePDF(data: Data) -> Bool {
+        guard data.count >= 4 else { return false }
+        return data.prefix(4) == Data([0x25, 0x50, 0x44, 0x46]) // %PDF
+    }
+
+    private func clearPreviewFile() {
+        if let previewFileURL {
+            try? FileManager.default.removeItem(at: previewFileURL)
+            self.previewFileURL = nil
+        }
+    }
+}
+
+private final class SinglePreviewDataSource: NSObject, QLPreviewControllerDataSource {
+    var url: URL?
+
+    func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+        url == nil ? 0 : 1
+    }
+
+    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+        (url ?? URL(fileURLWithPath: "")) as NSURL
     }
 }

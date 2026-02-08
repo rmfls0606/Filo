@@ -30,6 +30,7 @@ extension UIImageView{
             .scaleFactor(UIScreen.main.scale),
             .processor(processor),
             .cacheOriginalImage,
+            .transition(.fade(0.3)),
             .requestModifier(RequestModifier.modifer)
         ]
 
@@ -48,6 +49,7 @@ extension UIImageView{
             .scaleFactor(UIScreen.main.scale),
             .processor(processor),
             .cacheOriginalImage,
+            .transition(.fade(0.3)),
             .requestModifier(RequestModifier.modifer)
         ]
 

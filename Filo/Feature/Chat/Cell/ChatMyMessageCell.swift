@@ -9,6 +9,7 @@ import UIKit
 import SnapKit
 
 final class ChatMyMessageCell: BaseTableViewCell {
+    var onAttachmentTap: (([String], Int) -> Void)?
 
     private let bubbleView: UIView = {
         let view = UIView()
@@ -138,6 +139,11 @@ final class ChatMyMessageCell: BaseTableViewCell {
         super.layoutSubviews()
         updateBubbleMinWidth()
     }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        onAttachmentTap = nil
+    }
 }
 
 private extension ChatMyMessageCell {
@@ -229,9 +235,13 @@ private extension ChatMyMessageCell {
             view.removeFromSuperview()
         }
         guard !files.isEmpty else { return }
-        files.forEach { url in
+        for (index, url) in files.enumerated() {
             let view = ChatAttachmentView()
             view.bind(urlString: url, alignThumbnailOnLeft: false)
+            view.onTap = { [weak self] in
+                guard let self else { return }
+                self.onAttachmentTap?(self.files, index)
+            }
             attachmentsStack.addArrangedSubview(view)
             view.snp.makeConstraints { make in
                 make.height.equalTo(attachmentItemHeight)

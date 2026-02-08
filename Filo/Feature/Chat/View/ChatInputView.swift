@@ -75,6 +75,7 @@ final class ChatInputView: BaseView {
     private let attachmentItemsRelay = BehaviorRelay<[ChatAttachmentItem]>(value: [])
     private let menuItemsRelay = BehaviorRelay<[ChatAttachMenuItem]>(value: [])
     private let removeAttachmentRelay = PublishRelay<UUID>()
+    private let previewAttachmentRelay = PublishRelay<ChatAttachmentItem>()
     private let attachMenuSelectedRelay = PublishRelay<ChatAttachMenuItem>()
     
     var inputText: ControlProperty<String>{
@@ -83,6 +84,10 @@ final class ChatInputView: BaseView {
 
     var removeAttachment: Observable<UUID> {
         removeAttachmentRelay.asObservable()
+    }
+
+    var previewAttachment: Observable<ChatAttachmentItem> {
+        previewAttachmentRelay.asObservable()
     }
 
     var attachMenuSelected: Observable<ChatAttachMenuItem> {
@@ -147,6 +152,16 @@ final class ChatInputView: BaseView {
                 cell.onRemove = { [weak self] in
                     self?.removeAttachmentRelay.accept(item.id)
                 }
+            }
+            .disposed(by: disposeBag)
+
+        attachmentsView.rx.modelSelected(ChatAttachmentItem.self)
+            .bind(to: previewAttachmentRelay)
+            .disposed(by: disposeBag)
+
+        attachmentsView.rx.itemSelected
+            .subscribe(with: self) { owner, indexPath in
+                owner.attachmentsView.deselectItem(at: indexPath, animated: false)
             }
             .disposed(by: disposeBag)
 
