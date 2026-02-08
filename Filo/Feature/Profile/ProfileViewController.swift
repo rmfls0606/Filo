@@ -20,7 +20,6 @@ final class ProfileViewController: BaseViewController {
         .init(title: "내가 작성한\n필터", iconName: "camera.filters"),
         .init(title: "내가 올린\n게시글", iconName: "doc.text.image"),
         .init(title: "찜한자료", iconName: "heart"),
-        .init(title: "작성한 댓글", iconName: "text.bubble"),
         .init(title: "구매내역", iconName: "bag"),
         .init(title: "설정", iconName: "gearshape")
     ]
@@ -288,6 +287,9 @@ final class ProfileViewController: BaseViewController {
                     owner.navigationController?.pushViewController(vc, animated: true)
                 } else if item.title.contains("게시글") {
                     let vc = MyPostListViewController()
+                    owner.navigationController?.pushViewController(vc, animated: true)
+                } else if item.title.contains("찜한자료") {
+                    let vc = LikedContentViewController()
                     owner.navigationController?.pushViewController(vc, animated: true)
                 }
             }
