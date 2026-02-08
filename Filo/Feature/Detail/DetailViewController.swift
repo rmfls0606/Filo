@@ -31,6 +31,12 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         return view
     }()
     
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .large)
+        view.hidesWhenStopped = true
+        return view
+    }()
+    
     private let filterImageContainer: UIView = {
         let view = UIView()
         view.clipsToBounds = true
@@ -389,6 +395,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     
     override func configureHierarchy() {
         view.addSubview(detailScrollView)
+        view.addSubview(loadingIndicator)
         detailScrollView.addSubview(detailStackView)
         detailStackView.addArrangedSubview(filterImageContainer)
         filterImageContainer.addSubview(originalImageView)
@@ -444,6 +451,10 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     override func configureLayout() {
         detailScrollView.snp.makeConstraints { make in
             make.edges.equalTo(view.safeAreaLayoutGuide)
+        }
+        
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalTo(view.safeAreaLayoutGuide)
         }
         
         detailStackView.snp.makeConstraints { make in
@@ -620,6 +631,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         compareDragButton.addGestureRecognizer(comparePan)
         metadataView.setReadOnlyMetadataMode()
         authorBox.addGestureRecognizer(tapGesutre)
+        setLoading(true)
     }
     
     override func configureBind() {
@@ -667,6 +679,12 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.authorDescriptionLabel.text = data.creator.introduction
                 let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
                 owner.sendMessageButton.isHidden = (currentUserId == data.creator.userID)
+            }
+            .disposed(by: disposeBag)
+        
+        output.isLoading
+            .drive(with: self) { owner, isLoading in
+                owner.setLoading(isLoading)
             }
             .disposed(by: disposeBag)
 
@@ -825,6 +843,15 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         }
         
         return infoContainer
+    }
+    
+    private func setLoading(_ isLoading: Bool) {
+        detailScrollView.isUserInteractionEnabled = !isLoading
+        if isLoading {
+            loadingIndicator.startAnimating()
+        } else {
+            loadingIndicator.stopAnimating()
+        }
     }
 
     private func formattedCount(_ count: Int) -> String {

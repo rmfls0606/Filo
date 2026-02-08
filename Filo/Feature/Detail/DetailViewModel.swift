@@ -33,6 +33,7 @@ final class DetailViewModel: ViewModelType {
         let creatorHashTags: Driver<[String]>
         let likeState: Driver<Bool>
         let likeCount: Driver<Int>
+        let isLoading: Driver<Bool>
         let networkError: Signal<NetworkError>
     }
     
@@ -43,9 +44,11 @@ final class DetailViewModel: ViewModelType {
         let creatorHashTagsRelay = PublishRelay<[String]>()
         let likeStateRelay = PublishRelay<Bool>() //좋아요(찜) 상태
         let likeCountRelay = PublishRelay<Int>() //좋아요(찜 개수
+        let isLoadingRelay = BehaviorRelay<Bool>(value: false)
         
         filterIdRelay
             .subscribe(onNext: { filterId in
+                isLoadingRelay.accept(true)
                 Task{
                     do{
                         let dto: FilterResponseDTO = try await NetworkManager.shared.request(FilterRouter.detailFilter(filterId: filterId))
@@ -54,9 +57,12 @@ final class DetailViewModel: ViewModelType {
                         creatorHashTagsRelay.accept(dto.creator.hashTags)
                         LikeStore.shared.setLiked(id: dto.filterId, liked: dto.isLiked, count: dto.likeCount)
                         likeStateRelay.accept(dto.isLiked)
+                        isLoadingRelay.accept(false)
                     }catch(let error as NetworkError){
+                        isLoadingRelay.accept(false)
                         networkErrorRelay.accept(error)
                     }catch(let error){
+                        isLoadingRelay.accept(false)
                         networkErrorRelay.accept(NetworkError.unknown(error))
                     }
                 }
@@ -144,6 +150,7 @@ final class DetailViewModel: ViewModelType {
             creatorHashTags: creatorHashTagsRelay.asDriver(onErrorDriveWith: .empty()),
             likeState: likeStateRelay.asDriver(onErrorDriveWith: .empty()),
             likeCount: likeCountRelay.asDriver(onErrorDriveWith: .empty()),
+            isLoading: isLoadingRelay.asDriver(),
             networkError: networkErrorRelay.asSignal()
         )
     }
