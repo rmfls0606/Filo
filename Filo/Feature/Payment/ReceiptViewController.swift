@@ -35,6 +35,10 @@ final class ReceiptViewController: BaseViewController {
         view.spacing = 14
         return view
     }()
+    
+    override var prefersCustomTabBarHidden: Bool{
+        return true
+    }
 
     init(receipt: ReceiptOrderResponseDTO, payment: PaymentResponseDTO? = nil) {
         self.receipt = receipt
