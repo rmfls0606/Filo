@@ -323,11 +323,17 @@ final class FilterImageRegisterView: BaseView {
             return
         }
         
-        let deviceText = [metadata.make, metadata.model]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        deviceLabel.text = deviceText.isEmpty ? "카메라 정보 없음" : deviceText
+        let makeText = normalizedCameraText(metadata.make)
+        let modelText = normalizedCameraText(metadata.model)
+        if let modelText {
+            let deviceText = [makeText, modelText]
+                .compactMap { $0 }
+                .joined(separator: " ")
+            deviceLabel.text = deviceText.isEmpty ? "카메라 정보 없음" : deviceText
+        } else {
+            // 모델을 알 수 없으면 카메라 정보 자체를 없음으로 처리
+            deviceLabel.text = "카메라 정보 없음"
+        }
 
         if let lensText = localizedLensLabel(from: metadata.lensModel){
             let focalText = metadata.focalLength.map { String(format: "%.0f mm", $0) }
@@ -335,9 +341,11 @@ final class FilterImageRegisterView: BaseView {
             let isoText = metadata.iso.map { "ISO \($0)" }
             let cameraDetail = [focalText, fNumberText, isoText]
                 .compactMap { $0 }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
                 .joined(separator: " ")
             
-            cameraLabel.text = "\(lensText) - \(cameraDetail)"
+            cameraLabel.text = cameraDetail.isEmpty ? lensText : "\(lensText) - \(cameraDetail)"
         }else{
             cameraLabel.text = "렌즈 정보 없음"
         }
@@ -404,6 +412,16 @@ final class FilterImageRegisterView: BaseView {
             return "정면 카메라"
         }
         return "메인 카메라"
+    }
+    
+    private func normalizedCameraText(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        
+        let lowered = trimmed.lowercased()
+        let unknownTokens: Set<String> = ["unknown", "null", "n/a", "none", "-", "알 수 없음"]
+        return unknownTokens.contains(lowered) ? nil : trimmed
     }
     
     func reset(){

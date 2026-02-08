@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import CoreLocation
 import SnapKit
 import RxSwift
 import RxCocoa
@@ -377,6 +378,8 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     }
     private var currentHashTags: [String] = []
     private var currentBuyerCount: Int?
+    private let geocoder = CLGeocoder()
+    private var reverseGeocodeTask: Task<Void, Never>?
     
     let comparePan = UIPanGestureRecognizer()
     let tapGesutre = UITapGestureRecognizer()
@@ -661,6 +664,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.coinLabel.text = "\(data.price)".formattedDecimal()
                 if let metadata = owner.makeMetadata(from: data) {
                     owner.metadataView.applyMetadata(metadata)
+                    owner.updateMetadataAddressIfNeeded(metadata)
                 }else{
                     owner.metadataView.showEmptyMetadata()
                 }
@@ -974,7 +978,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     private func makeMetadata(from dto: FilterResponseDTO) -> FilterImageMetadata? {
         guard let meta = dto.photoMetadata else { return nil }
         let (make, model) = splitCamera(meta.camera)
-        let lensModel = ((meta.lensInfo?.isEmpty) != nil) ? nil : meta.lensInfo
+        let lensModel = meta.lensInfo?.isEmpty == true ? nil : meta.lensInfo
         let megaPixel: Double?
         if let width = meta.pixelWidth, let height = meta.pixelHeight {
             megaPixel = Double(width * height) / 1_000_000.0
@@ -1003,14 +1007,87 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         )
     }
     
-    private func splitCamera(_ camera: String?) -> (String?, String?) {
-        guard let camera, !camera.isEmpty else { return (nil, nil) }
-        if let space = camera.firstIndex(of: " ") {
-            let make = String(camera[..<space])
-            let model = String(camera[camera.index(after: space)...])
-            return (make, model)
+    private func updateMetadataAddressIfNeeded(_ metadata: FilterImageMetadata) {
+        guard let latitude = metadata.latitude, let longitude = metadata.longitude else { return }
+        guard metadata.address?.isEmpty != false else { return }
+        
+        reverseGeocodeTask?.cancel()
+        geocoder.cancelGeocode()
+        
+        reverseGeocodeTask = Task { [weak self] in
+            guard let self else { return }
+            let location = CLLocation(latitude: latitude, longitude: longitude)
+            let address = await reverseGeocodeAddress(for: location)
+            guard !Task.isCancelled else { return }
+            
+            let updated = FilterImageMetadata(
+                make: metadata.make,
+                model: metadata.model,
+                lensModel: metadata.lensModel,
+                focalLength: metadata.focalLength,
+                fNumber: metadata.fNumber,
+                iso: metadata.iso,
+                megaPixel: metadata.megaPixel,
+                width: metadata.width,
+                height: metadata.height,
+                fileSizeMB: metadata.fileSizeMB,
+                fileSizeBytes: metadata.fileSizeBytes,
+                format: metadata.format,
+                dateTimeOriginal: metadata.dateTimeOriginal,
+                shutterSpeed: metadata.shutterSpeed,
+                latitude: metadata.latitude,
+                longitude: metadata.longitude,
+                address: address
+            )
+            
+            await MainActor.run { [weak self] in
+                self?.metadataView.applyMetadata(updated)
+            }
         }
-        return (nil, camera)
+    }
+    
+    private func reverseGeocodeAddress(for location: CLLocation) async -> String? {
+        do {
+            let placemarks = try await geocoder.reverseGeocodeLocation(location)
+            guard let placemark = placemarks.first else { return nil }
+            return formatAddress(from: placemark)
+        } catch {
+            return nil
+        }
+    }
+    
+    private func formatAddress(from placemark: CLPlacemark) -> String? {
+        let road = [placemark.thoroughfare, placemark.subThoroughfare]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        
+        let adminArea = placemark.administrativeArea
+        
+        if !road.isEmpty {
+            if let adminArea, !adminArea.isEmpty {
+                return "\(road) (\(adminArea))"
+            }
+            return road
+        }
+        
+        return adminArea?.isEmpty == false ? adminArea : nil
+    }
+    
+    private func splitCamera(_ camera: String?) -> (String?, String?) {
+        guard let camera else { return (nil, nil) }
+        let normalized = camera.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return (nil, nil) }
+        
+        let parts = normalized
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+        
+        guard !parts.isEmpty else { return (nil, nil) }
+        if parts.count == 1 {
+            return (nil, parts[0])
+        }
+        
+        return (parts[0], parts.dropFirst().joined(separator: " "))
     }
     
     private func fileSizeString(fromBytes byteCount: Int) -> String {
