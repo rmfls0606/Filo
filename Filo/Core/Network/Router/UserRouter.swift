@@ -15,6 +15,9 @@ enum UserRouter: APITarget{
     case otherProfile(userId: String)
     case deviceToken(deviceToken: String)
     case search(nick: String)
+    case getProfile //내 프로필 조회
+    case putProfile(nick: String, name: String, introduction: String, phoneNum: String, profileImage: String, hashTags: [String]) //내 프로필 수정
+    case image(profile: String)
     
     var path: String{
         switch self {
@@ -32,16 +35,20 @@ enum UserRouter: APITarget{
             return "/users/deviceToken"
         case .search:
             return "/users/search"
+        case .getProfile, .putProfile:
+            return "/users/me/profile"
+        case .image:
+            return "/users/profile/image"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .login, .apple:
+        case .login, .apple, .image:
             return .post
-        case .auth, .todayAuthor, .otherProfile, .search:
+        case .auth, .todayAuthor, .otherProfile, .search, .getProfile:
             return .get
-        case .deviceToken:
+        case .deviceToken, .putProfile:
             return .put
         }
     }
@@ -64,7 +71,7 @@ enum UserRouter: APITarget{
             return ["email": email,
                     "password": password,
                     "deviceToken": NetworkConfig.apiKey]
-        case .auth, .todayAuthor, .otherProfile:
+        case .auth, .todayAuthor, .otherProfile, .getProfile:
             return nil
         case .apple(let idToken, let deviceToken):
             return ["idToken": idToken,
@@ -73,12 +80,21 @@ enum UserRouter: APITarget{
             return ["deviceToken": deviceToken]
         case .search(let nick):
             return ["nick": nick]
+        case .putProfile(let nick, let name, let introduction, let phoneNum, let profileImage, let hashTags):
+            return ["nick": nick,
+                    "name": name,
+                    "introduction": introduction,
+                    "phoneNum": phoneNum,
+                    "profileImage": profileImage,
+                    "hashTags": hashTags]
+        case .image(let profile):
+            return ["profile": profile]
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .login, .auth, .apple, .otherProfile:
+        case .login, .auth, .apple, .otherProfile, .getProfile, .putProfile, .image:
             return JSONEncoding.default
         case .todayAuthor, .deviceToken, .search:
             return URLEncoding.default
