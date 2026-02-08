@@ -107,6 +107,11 @@ extension AppDelegate {
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let top = topViewController()
         let roomId = extractRoomId(from: notification.request.content.userInfo)
+
+        if let roomId, shouldIncrementUnread(top: top, roomId: roomId) {
+            ChatLocalStore.shared.incrementUnread(roomId: roomId)
+        }
+
         if top is ChatRoomListViewController {
             completionHandler([])
             return
@@ -165,6 +170,17 @@ private extension AppDelegate {
             return roomId.stringValue
         }
         return nil
+    }
+
+    func shouldIncrementUnread(top: UIViewController?, roomId: String) -> Bool {
+        if top is ChatRoomListViewController {
+            return false
+        }
+        if top is ChatRoomViewController,
+           CurrentChatRoom.shared.roomId == roomId {
+            return false
+        }
+        return true
     }
 
     func openChatRoom(roomId: String) {

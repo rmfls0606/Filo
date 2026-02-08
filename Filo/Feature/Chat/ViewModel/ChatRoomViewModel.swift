@@ -282,17 +282,25 @@ final class ChatRoomViewModel: ViewModelType {
                 }
                 guard let roomId else { return }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                let content = trimmed.isEmpty && !attachments.isEmpty ? "(첨부파일)" : trimmed
-                let uploadedFiles: [String]
-                if attachments.isEmpty {
-                    uploadedFiles = []
-                } else {
-                    uploadedFiles = try await self.service.uploadFiles(roomId: roomId, items: attachments)
+                let sendUnits = self.buildSendUnits(text: trimmed, attachments: attachments)
+                guard !sendUnits.isEmpty else { return }
+
+                var sentMessages: [ChatResponseDTO] = []
+                for unit in sendUnits {
+                    let uploadedFiles: [String]
+                    if unit.attachments.isEmpty {
+                        uploadedFiles = []
+                    } else {
+                        uploadedFiles = try await self.service.uploadFiles(roomId: roomId, items: unit.attachments)
+                    }
+                    let sent = try await self.service.sendChat(roomId: roomId, content: unit.content, files: uploadedFiles)
+                    sentMessages.append(sent)
                 }
-                let sent = try await self.service.sendChat(roomId: roomId, content: content, files: uploadedFiles)
+
+                guard let lastSent = sentMessages.last else { return }
                 if let opponentId {
-                    let pushBody = trimmed.isEmpty && !attachments.isEmpty ? "(첨부파일)" : trimmed
-                    let title = sent.sender.nick
+                    let pushBody = trimmed.isEmpty ? lastSent.content : trimmed
+                    let title = lastSent.sender.nick
                     do {
                         try await NetworkManager.shared.requestEmpty(
                             PushRouter.push(userId: opponentId, title: title, subTitle: "", body: pushBody)
@@ -300,10 +308,10 @@ final class ChatRoomViewModel: ViewModelType {
                     } catch{
                     }
                 }
-                self.localStore.upsertMessages([sent])
-                self.localStore.updateRoomSummary(with: sent, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
+                self.localStore.upsertMessages(sentMessages)
+                self.localStore.updateRoomSummary(with: lastSent, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
-                self.refreshUsersIfNeeded(senderIds: [sent.sender.userID], forceIds: []) { [weak self] updated in
+                self.refreshUsersIfNeeded(senderIds: sentMessages.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
                     guard let self, updated else { return }
                     messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                 }
@@ -316,6 +324,37 @@ final class ChatRoomViewModel: ViewModelType {
                 errorRelay.accept(NetworkError.unknown(error))
             }
         }
+    }
+
+    private func buildSendUnits(text: String, attachments: [ChatAttachmentItem]) -> [(content: String, attachments: [ChatAttachmentItem])] {
+        var units: [(content: String, attachments: [ChatAttachmentItem])] = []
+        guard !attachments.isEmpty else {
+            if !text.isEmpty {
+                units.append((content: text, attachments: []))
+            }
+            return units
+        }
+
+        var grouped: [Bool: [ChatAttachmentItem]] = [:]
+        var typeOrder: [Bool] = []
+        for item in attachments {
+            if grouped[item.isImage] == nil {
+                grouped[item.isImage] = []
+                typeOrder.append(item.isImage)
+            }
+            grouped[item.isImage]?.append(item)
+        }
+
+        for type in typeOrder {
+            guard let items = grouped[type], !items.isEmpty else { continue }
+            units.append((content: "(첨부파일)", attachments: items))
+        }
+
+        if !text.isEmpty {
+            units.append((content: text, attachments: []))
+        }
+
+        return units
     }
 
     private func refreshUsersIfNeeded(senderIds: [String], forceIds: [String], completion: ((Bool) -> Void)? = nil) {
