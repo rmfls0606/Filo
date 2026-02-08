@@ -301,8 +301,22 @@ final class HomeViewController: BaseViewController {
     
     //MARK: - function
     private func makeButtons(categories: [FilterCategoryType]){
+        filterPropButtons.forEach { button in
+            filterCategoryStackView.removeArrangedSubview(button)
+            button.removeFromSuperview()
+        }
+        filterPropButtons.removeAll()
+        
         for category in categories{
-            filterCategoryStackView.addArrangedSubview(applyButtonConfiguration(category: category))
+            let button = applyButtonConfiguration(category: category)
+            filterPropButtons.append(button)
+            filterCategoryStackView.addArrangedSubview(button)
+            
+            button.rx.tap
+                .bind(with: self) { owner, _ in
+                    owner.moveToCategoryFeed(category: category)
+                }
+                .disposed(by: disposeBag)
         }
     }
     
@@ -323,5 +337,12 @@ final class HomeViewController: BaseViewController {
         config.background.strokeColor = GrayStyle.gray75.color?.withAlphaComponent(0.5)
         let button = UIButton(configuration: config)
         return button
+    }
+    
+    private func moveToCategoryFeed(category: FilterCategoryType) {
+        let vm = FeedViewModel(category: category.rawValue)
+        let vc = FeedViewController(viewModel: vm)
+        vc.title = category.rawValue
+        navigationController?.pushViewController(vc, animated: true)
     }
 }
