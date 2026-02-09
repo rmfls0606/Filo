@@ -85,7 +85,12 @@ final class GradientSlider: UISlider {
         let range = maximumValue - minimumValue
         let deltaValue = Float(deltaX / trackWidth) * range
         let rawValue = initialValue + deltaValue
-        let step: Float = 0.1
+        let step: Float
+        if range >= 200 {
+            step = 1.0
+        } else {
+            step = 0.1
+        }
         let snappedValue = (rawValue / step).rounded() * step
         let newValue = min(maximumValue, max(minimumValue, snappedValue))
         if newValue != value {
@@ -126,8 +131,8 @@ final class GradientSlider: UISlider {
     }
 
     private func configureView(){
-        minimumValue = -5.0
-        maximumValue = 5.0
+        minimumValue = 0.0
+        maximumValue = 1.0
         setupGradientLayer()
         setThumbImage(thumDotImage, for: .normal)
         setThumbImage(thumDotImage, for: .highlighted)
