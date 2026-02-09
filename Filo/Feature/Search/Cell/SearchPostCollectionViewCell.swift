@@ -121,6 +121,7 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         disposeBag = DisposeBag()
+        contentView.isHidden = false
         imageView.image = nil
         imageView.contentMode = .scaleAspectFill
         imageView.alpha = 1.0
@@ -137,6 +138,7 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
     }
 
     func configure(item: PostSummaryResponseDTO, showLike: Bool = false) {
+        contentView.isHidden = false
         likeStackView.isHidden = !showLike
         
         if showLike {
@@ -167,7 +169,7 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
             generateVideoDuration(urlString: urlString)
         } else {
             imageView.backgroundColor = GrayStyle.gray90.color
-            imageView.setKFImage(urlString: urlString)
+            imageView.setKFImageNoFade(urlString: urlString)
             imageView.contentMode = .scaleAspectFill
         }
     }
@@ -315,5 +317,17 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
     override func layoutSubviews() {
         super.layoutSubviews()
         playerLayer?.frame = contentView.bounds
+    }
+    
+    func transitionContentFrame(in view: UIView) -> CGRect {
+        contentView.convert(contentView.bounds, to: view)
+    }
+    
+    func makeTransitionSnapshotView() -> UIView? {
+        contentView.snapshotView(afterScreenUpdates: false)
+    }
+    
+    func setTransitionContentHidden(_ hidden: Bool) {
+        contentView.isHidden = hidden
     }
 }

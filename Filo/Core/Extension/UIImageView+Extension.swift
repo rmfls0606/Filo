@@ -60,4 +60,34 @@ extension UIImageView{
             completion?(result)
         }
     }
+    
+    func setKFImageNoFade(urlString: String) {
+        guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
+        let options: KingfisherOptionsInfo = [
+            .cacheOriginalImage,
+            .keepCurrentImageWhileLoading,
+            .requestModifier(RequestModifier.modifer)
+        ]
+
+        let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
+        kf.cancelDownloadTask()
+        kf.indicatorType = .activity
+        kf.setImage(with: resource, options: options)
+    }
+    
+    func setKFImageNoFade(urlString: String, completion: ((Result<RetrieveImageResult, KingfisherError>) -> Void)?) {
+        guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
+        let options: KingfisherOptionsInfo = [
+            .cacheOriginalImage,
+            .keepCurrentImageWhileLoading,
+            .requestModifier(RequestModifier.modifer)
+        ]
+
+        let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
+        kf.cancelDownloadTask()
+        kf.indicatorType = .activity
+        kf.setImage(with: resource, options: options) { result in
+            completion?(result)
+        }
+    }
 }

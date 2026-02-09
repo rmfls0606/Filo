@@ -86,15 +86,18 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
         isVideo = isVideoURL(urlString)
         playIconView.isHidden = true
         if isVideo {
-            imageView.image = nil
+            if imageView.image == nil {
+                imageView.backgroundColor = .black
+            }
             imageView.backgroundColor = .black
             imageView.contentMode = .scaleAspectFill
             imageView.alpha = 1.0
             showLoading()
+            generateVideoThumbnail(urlString: urlString)
         } else {
             imageView.backgroundColor = GrayStyle.gray90.color
             imageView.contentMode = .scaleAspectFill
-            imageView.setKFImage(urlString: urlString)
+            imageView.setKFImageNoFade(urlString: urlString)
         }
     }
     
@@ -155,9 +158,7 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
             DispatchQueue.main.async {
                 if item.status == .readyToPlay {
                     self?.hideLoading()
-                    UIView.animate(withDuration: 0.15) {
-                        self?.imageView.alpha = 0.0
-                    }
+                    self?.imageView.alpha = 0.0
                 } else if item.status == .failed {
                     self?.hideLoading()
                 }
@@ -190,6 +191,10 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
     override func layoutSubviews() {
         super.layoutSubviews()
         playerLayer?.frame = contentView.bounds
+    }
+    
+    func makeTransitionSnapshotView() -> UIView? {
+        contentView.snapshotView(afterScreenUpdates: true)
     }
     
     private func showLoading() {

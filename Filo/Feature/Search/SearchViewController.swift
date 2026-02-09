@@ -69,7 +69,7 @@ final class SearchViewController: BaseViewController {
         layout.minimumInteritemSpacing = 2
         layout.minimumLineSpacing = 2
         let width = (UIScreen.main.bounds.width - (2.0 * 2)) / 3
-        layout.itemSize = CGSize(width: width, height: width * 1.4)
+        layout.itemSize = CGSize(width: width, height: width * 1.2)
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.backgroundColor = .clear
         view.register(SearchPostCollectionViewCell.self, forCellWithReuseIdentifier: SearchPostCollectionViewCell.identifier)
@@ -112,6 +112,10 @@ final class SearchViewController: BaseViewController {
     private var isSearchMode = false
     private var currentVideoIndex: IndexPath?
     private var currentPosts: [PostSummaryResponseDTO] = []
+    private var selectedPostIndexPath: IndexPath?
+    private var selectedPostIdForTransition: String?
+    private var communityTransitionOriginFrame: CGRect?
+    private weak var transitionSourceCell: SearchPostCollectionViewCell?
     
     private var filterSectionHeightConstraint: Constraint?
     private var cancelButtonWidthConstraint: Constraint?
@@ -211,8 +215,10 @@ final class SearchViewController: BaseViewController {
         view.backgroundColor = GrayStyle.gray100.color
         navigationItem.title = "커뮤니티"
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: nil, action: nil)
+        tap.delegate = self
         view.addGestureRecognizer(tap)
         tap.cancelsTouchesInView = false
+        collectionView.delaysContentTouches = false
         orderButton.setContentHuggingPriority(.required, for: .horizontal)
         orderButton.setContentCompressionResistancePriority(.required, for: .horizontal)
         resultsTableView.alpha = 0
@@ -221,6 +227,9 @@ final class SearchViewController: BaseViewController {
     }
 
     override func configureBind() {
+        collectionView.rx.setDelegate(self)
+            .disposed(by: disposeBag)
+
         let input = SearchViewModel.Input(
             searchText: searchBar.rx.text.orEmpty.asObservable(),
             searchSubmit: searchBar.rx.searchButtonClicked.asObservable(),
@@ -247,7 +256,7 @@ final class SearchViewController: BaseViewController {
         )
 
         let output = viewModel.transform(input: input)
-
+        
         output.categories
             .drive(categoryCollectionView.rx.items(
                 cellIdentifier: FilterCategoryCollectionViewCell.identifier,
@@ -339,20 +348,6 @@ final class SearchViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
         
-        output.selectedPost
-            .drive(with: self){ owner, postId in
-                let vm = CommunityDetailViewModel(postId: postId)
-                let vc = CommunityDetailViewController(viewModel: vm)
-                vc.onDeleted = { [weak owner] _ in
-                    owner?.refreshRelay.accept(())
-                }
-                vc.onUpdated = { [weak owner] _ in
-                    owner?.refreshRelay.accept(())
-                }
-                owner.navigationController?.pushViewController(vc, animated: true)
-            }
-            .disposed(by: disposeBag)
-
         output.networkError
             .emit(with: self) { owner, error in
                 owner.showAlert(title: "오류", message: error.errorDescription)
@@ -450,6 +445,20 @@ final class SearchViewController: BaseViewController {
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        navigationController?.delegate = self
+        setSearchMode(false, animated: false)
+        collectionView.allowsSelection = true
+        collectionView.isUserInteractionEnabled = true
+        resultsTableView.isHidden = true
+        resultsTableView.isUserInteractionEnabled = false
+        resultsTableView.alpha = 0
+        collectionView.isHidden = false
+        collectionView.alpha = 1
+        collectionView.isUserInteractionEnabled = true
+        view.bringSubviewToFront(collectionView)
+        for cell in collectionView.visibleCells {
+            (cell as? SearchPostCollectionViewCell)?.setTransitionContentHidden(false)
+        }
         updatePlayback()
     }
     
@@ -460,6 +469,70 @@ final class SearchViewController: BaseViewController {
 }
 
 private extension SearchViewController {
+    func presentCommunityDetail(postId: String, selectedIndexPath: IndexPath) {
+        guard let navigationController else { return }
+        selectedPostIndexPath = selectedIndexPath
+        prepareCommunityPushTransition(postId: postId)
+        collectionView.deselectItem(at: selectedIndexPath, animated: false)
+        let vm = CommunityDetailViewModel(postId: postId)
+        let vc = CommunityDetailViewController(viewModel: vm)
+        vc.onDeleted = { [weak self] _ in
+            self?.refreshRelay.accept(())
+        }
+        vc.onUpdated = { [weak self] _ in
+            self?.refreshRelay.accept(())
+        }
+        navigationController.pushViewController(vc, animated: true)
+    }
+
+    func prepareCommunityPushTransition(postId: String) {
+        selectedPostIdForTransition = postId
+        guard let itemIndex = currentPosts.firstIndex(where: { $0.postId == postId }) else {
+            communityTransitionOriginFrame = nil
+            transitionSourceCell = nil
+            return
+        }
+        
+        let indexPath = IndexPath(item: itemIndex, section: 0)
+        selectedPostIndexPath = indexPath
+        
+        collectionView.layoutIfNeeded()
+        if collectionView.cellForItem(at: indexPath) == nil {
+            collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: false)
+            collectionView.layoutIfNeeded()
+        }
+        
+        guard let cell = collectionView.cellForItem(at: indexPath) as? SearchPostCollectionViewCell,
+              let navView = navigationController?.view else {
+            communityTransitionOriginFrame = nil
+            transitionSourceCell = nil
+            return
+        }
+        
+        transitionSourceCell = cell
+        communityTransitionOriginFrame = cell.transitionContentFrame(in: navView)
+    }
+    
+    func transitionDestinationCell(in navigationController: UINavigationController) -> SearchPostCollectionViewCell? {
+        var targetIndexPath = selectedPostIndexPath
+        if let selectedId = selectedPostIdForTransition,
+           let itemIndex = currentPosts.firstIndex(where: { $0.postId == selectedId }) {
+            targetIndexPath = IndexPath(item: itemIndex, section: 0)
+            selectedPostIndexPath = targetIndexPath
+        }
+        guard let indexPath = targetIndexPath else { return nil }
+        
+        view.layoutIfNeeded()
+        collectionView.layoutIfNeeded()
+        
+        if collectionView.cellForItem(at: indexPath) == nil {
+            collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: false)
+            collectionView.layoutIfNeeded()
+        }
+        
+        return collectionView.cellForItem(at: indexPath) as? SearchPostCollectionViewCell
+    }
+    
     func updatePlayback() {
         guard !collectionView.isHidden else { return }
         var hasVideo = false
@@ -525,5 +598,75 @@ private extension SearchViewController {
             animations()
             completion(true)
         }
+    }
+}
+
+extension SearchViewController: UINavigationControllerDelegate {
+    func navigationController(
+        _ navigationController: UINavigationController,
+        animationControllerFor operation: UINavigationController.Operation,
+        from fromVC: UIViewController,
+        to toVC: UIViewController
+    ) -> (any UIViewControllerAnimatedTransitioning)? {
+        switch operation {
+        case .push:
+            guard fromVC === self else { return nil }
+            guard let detailVC = toVC as? CommunityDetailViewController else { return nil }
+            guard let frame = communityTransitionOriginFrame else { return nil }
+            guard let sourceCell = transitionSourceCell else { return nil }
+            guard let snapshot = sourceCell.makeTransitionSnapshotView() else { return nil }
+
+            communityTransitionOriginFrame = nil
+            transitionSourceCell = nil
+            return CommunityPushAnimator(
+                sourceFrame: frame,
+                snapshotView: snapshot,
+                onStart: {
+                    detailVC.setCommunityTransitionMediaHidden(true)
+                },
+                onCompletion: {
+                    detailVC.setCommunityTransitionMediaHidden(false)
+                }
+            )
+
+        case .pop:
+            guard fromVC is CommunityDetailViewController else { return nil }
+            guard toVC === self else { return nil }
+            guard let destinationCell = transitionDestinationCell(in: navigationController) else { return nil }
+            let destinationFrame = destinationCell.transitionContentFrame(in: navigationController.view)
+            return CommunityPopAnimator(
+                destinationFrame: destinationFrame
+            )
+
+        default:
+            return nil
+        }
+    }
+}
+
+extension SearchViewController: UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard collectionView === self.collectionView else { return }
+        guard currentPosts.indices.contains(indexPath.item) else { return }
+        let postId = currentPosts[indexPath.item].postId
+        presentCommunityDetail(postId: postId, selectedIndexPath: indexPath)
+    }
+}
+
+extension SearchViewController: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if gestureRecognizer === tap {
+            if let touchedView = touch.view, touchedView.isDescendant(of: collectionView) {
+                return false
+            }
+            if let touchedView = touch.view, touchedView.isDescendant(of: resultsTableView) {
+                return false
+            }
+        }
+        return true
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }

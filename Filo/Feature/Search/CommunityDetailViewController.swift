@@ -177,6 +177,7 @@ final class CommunityDetailViewController: BaseViewController {
     private var lastComments: [PostCommentResponseDTO] = []
     private var currentCreatorId: String?
     private var currentDetail: PostResponseDTO?
+    private var isAutoPlayEnabled: Bool = true
     var onDeleted: ((String) -> Void)?
     var onUpdated: ((String) -> Void)?
     
@@ -255,7 +256,7 @@ final class CommunityDetailViewController: BaseViewController {
         mediaCollectionView.snp.makeConstraints { make in
             make.horizontalEdges.equalToSuperview()
             make.top.equalTo(headerView.snp.bottom)
-            make.height.equalTo(UIScreen.main.bounds.width) // 고려
+            make.height.equalTo(UIScreen.main.bounds.width * 1.2)
         }
         
         pageCountBadge.snp.makeConstraints { make in
@@ -314,7 +315,9 @@ final class CommunityDetailViewController: BaseViewController {
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        updatePlayback()
+        if isAutoPlayEnabled {
+            updatePlayback()
+        }
     }
     
     override func viewWillDisappear(_ animated: Bool) {
@@ -561,6 +564,7 @@ private extension CommunityDetailViewController {
     }
     
     func updatePlayback() {
+        guard isAutoPlayEnabled else { return }
         for cell in mediaCollectionView.visibleCells {
             if let mediaCell = cell as? CommunityDetailMediaCell {
                 mediaCell.stopPlayback()
@@ -572,4 +576,62 @@ private extension CommunityDetailViewController {
         cell.startPlayback(muted: false)
     }
     
+    func stopAllMediaPlayback() {
+        for cell in mediaCollectionView.visibleCells {
+            if let mediaCell = cell as? CommunityDetailMediaCell {
+                mediaCell.stopPlayback()
+            }
+        }
+    }
+    
+}
+
+extension CommunityDetailViewController {
+    func communityTransitionDestinationFrame(in containerView: UIView) -> CGRect {
+        view.layoutIfNeeded()
+        mediaCollectionView.layoutIfNeeded()
+        return mediaCollectionView.convert(mediaCollectionView.bounds, to: containerView)
+    }
+    
+    func communityTransitionSourceFrame(in containerView: UIView) -> CGRect {
+        view.layoutIfNeeded()
+        mediaCollectionView.layoutIfNeeded()
+        let indexPath = IndexPath(item: currentMediaIndex, section: 0)
+        if let cell = mediaCollectionView.cellForItem(at: indexPath) {
+            return cell.convert(cell.bounds, to: containerView)
+        }
+        if let cell = mediaCollectionView.visibleCells.first {
+            return cell.convert(cell.bounds, to: containerView)
+        }
+        return mediaCollectionView.convert(mediaCollectionView.bounds, to: containerView)
+    }
+    
+    func communityTransitionSnapshotView() -> UIView? {
+        mediaCollectionView.layoutIfNeeded()
+        let indexPath = IndexPath(item: currentMediaIndex, section: 0)
+        if let cell = mediaCollectionView.cellForItem(at: indexPath) as? CommunityDetailMediaCell {
+            return cell.makeTransitionSnapshotView()
+        }
+        if let cell = mediaCollectionView.visibleCells.first as? CommunityDetailMediaCell {
+            return cell.makeTransitionSnapshotView()
+        }
+        return mediaCollectionView.snapshotView(afterScreenUpdates: true)
+    }
+    
+    func setCommunityTransitionMediaHidden(_ hidden: Bool) {
+        mediaCollectionView.isHidden = hidden
+        pageControl.isHidden = hidden || pageControl.numberOfPages <= 1
+        pageCountBadge.isHidden = hidden || mediaItemsRelay.value.count <= 1
+    }
+    
+    func setCommunityTransitionAutoPlayEnabled(_ enabled: Bool) {
+        isAutoPlayEnabled = enabled
+        if enabled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+                self?.updatePlayback()
+            }
+        } else {
+            stopAllMediaPlayback()
+        }
+    }
 }
