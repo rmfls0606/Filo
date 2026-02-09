@@ -364,11 +364,11 @@ final class FilterViewModel: ViewModelType{
             blackPoint: 0,
             blur: 0,
             brightness: 0,
-            contrast: 0,
+            contrast: 1,
             exposure: 0,
-            highlights: 0,
+            highlights: 1,
             noise: 0,
-            saturation: 0,
+            saturation: 1,
             shadows: 0,
             sharpness: 0,
             temperature: 0,
@@ -409,7 +409,7 @@ final class FilterViewModel: ViewModelType{
             noise_reduction: sanitize(values.noise),
             highlights: sanitize(values.highlights),
             shadows: sanitize(values.shadows) ?? 0,
-            temperature: sanitize(values.temperature),
+            temperature: sanitize(uiTemperatureToKelvin(values.temperature)),
             black_point: sanitize(values.blackPoint)
         )
 
@@ -440,16 +440,32 @@ final class FilterViewModel: ViewModelType{
             blackPoint: dto.blackPoint ?? 0,
             blur: dto.blur ?? 0,
             brightness: dto.brightness ?? 0,
-            contrast: dto.contrast ?? 0,
+            contrast: dto.contrast ?? 1,
             exposure: dto.exposure ?? 0,
-            highlights: dto.highlights ?? 0,
+            highlights: dto.highlights ?? 1,
             noise: dto.noiseReduction ?? 0,
-            saturation: dto.saturation ?? 0,
+            saturation: dto.saturation ?? 1,
             shadows: dto.shadows ?? 0,
             sharpness: dto.sharpness ?? 0,
-            temperature: dto.temperature ?? 0,
+            temperature: incomingTemperatureToUI(dto.temperature),
             vignette: dto.vignette ?? 0
         )
+    }
+
+    private func uiTemperatureToKelvin(_ uiValue: Double) -> Double {
+        let clamped = min(max(uiValue, -100.0), 100.0)
+        return 6500.0 + (clamped * 25.0)
+    }
+
+    private func incomingTemperatureToUI(_ value: Double?) -> Double {
+        guard let value else { return 0.0 }
+        // Kelvin absolute value (legacy/서버 기준): 1000K 이상으로 판단
+        if value >= 1000.0 {
+            let ui = (value - 6500.0) / 25.0
+            return min(max(ui, -100.0), 100.0)
+        }
+        // 이미 보정값으로 저장된 데이터(레거시 클라이언트 포함)
+        return min(max(value, -100.0), 100.0)
     }
     
     private func makeInitialMetadata(from dto: PhotoMetadataDTO?) -> FilterImageMetadata? {

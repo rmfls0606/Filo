@@ -350,9 +350,7 @@ final class FilterEditViewModel: ViewModelType {
             if !isNeutral(contrastValue, for: .contrast),
                let contrastFilter = CIFilter(name: "CIColorControls") {
                 contrastFilter.setValue(ciImage, forKey: kCIInputImageKey)
-                contrastFilter.setValue(0.0, forKey: kCIInputBrightnessKey)
-                contrastFilter.setValue(0.5, forKey: kCIInputContrastKey)
-                contrastFilter.setValue(1.0, forKey: kCIInputSaturationKey)
+                contrastFilter.setValue(contrastValue, forKey: kCIInputContrastKey)
                 ciImage = contrastFilter.outputImage ?? ciImage
             }
 
@@ -366,36 +364,42 @@ final class FilterEditViewModel: ViewModelType {
             }
             
             // highlights: 명부 보정
-            let highlightsValue = value(for: .highlights, in: values)
-            if !isNeutral(highlightsValue, for: .highlights),
+            let highlightActual = value(for: .highlights, in: values)
+
+            if !isNeutral(highlightActual, for: .highlights),
                let highlightFilter = CIFilter(name: "CIHighlightShadowAdjust") {
+                // Photos 근사 1안: 단일 하이라이트 필터 + 완만한 곡선 매핑
+                // 중립은 1.0, -방향은 0.0 쪽, +방향은 2.0 쪽으로 이동
+                let delta = highlightActual - 1.0 // -1...1
+                let mapped: Float
+                if delta >= 0 {
+                    // 1.0 초과 구간은 필터 체감이 약해 기본값 유지 후 추가 보정으로 처리
+                    mapped = 1.0
+                } else {
+                    mapped = 1.0 - (pow(-delta, 0.9) * 0.55)
+                }
+
                 highlightFilter.setValue(ciImage, forKey: kCIInputImageKey)
-                highlightFilter.setValue(highlightsValue, forKey: "inputHighlightAmount")
+                highlightFilter.setValue(min(2.0, max(0.0, mapped)), forKey: "inputHighlightAmount")
                 ciImage = highlightFilter.outputImage ?? ciImage
 
-                // Photos 유사 톤 보정: 살짝 탈색 + 명부 눌림
-                let delta = min(1.0, abs(highlightsValue - 0.5))
-
-                if let vibranceFilter = CIFilter(name: "CIVibrance") {
-                    vibranceFilter.setValue(ciImage, forKey: kCIInputImageKey)
-                    vibranceFilter.setValue(-0.35 * delta, forKey: "inputAmount")
-                    ciImage = vibranceFilter.outputImage ?? ciImage
-                }
-
-                if let desatFilter = CIFilter(name: "CIColorControls") {
-                    desatFilter.setValue(ciImage, forKey: kCIInputImageKey)
-                    desatFilter.setValue(0.0, forKey: kCIInputBrightnessKey)
-                    desatFilter.setValue(1.0, forKey: kCIInputContrastKey)
-                    desatFilter.setValue(max(0.5, 1.0 - (0.45 * delta)), forKey: kCIInputSaturationKey)
-                    ciImage = desatFilter.outputImage ?? ciImage
-                }
-
-                let signedDelta = highlightsValue - 0.5
-                if signedDelta > 0,
-                   let glowExposureFilter = CIFilter(name: "CIExposureAdjust") {
-                    glowExposureFilter.setValue(ciImage, forKey: kCIInputImageKey)
-                    glowExposureFilter.setValue(-0.08 * signedDelta, forKey: kCIInputEVKey)
-                    ciImage = glowExposureFilter.outputImage ?? ciImage
+                // +방향(1.0~2.0) 체감 보강: 피사체 중간톤은 살리고 상단 하이라이트만 롤오프
+                if delta > 0 {
+                    let t = pow(min(1.0, delta), 0.75)
+                    if let toneCurve = CIFilter(name: "CIToneCurve") {
+                        toneCurve.setValue(ciImage, forKey: kCIInputImageKey)
+                        toneCurve.setValue(CIVector(x: 0.00, y: 0.00), forKey: "inputPoint0")
+                        toneCurve.setValue(CIVector(x: 0.25, y: 0.25 + (0.01 * CGFloat(t))), forKey: "inputPoint1")
+                        toneCurve.setValue(CIVector(x: 0.50, y: 0.50 + (0.01 * CGFloat(t))), forKey: "inputPoint2")
+                        toneCurve.setValue(CIVector(x: 0.75, y: 0.75 - (0.14 * CGFloat(t))), forKey: "inputPoint3")
+                        toneCurve.setValue(CIVector(x: 1.00, y: 1.00 - (0.30 * CGFloat(t))), forKey: "inputPoint4")
+                        ciImage = toneCurve.outputImage ?? ciImage
+                    }
+                    if let exposure = CIFilter(name: "CIExposureAdjust") {
+                        exposure.setValue(ciImage, forKey: kCIInputImageKey)
+                        exposure.setValue(0.12 * t, forKey: kCIInputEVKey)
+                        ciImage = exposure.outputImage ?? ciImage
+                    }
                 }
             }
             
