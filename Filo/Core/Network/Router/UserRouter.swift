@@ -21,6 +21,7 @@ enum UserRouter: APITarget{
     case logout
     case join(email: String, password: String, nick: String, name: String, introduction: String, phoneNum: String, hashTags: [String], deviceToken: String)
     case email(email: String)
+    case kakao(oauthToken: String, deviceToken: String)
     
     var path: String{
         switch self {
@@ -48,12 +49,14 @@ enum UserRouter: APITarget{
             return "/users/join"
         case .email:
             return "/users/validation/email"
+        case .kakao:
+            return "/users/login/kakao"
         }
     }
     
     var method: HTTPMethod{
         switch self {
-        case .login, .apple, .image, .logout, .join, .email:
+        case .login, .apple, .image, .logout, .join, .email, .kakao:
             return .post
         case .auth, .todayAuthor, .otherProfile, .search, .getProfile:
             return .get
@@ -67,6 +70,11 @@ enum UserRouter: APITarget{
         case .auth(let refresh):
             return ["RefreshToken": refresh,
                     "Authorization": NetworkConfig.authorization,
+                    "SeSACKey": NetworkConfig.apiKey]
+        case .login, .apple, .join, .email:
+            return ["SeSACKey": NetworkConfig.apiKey]
+        case .kakao:
+            return [/*"Authorization": "Bearer" + NetworkConfig.authorization,*/
                     "SeSACKey": NetworkConfig.apiKey]
         default:
             return ["Authorization": NetworkConfig.authorization,
@@ -109,12 +117,15 @@ enum UserRouter: APITarget{
             return ["profile": profile]
         case .email(let email):
             return ["email": email]
+        case .kakao(let oauthToken, let deviceToken):
+            return ["oauthToken": oauthToken,
+                    "deviceToken": deviceToken]
         }
     }
     
     var encoding: ParameterEncoding{
         switch self {
-        case .login, .auth, .apple, .otherProfile, .getProfile, .putProfile, .image, .join, .email:
+        case .login, .auth, .apple, .otherProfile, .getProfile, .putProfile, .image, .join, .email, .kakao:
             return JSONEncoding.default
         case .todayAuthor, .deviceToken, .search, .logout:
             return URLEncoding.default
