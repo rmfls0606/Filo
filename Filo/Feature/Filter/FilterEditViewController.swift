@@ -191,9 +191,13 @@ final class FilterEditViewController: BaseViewController {
                 }
             .disposed(by: disposeBag)
 
-        output.sliderValue
-            .drive(onNext: { [weak self] value in
-                self?.filterSliderView.configureValue(value: value)
+        Driver
+            .combineLatest(output.sliderRange, output.sliderValue)
+            .drive(onNext: { [weak self] range, value in
+                guard let self else { return }
+                // range를 먼저 적용한 뒤 value를 넣어야 이전 range 클램프 영향이 없습니다.
+                self.filterSliderView.configureRange(range)
+                self.filterSliderView.configureValue(value: value)
             })
             .disposed(by: disposeBag)
 

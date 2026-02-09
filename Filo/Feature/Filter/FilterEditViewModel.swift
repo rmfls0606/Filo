@@ -13,6 +13,8 @@ import RxCocoa
 import UniformTypeIdentifiers
 
 final class FilterEditViewModel: ViewModelType {
+    private let sliderDisplayRange: ClosedRange<Float> = -100...100
+
     struct Input {
         let selectedProp: ControlEvent<FilterPropItem>
         let sliderValueChanged: ControlProperty<Float>
@@ -25,6 +27,7 @@ final class FilterEditViewModel: ViewModelType {
     struct Output {
         let imageData: Driver<Data>
         let filterProps: Driver<[FilterPropItem]>
+        let sliderRange: Driver<ClosedRange<Float>>
         let sliderValue: Driver<Float>
         let isComparing: Driver<Bool>
         let canUndo: Driver<Bool>
@@ -67,7 +70,11 @@ final class FilterEditViewModel: ViewModelType {
         let selectedPropRelay = BehaviorRelay<FilterProps>(value: .blackPoint)
         let filterValuesRelay = BehaviorRelay<[FilterProps: Float]>(value: filterValues)
         let sliderValueRelay = BehaviorRelay<Float>(
-            value: uiValue(from: value(for: .blackPoint, in: filterValues), for: .blackPoint)
+            value: {
+                let prop: FilterProps = .blackPoint
+                let actual = prop.clampedActualValue(filterValues[prop] ?? prop.defaultValue)
+                return self.toSliderValue(actual, for: prop)
+            }()
         )
         let canUndoRelay = BehaviorRelay<Bool>(value: historyIndex > 0)
         let canRedoRelay = BehaviorRelay<Bool>(value: historyIndex + 1 < history.count)
@@ -85,15 +92,14 @@ final class FilterEditViewModel: ViewModelType {
 
         input.sliderValueChanged
             .asObservable()
-            .skip(1)
             .distinctUntilChanged()
             .withLatestFrom(Observable.combineLatest(selectedPropRelay, filterValuesRelay)) { value, pair in
                 (value, pair.0, pair.1)
             }
             .map { sliderValue, prop, values in
                 var updated = values
-                let clampedUiValue = self.clampedUiValue(sliderValue, for: prop)
-                let actual = self.actualValue(from: clampedUiValue, for: prop)
+                let rawActual = self.toActualValue(sliderValue, for: prop)
+                let actual = prop.clampedActualValue(rawActual)
                 updated[prop] = actual
                 return updated
             }
@@ -103,8 +109,8 @@ final class FilterEditViewModel: ViewModelType {
         Observable
             .combineLatest(selectedPropRelay, filterValuesRelay)
             .map { selected, values in
-                let actual = self.value(for: selected, in: values)
-                return self.isNeutral(actual, for: selected) ? 0.0 : self.uiValue(from: actual, for: selected)
+                let actual = selected.clampedActualValue(values[selected] ?? selected.defaultValue)
+                return self.toSliderValue(actual, for: selected)
             }
             .bind(to: sliderValueRelay)
             .disposed(by: disposeBag)
@@ -117,6 +123,12 @@ final class FilterEditViewModel: ViewModelType {
                 }
             }
             .bind(to: filterPropsRelay)
+            .disposed(by: disposeBag)
+
+        let sliderRangeRelay = BehaviorRelay<ClosedRange<Float>>(value: sliderDisplayRange)
+        selectedPropRelay
+            .map { _ in self.sliderDisplayRange }
+            .bind(to: sliderRangeRelay)
             .disposed(by: disposeBag)
 
         filterValuesRelay
@@ -183,6 +195,7 @@ final class FilterEditViewModel: ViewModelType {
         return Output(
             imageData: imageRelay.asDriver(),
             filterProps: filterPropsRelay.asDriver(),
+            sliderRange: sliderRangeRelay.asDriver(),
             sliderValue: sliderValueRelay.asDriver(),
             isComparing: comparingRelay.asDriver(),
             canUndo: canUndoRelay.asDriver(),
@@ -191,7 +204,7 @@ final class FilterEditViewModel: ViewModelType {
     }
     
     private func isNeutral(_ actual: Float, for prop: FilterProps) -> Bool {
-        abs(uiValue(from: actual, for: prop)) < 0.001
+        abs(actual - prop.defaultValue) < 0.0001
     }
 
     private func isAllNeutral(_ values: [FilterProps: Float]) -> Bool {
@@ -225,124 +238,46 @@ final class FilterEditViewModel: ViewModelType {
     }
 
     private func defaultValues(updating entity: FilterImagePropsEntity? = nil) -> [FilterProps: Float] {
-        let base = Dictionary(uniqueKeysWithValues: FilterProps.allCases.map { ($0, actualValue(from: 0.0, for: $0)) })
+        let base = Dictionary(uniqueKeysWithValues: FilterProps.allCases.map { ($0, $0.defaultValue) })
         guard let entity else { return base }
         var updated = base
-        updated[.blackPoint] = Float(entity.blackPoint)
-        updated[.blur] = Float(entity.blur)
-        updated[.brightness] = Float(entity.brightness)
-        updated[.contrast] = Float(entity.contrast)
-        updated[.exposure] = Float(entity.exposure)
-        updated[.highlights] = Float(entity.highlights)
-        updated[.noise] = Float(entity.noise)
-        updated[.saturation] = Float(entity.saturation)
-        updated[.shadows] = Float(entity.shadows)
-        updated[.sharpness] = Float(entity.sharpness)
-        updated[.temperature] = Float(entity.temperature)
-        updated[.vignette] = Float(entity.vignette)
+        updated[.blackPoint] = FilterProps.blackPoint.clampedActualValue(Float(entity.blackPoint))
+        updated[.blur] = FilterProps.blur.clampedActualValue(Float(entity.blur))
+        updated[.brightness] = FilterProps.brightness.clampedActualValue(Float(entity.brightness))
+        updated[.contrast] = FilterProps.contrast.clampedActualValue(Float(entity.contrast))
+        updated[.exposure] = FilterProps.exposure.clampedActualValue(Float(entity.exposure))
+        updated[.highlights] = FilterProps.highlights.clampedActualValue(Float(entity.highlights))
+        updated[.noise] = FilterProps.noise.clampedActualValue(Float(entity.noise))
+        updated[.saturation] = FilterProps.saturation.clampedActualValue(Float(entity.saturation))
+        updated[.shadows] = FilterProps.shadows.clampedActualValue(Float(entity.shadows))
+        updated[.sharpness] = FilterProps.sharpness.clampedActualValue(Float(entity.sharpness))
+        updated[.temperature] = FilterProps.temperature.clampedActualValue(Float(entity.temperature))
+        updated[.vignette] = FilterProps.vignette.clampedActualValue(Float(entity.vignette))
         return updated
     }
 
     private func value(for prop: FilterProps, in values: [FilterProps: Float]) -> Float {
-        values[prop] ?? actualValue(from: 0.0, for: prop)
+        prop.clampedActualValue(values[prop] ?? prop.defaultValue)
     }
 
-    private func actualValue(from uiValue: Float, for prop: FilterProps) -> Float {
-        let photoValue = photoValue(from: uiValue)
-        let shapedPhotoValue = shapedPhotoValue(photoValue, for: prop)
-        let actual: Float
-        switch prop {
-        case .blackPoint:
-            actual = shapedPhotoValue / 500.0
-        case .blur:
-            actual = shapedPhotoValue / 5.0
-        case .brightness:
-            actual = shapedPhotoValue / 100.0
-        case .contrast:
-            actual = 1.0 + (shapedPhotoValue / 200.0)
-        case .exposure:
-            actual = shapedPhotoValue / 50.0
-        case .highlights:
-            actual = shapedPhotoValue / 100.0
-        case .noise:
-            actual = shapedPhotoValue / 500.0
-        case .saturation:
-            actual = 1.0 + (shapedPhotoValue / 100.0)
-        case .shadows:
-            actual = shapedPhotoValue / 100.0
-        case .sharpness:
-            actual = shapedPhotoValue / 35.0
-        case .temperature:
-            actual = shapedPhotoValue / 5.0
-        case .vignette:
-            actual = shapedPhotoValue / 50.0
-        }
+    private func toActualValue(_ sliderValue: Float, for prop: FilterProps) -> Float {
+        let sliderMin = sliderDisplayRange.lowerBound
+        let sliderMax = sliderDisplayRange.upperBound
+        let actualMin = prop.valueRange.lowerBound
+        let actualMax = prop.valueRange.upperBound
+        let normalized = (sliderValue - sliderMin) / max(0.0001, (sliderMax - sliderMin))
+        let actual = actualMin + (normalized * (actualMax - actualMin))
         return prop.clampedActualValue(actual)
     }
 
-    private func clampedUiValue(_ value: Float, for prop: FilterProps) -> Float {
-        switch prop {
-        case .sharpness, .noise:
-            return max(0.0, value)
-        default:
-            return value
-        }
-    }
-
-    private func photoValue(from uiValue: Float) -> Float {
-        uiValue * 20.0
-    }
-
-    private func uiValue(from actual: Float, for prop: FilterProps) -> Float {
-        let photoValue: Float
-        switch prop {
-        case .blackPoint:
-            photoValue = actual * 500.0
-        case .blur:
-            photoValue = actual * 5.0
-        case .brightness:
-            photoValue = actual * 100.0
-        case .contrast:
-            photoValue = (actual - 1.0) * 200.0
-        case .exposure:
-            photoValue = actual * 50.0
-        case .highlights:
-            photoValue = actual * 100.0
-        case .noise:
-            photoValue = actual * 500.0
-        case .saturation:
-            photoValue = (actual - 1.0) * 100.0
-        case .shadows:
-            photoValue = actual * 100.0
-        case .sharpness:
-            photoValue = actual * 35.0
-        case .temperature:
-            photoValue = actual * 5.0
-        case .vignette:
-            photoValue = actual * 50.0
-        }
-        let uiPhotoValue = inverseShapedPhotoValue(photoValue, for: prop)
-        return max(-5.0, min(5.0, uiValue(from: uiPhotoValue)))
-    }
-
-    private func shapedPhotoValue(_ value: Float, for prop: FilterProps) -> Float {
-        let sign: Float = value >= 0 ? 1 : -1
-        let absValue = abs(value)
-        let exponent: Float = (prop == .sharpness || prop == .noise) ? 1.6 : 1.2
-        let shaped = pow(absValue / 100.0, exponent) * 100.0
-        return sign * shaped
-    }
-
-    private func inverseShapedPhotoValue(_ value: Float, for prop: FilterProps) -> Float {
-        let sign: Float = value >= 0 ? 1 : -1
-        let absValue = abs(value)
-        let exponent: Float = (prop == .sharpness || prop == .noise) ? 1.6 : 1.2
-        let shaped = pow(absValue / 100.0, 1.0 / exponent) * 100.0
-        return sign * shaped
-    }
-
-    private func uiValue(from photoValue: Float) -> Float {
-        photoValue / 20.0
+    private func toSliderValue(_ actualValue: Float, for prop: FilterProps) -> Float {
+        let sliderMin = sliderDisplayRange.lowerBound
+        let sliderMax = sliderDisplayRange.upperBound
+        let actualMin = prop.valueRange.lowerBound
+        let actualMax = prop.valueRange.upperBound
+        let normalized = (actualValue - actualMin) / max(0.0001, (actualMax - actualMin))
+        let slider = sliderMin + (normalized * (sliderMax - sliderMin))
+        return min(max(slider, sliderMin), sliderMax)
     }
 
     private func applyFilters(with values: [FilterProps: Float]) {
@@ -395,19 +330,30 @@ final class FilterEditViewModel: ViewModelType {
                 }
             }
 
-            // brightness/contrast/saturation 묶음 적용
+            // brightness: 양수는 EV, 음수는 ColorControls로 분기해 자연스러운 톤 유지
             let brightnessValue = value(for: .brightness, in: values)
+            if !isNeutral(brightnessValue, for: .brightness) {
+                if brightnessValue >= 0,
+                   let brightnessFilter = CIFilter(name: "CIExposureAdjust") {
+                    brightnessFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                    brightnessFilter.setValue(brightnessValue * 0.7, forKey: kCIInputEVKey)
+                    ciImage = brightnessFilter.outputImage ?? ciImage
+                } else if let brightnessFilter = CIFilter(name: "CIColorControls") {
+                    brightnessFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                    brightnessFilter.setValue(brightnessValue * 0.2, forKey: kCIInputBrightnessKey)
+                    ciImage = brightnessFilter.outputImage ?? ciImage
+                }
+            }
+
+            // contrast: 대비
             let contrastValue = value(for: .contrast, in: values)
-            let saturationValue = value(for: .saturation, in: values)
-            if !isNeutral(brightnessValue, for: .brightness)
-                || !isNeutral(contrastValue, for: .contrast)
-                || !isNeutral(saturationValue, for: .saturation),
-               let colorFilter = CIFilter(name: "CIColorControls") {
-                colorFilter.setValue(ciImage, forKey: kCIInputImageKey)
-                colorFilter.setValue(brightnessValue, forKey: kCIInputBrightnessKey)
-                colorFilter.setValue(contrastValue, forKey: kCIInputContrastKey)
-                colorFilter.setValue(saturationValue, forKey: kCIInputSaturationKey)
-                ciImage = colorFilter.outputImage ?? ciImage
+            if !isNeutral(contrastValue, for: .contrast),
+               let contrastFilter = CIFilter(name: "CIColorControls") {
+                contrastFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                contrastFilter.setValue(0.0, forKey: kCIInputBrightnessKey)
+                contrastFilter.setValue(0.5, forKey: kCIInputContrastKey)
+                contrastFilter.setValue(1.0, forKey: kCIInputSaturationKey)
+                ciImage = contrastFilter.outputImage ?? ciImage
             }
 
             // exposure: EV 기반으로 전체 밝기 보정
@@ -418,27 +364,66 @@ final class FilterEditViewModel: ViewModelType {
                 exposureFilter.setValue(exposureValue, forKey: kCIInputEVKey)
                 ciImage = exposureFilter.outputImage ?? ciImage
             }
-
-            let shadowsValue = value(for: .shadows, in: values)
+            
+            // highlights: 명부 보정
             let highlightsValue = value(for: .highlights, in: values)
-            // shadows/highlights: 암부/명부 보정
-            if !isNeutral(shadowsValue, for: .shadows)
-                || !isNeutral(highlightsValue, for: .highlights),
+            if !isNeutral(highlightsValue, for: .highlights),
                let highlightFilter = CIFilter(name: "CIHighlightShadowAdjust") {
                 highlightFilter.setValue(ciImage, forKey: kCIInputImageKey)
-                highlightFilter.setValue(shadowsValue, forKey: "inputShadowAmount")
                 highlightFilter.setValue(highlightsValue, forKey: "inputHighlightAmount")
                 ciImage = highlightFilter.outputImage ?? ciImage
-            }
 
+                // Photos 유사 톤 보정: 살짝 탈색 + 명부 눌림
+                let delta = min(1.0, abs(highlightsValue - 0.5))
+
+                if let vibranceFilter = CIFilter(name: "CIVibrance") {
+                    vibranceFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                    vibranceFilter.setValue(-0.35 * delta, forKey: "inputAmount")
+                    ciImage = vibranceFilter.outputImage ?? ciImage
+                }
+
+                if let desatFilter = CIFilter(name: "CIColorControls") {
+                    desatFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                    desatFilter.setValue(0.0, forKey: kCIInputBrightnessKey)
+                    desatFilter.setValue(1.0, forKey: kCIInputContrastKey)
+                    desatFilter.setValue(max(0.5, 1.0 - (0.45 * delta)), forKey: kCIInputSaturationKey)
+                    ciImage = desatFilter.outputImage ?? ciImage
+                }
+
+                let signedDelta = highlightsValue - 0.5
+                if signedDelta > 0,
+                   let glowExposureFilter = CIFilter(name: "CIExposureAdjust") {
+                    glowExposureFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                    glowExposureFilter.setValue(-0.08 * signedDelta, forKey: kCIInputEVKey)
+                    ciImage = glowExposureFilter.outputImage ?? ciImage
+                }
+            }
+            
             // noise: 노이즈 감소
             let noiseValue = value(for: .noise, in: values)
             if !isNeutral(noiseValue, for: .noise),
                let noiseFilter = CIFilter(name: "CINoiseReduction") {
                 noiseFilter.setValue(ciImage, forKey: kCIInputImageKey)
                 noiseFilter.setValue(noiseValue, forKey: "inputNoiseLevel")
-                noiseFilter.setValue(0.4, forKey: "inputSharpness")
                 ciImage = noiseFilter.outputImage ?? ciImage
+            }
+            
+            // saturation: 채도
+            let saturationValue = value(for: .saturation, in: values)
+            if !isNeutral(saturationValue, for: .saturation),
+               let saturationFilter = CIFilter(name: "CIColorControls") {
+                saturationFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                saturationFilter.setValue(saturationValue, forKey: kCIInputSaturationKey)
+                ciImage = saturationFilter.outputImage ?? ciImage
+            }
+
+            // shadows: 암부 보정
+            let shadowsValue = value(for: .shadows, in: values)
+            if !isNeutral(shadowsValue, for: .shadows),
+               let shadowFilter = CIFilter(name: "CIHighlightShadowAdjust") {
+                shadowFilter.setValue(ciImage, forKey: kCIInputImageKey)
+                shadowFilter.setValue(shadowsValue, forKey: "inputShadowAmount")
+                ciImage = shadowFilter.outputImage ?? ciImage
             }
 
             // sharpness: 선명도 + blur 음수분을 샤픈으로 흡수
@@ -457,7 +442,7 @@ final class FilterEditViewModel: ViewModelType {
             if !isNeutral(temperatureValue, for: .temperature),
                let temperatureFilter = CIFilter(name: "CITemperatureAndTint") {
                 let neutral = CIVector(
-                    x: 6500 + CGFloat((CGFloat(temperatureValue) * 150)),
+                    x: 6500 + CGFloat((CGFloat(temperatureValue) * 25)),
                     y: 0
                 )
                 let target = CIVector(x: 6500, y: 0)
