@@ -38,6 +38,7 @@ final class FilterViewModel: ViewModelType{
         let imageSelected: Observable<Data>
         let editResult: Observable<(Data, FilterImagePropsEntity)>
         let assetIdentifier: Observable<String?>
+        let resetForm: Observable<Void>
         let filterNameText: ControlProperty<String>
         let filterIntroduceText: ControlProperty<String>
         let priceInputText: ControlProperty<String>
@@ -177,6 +178,30 @@ final class FilterViewModel: ViewModelType{
 
         input.filterIntroduceText
             .bind(to: filterIntroduceRelay)
+            .disposed(by: disposeBag)
+        
+        input.resetForm
+            .subscribe(onNext: { [weak self] in
+                guard let self else { return }
+                guard case .create = self.mode else { return }
+                
+                categoriesRelay.accept(
+                    FilterCategoryType.allCases.map {
+                        FilterCategoryEntity(type: $0, isSelected: false)
+                    }
+                )
+                selectedCategoryRelay.accept(nil)
+                filterNameRelay.accept("")
+                filterIntroduceRelay.accept("")
+                priceNumberText.accept("")
+                priceValueRelay.accept(0)
+                imageDataRelay.accept(nil)
+                originalImageDataRelay.accept(nil)
+                filterPropsRelay.accept(nil)
+                self.latestOriginalData = nil
+                self.lastAssetIdentifier = nil
+                self.metadataRelay.accept(nil)
+            })
             .disposed(by: disposeBag)
 
         input.saveButtonTapped?

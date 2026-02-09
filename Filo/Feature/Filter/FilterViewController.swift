@@ -24,6 +24,7 @@ final class FilterViewController: BaseViewController {
     private var pendingSelectionWorkItem: DispatchWorkItem?
     private var pendingOriginalData: Data?
     private var pendingAssetIdentifier: String?
+    private let resetFormRelay = PublishRelay<Void>()
     
     init(viewModel: FilterViewModel = FilterViewModel()) {
         self.viewModel = viewModel
@@ -191,6 +192,7 @@ final class FilterViewController: BaseViewController {
             imageSelected: imageSelectedRelay.asObservable(),
             editResult: editResultRelay.asObservable(),
             assetIdentifier: assetIdentifierRelay.asObservable(),
+            resetForm: resetFormRelay.asObservable(),
             filterNameText: filterNameTextField.rx.text.orEmpty,
             filterIntroduceText: filterIntroduceTextField.rx.text.orEmpty,
             priceInputText: filterPriceTextField.rx.text.orEmpty,
@@ -207,10 +209,13 @@ final class FilterViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         output.currentImageData
-            .compactMap { $0 }
-            .compactMap { UIImage(data: $0) }
-            .drive(onNext: { [weak self] image in
-                self?.filterImageRegisterView.setImage(image)
+            .drive(onNext: { [weak self] data in
+                guard let self else { return }
+                guard let data, let image = UIImage(data: data) else {
+                    self.filterImageRegisterView.reset()
+                    return
+                }
+                self.filterImageRegisterView.setImage(image)
             })
             .disposed(by: disposeBag)
 
@@ -249,6 +254,9 @@ final class FilterViewController: BaseViewController {
                 owner.showAlert(title: "완료", message: message) { [weak owner] in
                     if owner?.viewModel.isEditMode == true {
                         owner?.navigationController?.popViewController(animated: true)
+                    } else {
+                        owner?.resetFormRelay.accept(())
+                        owner?.resetFormUI()
                     }
                 }
             }
@@ -323,6 +331,14 @@ final class FilterViewController: BaseViewController {
             self.editResultRelay.accept((data, props))
         }
         navigationController?.pushViewController(editViewController, animated: true)
+    }
+    
+    private func resetFormUI() {
+        filterNameTextField.text = ""
+        filterIntroduceTextField.text = ""
+        filterPriceTextField.text = ""
+        filterImageRegisterView.reset()
+        filterCategoryCollectionView.reloadData()
     }
 }
 
