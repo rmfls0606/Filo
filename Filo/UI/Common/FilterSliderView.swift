@@ -14,6 +14,7 @@ final class FilterSliderView: BaseView {
     //MARK: - Properties
     private var valueLabelCenterXConstraint: Constraint?
     private let disposeBag = DisposeBag()
+    private var currentRange: ClosedRange<Float> = 0...1
     
     var valueChanged: ControlProperty<Float> {
         slider.rx.value
@@ -43,6 +44,17 @@ final class FilterSliderView: BaseView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        updateValueLabel(value: slider.value)
+    }
+
+    func configureRange(_ range: ClosedRange<Float>) {
+        currentRange = range
+        slider.minimumValue = range.lowerBound
+        slider.maximumValue = range.upperBound
+        let clamped = min(max(slider.value, range.lowerBound), range.upperBound)
+        if clamped != slider.value {
+            slider.setValue(clamped, animated: false)
+        }
         updateValueLabel(value: slider.value)
     }
 
@@ -87,7 +99,7 @@ final class FilterSliderView: BaseView {
     }
 
     private func updateValueLabel(value: Float) {
-        valueLabel.text = String(format: "%.1f", value)
+        valueLabel.text = String(format: "%.0f", value)
         let trackRect = slider.trackRect(forBounds: slider.bounds)
         let thumbRect = slider.thumbRect(forBounds: slider.bounds, trackRect: trackRect, value: value)
         valueLabelCenterXConstraint?.update(offset: thumbRect.midX)
