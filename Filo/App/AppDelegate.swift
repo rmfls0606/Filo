@@ -10,6 +10,7 @@ import FirebaseCore
 import FirebaseMessaging
 import IQKeyboardManagerSwift
 import Kingfisher
+import KakaoSDKCommon
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -31,6 +32,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             application.registerUserNotificationSettings(settings)
         }
         
+        KakaoSDK.initSDK(appKey: NetworkConfig.nativeKey)
+        
         application.registerForRemoteNotifications()
         
         Messaging.messaging().delegate = self
@@ -38,7 +41,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         Messaging.messaging().token { token, error in
           if let error = error {
             print("Error fetching FCM registration token: \(error)")
-          } else if let token = token { }
+          } else if let token = token {
+              print("register: toke", token)
+          }
         }
 
         IQKeyboardManager.shared.isEnabled = true

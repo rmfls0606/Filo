@@ -17,6 +17,14 @@ final class LoginViewController: BaseViewController {
     private let viewTapGesture = UITapGestureRecognizer()
     private let rememberEmailEnabledKey = "rememberEmailEnabled"
     private let rememberedEmailKey = "rememberedEmail"
+    private let appleLoginTokenRelay = PublishRelay<String>()
+    private var appleAuthController: ASAuthorizationController?
+    private var isAppleLoginInFlight = false
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .large)
+        view.hidesWhenStopped = true
+        return view
+    }()
     
     private let titleLabel: UILabel = {
         let label = UILabel()
@@ -101,9 +109,44 @@ final class LoginViewController: BaseViewController {
         view.alignment = .fill
         return view
     }()
+
+    private let socialLoginContainerView = UIView()
+    private let socialButtonsStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .horizontal
+        view.spacing = 16
+        view.alignment = .center
+        view.distribution = .fill
+        return view
+    }()
+
+    private let kakaoLoginButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .bold)
+        config.preferredSymbolConfigurationForImage = symbolConfig
+        config.image = UIImage(systemName: "message.fill")
+        config.cornerStyle = .capsule
+        config.baseForegroundColor = .black
+        config.baseBackgroundColor = UIColor(red: 254/255, green: 229/255, blue: 0/255, alpha: 1)
+        let button = UIButton(configuration: config)
+        return button
+    }()
+
+    private let appleLoginButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
+        config.preferredSymbolConfigurationForImage = symbolConfig
+        config.image = UIImage(systemName: "apple.logo")
+        config.cornerStyle = .capsule
+        config.baseForegroundColor = .black
+        config.baseBackgroundColor = .white
+        let button = UIButton(configuration: config)
+        return button
+    }()
     
     override func configureHierarchy() {
         view.addSubview(contentStackView)
+        view.addSubview(loadingIndicator)
         contentStackView.addArrangedSubview(titleLabel)
         contentStackView.addArrangedSubview(emailField)
         contentStackView.addArrangedSubview(passwordField)
@@ -112,6 +155,10 @@ final class LoginViewController: BaseViewController {
         rememberMeStackView.addArrangedSubview(rememberMeLabel)
         contentStackView.addArrangedSubview(loginButton)
         contentStackView.addArrangedSubview(signUpButton)
+        contentStackView.addArrangedSubview(socialLoginContainerView)
+        socialLoginContainerView.addSubview(socialButtonsStackView)
+        socialButtonsStackView.addArrangedSubview(kakaoLoginButton)
+        socialButtonsStackView.addArrangedSubview(appleLoginButton)
         
         view.addGestureRecognizer(viewTapGesture)
     }
@@ -145,6 +192,26 @@ final class LoginViewController: BaseViewController {
         signUpButton.snp.makeConstraints { make in
             make.height.equalTo(48)
         }
+
+        socialLoginContainerView.snp.makeConstraints { make in
+            make.height.equalTo(72)
+        }
+
+        socialButtonsStackView.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+        }
+
+        kakaoLoginButton.snp.makeConstraints { make in
+            make.size.equalTo(54)
+        }
+
+        appleLoginButton.snp.makeConstraints { make in
+            make.size.equalTo(54)
+        }
+
+        loadingIndicator.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+        }
     }
     
     override func configureView() {
@@ -154,15 +221,27 @@ final class LoginViewController: BaseViewController {
     }
     
     override func configureBind() {
+        let loginTap = loginButton.rx.tap
+            .throttle(.milliseconds(700), latest: false, scheduler: MainScheduler.instance)
+            .asObservable()
+        let kakaoTap = kakaoLoginButton.rx.tap
+            .throttle(.milliseconds(1200), latest: false, scheduler: MainScheduler.instance)
+            .asObservable()
+
         let input = LoginViewModel.Input(
             emailText: emailField.rx.text.orEmpty,
             passwordText: passwordField.rx.text.orEmpty,
-            loginTapped: loginButton.rx.tap
+            loginTapped: loginTap,
+            kakaoLoginTapped: kakaoTap,
+            appleLoginToken: appleLoginTokenRelay.asObservable()
         )
         
         let output = viewModel.transform(input: input)
         
-        output.loginEnabled
+        Driver.combineLatest(output.loginEnabled, output.isLoading)
+            .map { isEnabled, isLoading in
+                isEnabled && !isLoading
+            }
             .drive(loginButton.rx.isEnabled)
             .disposed(by: disposeBag)
         
@@ -176,6 +255,20 @@ final class LoginViewController: BaseViewController {
         output.loginError
             .drive(with: self) { owner, message in
                 owner.showAlert(title: "로그인 실패", message: message)
+            }
+            .disposed(by: disposeBag)
+
+        output.isLoading
+            .drive(with: self) { owner, isLoading in
+                owner.loginButton.isUserInteractionEnabled = !isLoading
+                owner.kakaoLoginButton.isUserInteractionEnabled = !isLoading
+                owner.appleLoginButton.isUserInteractionEnabled = !isLoading
+                owner.signUpButton.isUserInteractionEnabled = !isLoading
+                if isLoading {
+                    owner.loadingIndicator.startAnimating()
+                } else {
+                    owner.loadingIndicator.stopAnimating()
+                }
             }
             .disposed(by: disposeBag)
         
@@ -195,6 +288,12 @@ final class LoginViewController: BaseViewController {
         signUpButton.rx.tap
             .bind(with: self) { owner, _ in
                 owner.moveToSignUp()
+            }
+            .disposed(by: disposeBag)
+
+        appleLoginButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.requestAppleLogin()
             }
             .disposed(by: disposeBag)
     }
@@ -243,6 +342,44 @@ final class LoginViewController: BaseViewController {
         } else {
             defaults.removeObject(forKey: rememberedEmailKey)
         }
+    }
+
+    private func requestAppleLogin() {
+        guard !isAppleLoginInFlight else { return }
+        isAppleLoginInFlight = true
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        appleAuthController = controller
+        controller.performRequests()
+    }
+}
+
+extension LoginViewController: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        isAppleLoginInFlight = false
+        appleAuthController = nil
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let idToken = String(data: tokenData, encoding: .utf8),
+              !idToken.isEmpty else {
+            showAlert(title: "애플 로그인 실패", message: "토큰 정보를 가져오지 못했습니다.")
+            return
+        }
+        appleLoginTokenRelay.accept(idToken)
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        isAppleLoginInFlight = false
+        appleAuthController = nil
+        showAlert(title: "애플 로그인 실패", message: error.localizedDescription)
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        view.window ?? ASPresentationAnchor()
     }
 }
 
