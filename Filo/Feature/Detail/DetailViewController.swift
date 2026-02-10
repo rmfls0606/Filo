@@ -816,7 +816,14 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
 
         output.networkError
             .emit(onNext: { [weak self] error in
-                self?.showAlert(title: "오류", message: error.errorDescription)
+                guard let self else { return }
+                if self.shouldPopAfterError(error) {
+                    self.showAlert(title: "오류", message: error.errorDescription) { [weak self] in
+                        self?.navigationController?.popViewController(animated: true)
+                    }
+                } else {
+                    self.showAlert(title: "오류", message: error.errorDescription)
+                }
             })
             .disposed(by: disposeBag)
         
@@ -867,6 +874,16 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         }
         
         return infoContainer
+    }
+
+    private func shouldPopAfterError(_ error: NetworkError) -> Bool {
+        if case .serverError(let dto) = error {
+            let message = dto.message
+            if message == "필터를 찾을 수 없습니다."{
+                return true
+            }
+        }
+        return false
     }
     
     private func configureRightBarButtons(isOwner: Bool) {
