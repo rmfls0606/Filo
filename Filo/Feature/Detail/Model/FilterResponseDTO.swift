@@ -112,18 +112,23 @@ extension FilterValuesDTO {
         guard let value else { return "-" }
         return String(format: "%.1f", value)
     }
+
+    private func centeredText(_ value: Double?) -> String {
+        guard let value else { return "-" }
+        return String(format: "%.1f", value - 1.0)
+    }
     
     func toEntity() -> [FilterValuesEntity] {
         return [
             FilterValuesEntity(iconName: "brightness", valueText: text(brightness)),
             FilterValuesEntity(iconName: "exposure", valueText: text(exposure)),
-            FilterValuesEntity(iconName: "contrast", valueText: text(contrast)),
-            FilterValuesEntity(iconName: "saturation", valueText: text(saturation)),
+            FilterValuesEntity(iconName: "contrast", valueText: centeredText(contrast)),
+            FilterValuesEntity(iconName: "saturation", valueText: centeredText(saturation)),
             FilterValuesEntity(iconName: "sharpness", valueText: text(sharpness)),
             FilterValuesEntity(iconName: "blur", valueText: text(blur)),
             FilterValuesEntity(iconName: "vignette", valueText: text(vignette)),
             FilterValuesEntity(iconName: "noise", valueText: text(noiseReduction)),
-            FilterValuesEntity(iconName: "highlights", valueText: text(highlights)),
+            FilterValuesEntity(iconName: "highlights", valueText: centeredText(highlights)),
             FilterValuesEntity(iconName: "shadows", valueText: text(shadows)),
             FilterValuesEntity(iconName: "temperature", valueText: text(temperature)),
             FilterValuesEntity(iconName: "blackPoint", valueText: text(blackPoint))

@@ -99,7 +99,8 @@ final class FilterSliderView: BaseView {
     }
 
     private func updateValueLabel(value: Float) {
-        valueLabel.text = String(format: "%.0f", value)
+        let displayValue = abs(value) < 0.5 ? 0.0 : value
+        valueLabel.text = String(format: "%.0f", displayValue)
         let trackRect = slider.trackRect(forBounds: slider.bounds)
         let thumbRect = slider.thumbRect(forBounds: slider.bounds, trackRect: trackRect, value: value)
         valueLabelCenterXConstraint?.update(offset: thumbRect.midX)
