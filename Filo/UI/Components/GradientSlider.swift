@@ -86,7 +86,7 @@ final class GradientSlider: UISlider {
         let deltaValue = Float(deltaX / trackWidth) * range
         let rawValue = initialValue + deltaValue
         let step: Float
-        if range >= 200 {
+        if range >= 100 {
             step = 1.0
         } else {
             step = 0.1

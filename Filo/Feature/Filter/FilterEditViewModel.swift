@@ -13,7 +13,8 @@ import RxCocoa
 import UniformTypeIdentifiers
 
 final class FilterEditViewModel: ViewModelType {
-    private let sliderDisplayRange: ClosedRange<Float> = -100...100
+    private let signedSliderDisplayRange: ClosedRange<Float> = -100...100
+    private let positiveSliderDisplayRange: ClosedRange<Float> = 0...100
 
     struct Input {
         let selectedProp: ControlEvent<FilterPropItem>
@@ -125,9 +126,9 @@ final class FilterEditViewModel: ViewModelType {
             .bind(to: filterPropsRelay)
             .disposed(by: disposeBag)
 
-        let sliderRangeRelay = BehaviorRelay<ClosedRange<Float>>(value: sliderDisplayRange)
+        let sliderRangeRelay = BehaviorRelay<ClosedRange<Float>>(value: signedSliderDisplayRange)
         selectedPropRelay
-            .map { _ in self.sliderDisplayRange }
+            .map { self.sliderRange(for: $0) }
             .bind(to: sliderRangeRelay)
             .disposed(by: disposeBag)
 
@@ -260,9 +261,19 @@ final class FilterEditViewModel: ViewModelType {
         prop.clampedActualValue(values[prop] ?? prop.defaultValue)
     }
 
+    private func sliderRange(for prop: FilterProps) -> ClosedRange<Float> {
+        switch prop {
+        case .noise, .sharpness:
+            return positiveSliderDisplayRange
+        default:
+            return signedSliderDisplayRange
+        }
+    }
+
     private func toActualValue(_ sliderValue: Float, for prop: FilterProps) -> Float {
-        let sliderMin = sliderDisplayRange.lowerBound
-        let sliderMax = sliderDisplayRange.upperBound
+        let range = sliderRange(for: prop)
+        let sliderMin = range.lowerBound
+        let sliderMax = range.upperBound
         let actualMin = prop.valueRange.lowerBound
         let actualMax = prop.valueRange.upperBound
         let normalized = (sliderValue - sliderMin) / max(0.0001, (sliderMax - sliderMin))
@@ -271,8 +282,9 @@ final class FilterEditViewModel: ViewModelType {
     }
 
     private func toSliderValue(_ actualValue: Float, for prop: FilterProps) -> Float {
-        let sliderMin = sliderDisplayRange.lowerBound
-        let sliderMax = sliderDisplayRange.upperBound
+        let range = sliderRange(for: prop)
+        let sliderMin = range.lowerBound
+        let sliderMax = range.upperBound
         let actualMin = prop.valueRange.lowerBound
         let actualMax = prop.valueRange.upperBound
         let normalized = (actualValue - actualMin) / max(0.0001, (actualMax - actualMin))
