@@ -10,11 +10,16 @@ import SnapKit
 import RxSwift
 import RxCocoa
 
+private struct PurchaseOrderSection {
+    let title: String
+    let items: [OrderResponseDTO]
+}
+
 final class PurchaseHistoryViewController: BaseViewController {
     private let viewModel: PurchaseHistoryViewModel
     private let disposeBag = DisposeBag()
     private let selectedOrderRelay = PublishRelay<OrderResponseDTO>()
-    private var sections: [OrderSection] = []
+    private let tableDataSource = PurchaseHistoryTableDataSource()
     
     private let tableView: UITableView = {
         let view = UITableView()
@@ -54,7 +59,6 @@ final class PurchaseHistoryViewController: BaseViewController {
     }
     
     override func configureBind() {
-        tableView.dataSource = self
         tableView.rx.setDelegate(self)
             .disposed(by: disposeBag)
         
@@ -66,10 +70,10 @@ final class PurchaseHistoryViewController: BaseViewController {
         let output = viewModel.transform(input: input)
         
         output.orders
-            .drive(with: self) { owner, orders in
-                owner.sections = owner.makeSections(from: orders)
-                owner.tableView.reloadData()
+            .map { [weak self] orders in
+                self?.makeSections(from: orders) ?? []
             }
+            .drive(tableView.rx.items(dataSource: tableDataSource))
             .disposed(by: disposeBag)
         
         output.receipt
@@ -87,13 +91,8 @@ final class PurchaseHistoryViewController: BaseViewController {
             .disposed(by: disposeBag)
         
         tableView.rx.itemSelected
-            .compactMap { [weak self] indexPath -> OrderResponseDTO? in
-                guard let self,
-                      sections.indices.contains(indexPath.section),
-                      sections[indexPath.section].items.indices.contains(indexPath.row) else {
-                    return nil
-                }
-                return sections[indexPath.section].items[indexPath.row]
+            .compactMap { [weak self] indexPath in
+                self?.tableDataSource.item(at: indexPath)
             }
             .bind(to: selectedOrderRelay)
             .disposed(by: disposeBag)
@@ -101,50 +100,25 @@ final class PurchaseHistoryViewController: BaseViewController {
 }
 
 private extension PurchaseHistoryViewController {
-    struct OrderSection {
-        let title: String
-        let items: [OrderResponseDTO]
-    }
-    
-    func makeSections(from orders: [OrderResponseDTO]) -> [OrderSection] {
+    func makeSections(from orders: [OrderResponseDTO]) -> [PurchaseOrderSection] {
         let grouped = Dictionary(grouping: orders) { order in
             order.paidAt.toOrderDateString()
         }
         let sortedKeys = grouped.keys.sorted { $0 > $1 }
         return sortedKeys.map { key in
             let items = grouped[key] ?? []
-            return OrderSection(title: key, items: items)
+            return PurchaseOrderSection(title: key, items: items)
         }
     }
 }
 
-extension PurchaseHistoryViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int {
-        sections.count
-    }
-    
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        sections[section].items.count
-    }
-    
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let cell = tableView.dequeueReusableCell(
-            withIdentifier: OrderListTableViewCell.identifier,
-            for: indexPath
-        ) as? OrderListTableViewCell else {
-            return UITableViewCell()
-        }
-        let order = sections[indexPath.section].items[indexPath.row]
-        cell.configure(order: order)
-        return cell
-    }
-    
+extension PurchaseHistoryViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let container = UIView()
         let label = UILabel()
         label.font = .Pretendard.body1
         label.textColor = GrayStyle.gray60.color
-        label.text = sections[section].title
+        label.text = tableDataSource.sectionTitle(at: section)
         container.addSubview(label)
         label.snp.makeConstraints { make in
             make.leading.equalToSuperview().inset(20)
@@ -157,5 +131,47 @@ extension PurchaseHistoryViewController: UITableViewDataSource, UITableViewDeleg
     
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
         40
+    }
+}
+
+private final class PurchaseHistoryTableDataSource: NSObject, RxTableViewDataSourceType, UITableViewDataSource {
+    typealias Element = [PurchaseOrderSection]
+    private var sections: [PurchaseOrderSection] = []
+
+    func tableView(_ tableView: UITableView, observedEvent: Event<Element>) {
+        Binder(self) { dataSource, sections in
+            dataSource.sections = sections
+            tableView.reloadData()
+        }.on(observedEvent)
+    }
+
+    func numberOfSections(in tableView: UITableView) -> Int {
+        sections.count
+    }
+
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        sections[section].items.count
+    }
+
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        guard let cell = tableView.dequeueReusableCell(
+            withIdentifier: OrderListTableViewCell.identifier,
+            for: indexPath
+        ) as? OrderListTableViewCell else {
+            return UITableViewCell()
+        }
+        cell.configure(order: sections[indexPath.section].items[indexPath.row])
+        return cell
+    }
+
+    func item(at indexPath: IndexPath) -> OrderResponseDTO? {
+        guard sections.indices.contains(indexPath.section),
+              sections[indexPath.section].items.indices.contains(indexPath.row) else { return nil }
+        return sections[indexPath.section].items[indexPath.row]
+    }
+
+    func sectionTitle(at section: Int) -> String {
+        guard sections.indices.contains(section) else { return "" }
+        return sections[section].title
     }
 }
