@@ -14,6 +14,9 @@ import KakaoSDKCommon
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    private var pendingPushRoomId: String?
+    private var pendingNavigationWorkItem: DispatchWorkItem?
+    private let maxPendingNavigationRetry = 25
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
@@ -136,7 +139,7 @@ extension AppDelegate {
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         if let roomId = extractRoomId(from: response.notification.request.content.userInfo) {
             DispatchQueue.main.async { [weak self] in
-                self?.openChatRoom(roomId: roomId)
+                self?.enqueueOpenChatRoom(roomId: roomId)
             }
         }
         completionHandler()
@@ -214,6 +217,34 @@ private extension AppDelegate {
             nav.pushViewController(roomVC, animated: false)
             top.present(nav, animated: true)
         }
+    }
+
+    func enqueueOpenChatRoom(roomId: String) {
+        pendingPushRoomId = roomId
+        pendingNavigationWorkItem?.cancel()
+        tryOpenPendingChatRoom(retryCount: 0)
+    }
+
+    func tryOpenPendingChatRoom(retryCount: Int) {
+        guard let roomId = pendingPushRoomId else { return }
+
+        if let tab = mainTabBarController() {
+            tab.setSelectedIndex(TabBarItem.profile.rawValue)
+            pendingPushRoomId = nil
+            openChatRoom(roomId: roomId)
+            return
+        }
+
+        guard retryCount < maxPendingNavigationRetry else {
+            pendingPushRoomId = nil
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.tryOpenPendingChatRoom(retryCount: retryCount + 1)
+        }
+        pendingNavigationWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 
     func mainTabBarController() -> MainTabBarController? {
