@@ -187,11 +187,12 @@ final class ChatLocalStore {
                             object.lastMessageAt = incomingMessageAt
                             object.lastMessage = room.lastChat?.content ?? ""
                             let isCurrentRoom = CurrentChatRoom.shared.roomId == room.roomId
-                            let isIncomingFromOtherUser = room.lastChat?.sender.userID != currentUserId
+                            let hasLastChat = room.lastChat != nil
+                            let isIncomingFromOtherUser = room.lastChat.map { $0.sender.userID != currentUserId } ?? false
                             
                             // 목록 화면 비활성/백그라운드 동안 수신한 최신 메시지는
                             // 소켓 실시간 경로를 타지 않으므로 동기화 시 unread를 보정한다.
-                            if !isCurrentRoom && isIncomingFromOtherUser && incomingMessageAt > previousLastMessageAt {
+                            if hasLastChat && !isCurrentRoom && isIncomingFromOtherUser && incomingMessageAt > previousLastMessageAt {
                                 object.unreadCount = min(300, object.unreadCount + 1)
                             } else if isCurrentRoom {
                                 object.unreadCount = 0
