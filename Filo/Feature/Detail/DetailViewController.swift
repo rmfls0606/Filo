@@ -398,6 +398,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     private var hasAppearedOnce = false
     private var applySelectionToken: Int = 0
     private var pendingPreviewProps: FilterImagePropsEntity?
+    private var pendingPreviewWatermark: (title: String, author: String)?
     
     init(viewModel: DetailViewModel) {
         self.viewModel = viewModel
@@ -840,6 +841,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
             .bind(with: self) { owner, data in
                 if owner.isFilterDownloaded {
                     let props = owner.previewFilterProps ?? data.filterValues.toFilterImagePropsEntity()
+                    owner.pendingPreviewWatermark = (title: data.title, author: data.creator.nick)
                     owner.presentImagePickerForPreview(with: props)
                 } else {
                     let vm = PaymentViewModel(product: [data])
@@ -1238,13 +1240,20 @@ extension DetailViewController: PHPickerViewControllerDelegate {
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(animated: true)
         let props = pendingPreviewProps
+        let watermark = pendingPreviewWatermark
         pendingPreviewProps = nil
+        pendingPreviewWatermark = nil
         guard !results.isEmpty else { return }
         guard let props else { return }
-        loadPreviewImage(from: results, props: props)
+        guard let watermark else { return }
+        loadPreviewImage(from: results, props: props, watermark: watermark)
     }
 
-    private func loadPreviewImage(from results: [PHPickerResult], props: FilterImagePropsEntity) {
+    private func loadPreviewImage(
+        from results: [PHPickerResult],
+        props: FilterImagePropsEntity,
+        watermark: (title: String, author: String)
+    ) {
         guard let result = results.first else { return }
         let provider = result.itemProvider
         guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else { return }
@@ -1256,7 +1265,12 @@ extension DetailViewController: PHPickerViewControllerDelegate {
             guard let self, let data, UIImage(data: data) != nil else { return }
             DispatchQueue.main.async {
                 guard token == self.applySelectionToken else { return }
-                let vc = FilterPreviewViewController(imageData: data, filterProps: props)
+                let vc = FilterPreviewViewController(
+                    imageData: data,
+                    filterProps: props,
+                    filterTitle: watermark.title,
+                    authorName: watermark.author
+                )
                 self.navigationController?.pushViewController(vc, animated: true)
             }
         }
