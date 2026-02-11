@@ -399,7 +399,7 @@ final class UserProfileViewController: BaseViewController {
                     owner.navigationController?.pushViewController(vc, animated: true)
                 case .post(let post):
                     let vm = CommunityDetailViewModel(postId: post.postId)
-                    let vc = CommunityDetailViewController(viewModel: vm)
+                    let vc = CommunityDetailViewController(viewModel: vm, initialPostId: post.postId)
                     owner.navigationController?.pushViewController(vc, animated: true)
                 }
             }

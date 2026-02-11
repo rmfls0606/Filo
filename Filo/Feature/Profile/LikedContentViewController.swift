@@ -228,7 +228,7 @@ final class LikedContentViewController: BaseViewController {
         output.selectedPostId
             .drive(with: self) { owner, postId in
                 let vm = CommunityDetailViewModel(postId: postId)
-                let vc = CommunityDetailViewController(viewModel: vm)
+                let vc = CommunityDetailViewController(viewModel: vm, initialPostId: postId)
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)

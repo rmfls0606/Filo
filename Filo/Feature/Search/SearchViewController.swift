@@ -475,8 +475,10 @@ private extension SearchViewController {
         prepareCommunityPushTransition(postId: postId)
         collectionView.deselectItem(at: selectedIndexPath, animated: false)
         let vm = CommunityDetailViewModel(postId: postId)
-        let vc = CommunityDetailViewController(viewModel: vm)
+        let vc = CommunityDetailViewController(viewModel: vm, initialPostId: postId)
         vc.onDeleted = { [weak self] _ in
+            self?.selectedPostIndexPath = nil
+            self?.selectedPostIdForTransition = nil
             self?.refreshRelay.accept(())
         }
         vc.onUpdated = { [weak self] _ in
@@ -519,8 +521,14 @@ private extension SearchViewController {
            let itemIndex = currentPosts.firstIndex(where: { $0.postId == selectedId }) {
             targetIndexPath = IndexPath(item: itemIndex, section: 0)
             selectedPostIndexPath = targetIndexPath
+        } else if selectedPostIdForTransition != nil {
+            selectedPostIndexPath = nil
+            targetIndexPath = nil
         }
         guard let indexPath = targetIndexPath else { return nil }
+        guard indexPath.section == 0 else { return nil }
+        let itemCount = collectionView.numberOfItems(inSection: 0)
+        guard itemCount > 0, indexPath.item >= 0, indexPath.item < itemCount else { return nil }
         
         view.layoutIfNeeded()
         collectionView.layoutIfNeeded()

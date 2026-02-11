@@ -108,7 +108,7 @@ final class MyPostListViewController: BaseViewController {
         output.selectedPostId
             .drive(with: self) { owner, postId in
                 let vm = CommunityDetailViewModel(postId: postId)
-                let vc = CommunityDetailViewController(viewModel: vm)
+                let vc = CommunityDetailViewController(viewModel: vm, initialPostId: postId)
                 vc.onDeleted = { [weak owner] _ in
                     owner?.refreshRelay.accept(())
                 }

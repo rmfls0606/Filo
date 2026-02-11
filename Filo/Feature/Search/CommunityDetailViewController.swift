@@ -178,11 +178,13 @@ final class CommunityDetailViewController: BaseViewController {
     private var currentCreatorId: String?
     private var currentDetail: PostResponseDTO?
     private var isAutoPlayEnabled: Bool = true
+    private let initialPostId: String
     var onDeleted: ((String) -> Void)?
     var onUpdated: ((String) -> Void)?
     
-    init(viewModel: CommunityDetailViewModel) {
+    init(viewModel: CommunityDetailViewModel, initialPostId: String) {
         self.viewModel = viewModel
+        self.initialPostId = initialPostId
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -433,7 +435,16 @@ final class CommunityDetailViewController: BaseViewController {
         
         output.networkError
             .emit(with: self) { owner, error in
-                owner.showAlert(title: "오류", message: error.errorDescription)
+                if owner.shouldPopAfterError(error) {
+                    owner.showAlert(title: "오류", message: error.errorDescription) { [weak owner] in
+                        if let postId = owner?.currentPostId ?? owner?.initialPostId {
+                            owner?.onDeleted?(postId)
+                        }
+                        owner?.navigationController?.popViewController(animated: true)
+                    }
+                } else {
+                    owner.showAlert(title: "오류", message: error.errorDescription)
+                }
             }
             .disposed(by: disposeBag)
 
@@ -462,9 +473,7 @@ final class CommunityDetailViewController: BaseViewController {
 
         output.deleteSuccess
             .emit(with: self) { owner, _ in
-                if let postId = owner.currentPostId {
-                    owner.onDeleted?(postId)
-                }
+                owner.onDeleted?(owner.currentPostId ?? owner.initialPostId)
                 owner.navigationController?.popViewController(animated: true)
             }
             .disposed(by: disposeBag)
@@ -531,6 +540,16 @@ final class CommunityDetailViewController: BaseViewController {
 }
 
 private extension CommunityDetailViewController {
+    func shouldPopAfterError(_ error: NetworkError) -> Bool {
+        if case .statusCodeError(let status) = error, status == .notFound {
+            return true
+        }
+        if case .serverError(let dto) = error {
+            return dto.message == "게시글을 찾을 수 없습니다."
+        }
+        return false
+    }
+
     func confirmDelete() {
         let alert = UIAlertController(title: "삭제", message: "게시글을 삭제할까요?", preferredStyle: .alert)
         let cancel = UIAlertAction(title: "취소", style: .cancel)
