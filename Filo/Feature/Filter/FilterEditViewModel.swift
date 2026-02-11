@@ -55,6 +55,10 @@ final class FilterEditViewModel: ViewModelType {
         makeEntity(from: filterValues)
     }
 
+    func previewImageData() -> Driver<Data> {
+        imageRelay.asDriver()
+    }
+
     init(imageData: Data, initialProps: FilterImagePropsEntity? = nil) {
         self.originalImageData = imageData
         self.imageRelay = BehaviorRelay(value: imageData)
