@@ -298,16 +298,6 @@ final class ChatRoomViewModel: ViewModelType {
                 }
 
                 guard let lastSent = sentMessages.last else { return }
-                if let opponentId {
-                    let pushBody = trimmed.isEmpty ? lastSent.content : trimmed
-                    let title = lastSent.sender.nick
-                    do {
-                        try await NetworkManager.shared.requestEmpty(
-                            PushRouter.push(userId: opponentId, title: title, subTitle: "", body: pushBody)
-                        )
-                    } catch{
-                    }
-                }
                 self.localStore.upsertMessages(sentMessages)
                 self.localStore.updateRoomSummary(with: lastSent, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
