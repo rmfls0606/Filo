@@ -61,6 +61,9 @@ private extension NetworkManager{
 
             if case .statusCodeError(let type) = error,
                type == .accessTokenExpired || type == .unauthorized {
+                guard let auth = router.headers["Authorization"], !auth.isEmpty else {
+                    throw error
+                }
                 guard !router.path.contains("/auth/refresh") else { throw error }
                 do {
                     _ = try await TokenStorage.shared.refreshUpdate({
@@ -93,6 +96,9 @@ private extension NetworkManager{
             //accessToken 만료 / 인증 실패
             if case .statusCodeError(let type) = error,
                type == .accessTokenExpired || type == .unauthorized{
+                guard let auth = router.headers["Authorization"], !auth.isEmpty else {
+                    throw error
+                }
                 
                 //refresh 요청은 재시도 금지
                 guard !router.path.contains("/auth/refresh") else{
