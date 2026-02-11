@@ -21,6 +21,7 @@ final class CommentsViewController: BaseViewController {
     private var inputBottomConstraint: Constraint?
     private var currentUserId: String = ""
     var onCountChanged: ((Int) -> Void)?
+    var onPostNotFound: ((String) -> Void)?
     
     private let tableView: UITableView = {
         let view = UITableView()
@@ -316,7 +317,17 @@ final class CommentsViewController: BaseViewController {
         
         output.networkError
             .emit(with: self) { owner, error in
-                owner.showAlert(title: "오류", message: error.errorDescription)
+                if owner.shouldPopAfterError(error) {
+                    owner.showAlert(title: "오류", message: error.errorDescription) { [weak owner] in
+                        guard let owner else { return }
+                        let postId = owner.viewModel.currentPostId
+                        owner.dismiss(animated: true) {
+                            owner.onPostNotFound?(postId)
+                        }
+                    }
+                } else {
+                    owner.showAlert(title: "오류", message: error.errorDescription)
+                }
             }
             .disposed(by: disposeBag)
 
@@ -394,5 +405,15 @@ final class CommentsViewController: BaseViewController {
         alert.addAction(cancelAction)
         alert.addAction(deleteAction)
         present(alert, animated: true)
+    }
+
+    private func shouldPopAfterError(_ error: NetworkError) -> Bool {
+        if case .statusCodeError(let status) = error, status == .notFound {
+            return true
+        }
+        if case .serverError(let dto) = error {
+            return dto.message == "게시글을 찾을 수 없습니다."
+        }
+        return false
     }
 }

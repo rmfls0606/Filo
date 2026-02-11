@@ -40,6 +40,10 @@ final class CommentsViewModel: ViewModelType {
         self.initialComments = initialComments
         self.service = service
     }
+
+    var currentPostId: String {
+        postId
+    }
     
     func transform(input: Input) -> Output {
         let commentsRelay = BehaviorRelay<[CommentListItem]>(value: flatten(initialComments, expanded: []))
