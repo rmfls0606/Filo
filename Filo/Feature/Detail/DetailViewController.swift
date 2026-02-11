@@ -7,9 +7,11 @@
 
 import UIKit
 import CoreLocation
+import PhotosUI
 import SnapKit
 import RxSwift
 import RxCocoa
+import UniformTypeIdentifiers
 
 final class DetailViewController: BaseViewController, UICollectionViewDelegateFlowLayout {
     //MARK: - Properties
@@ -379,6 +381,8 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     private var currentHashTags: [String] = []
     private var currentBuyerCount: Int?
     private var currentDetail: FilterResponseDTO?
+    private var isFilterDownloaded: Bool = false
+    private var previewFilterProps: FilterImagePropsEntity?
     private let geocoder = CLGeocoder()
     private var reverseGeocodeTask: Task<Void, Never>?
     private lazy var likeBarButtonItem = UIBarButtonItem(image: .likeEmpty, style: .plain, target: nil, action: nil)
@@ -392,6 +396,8 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     let tapGesutre = UITapGestureRecognizer()
     let viewModel: DetailViewModel
     private var hasAppearedOnce = false
+    private var applySelectionToken: Int = 0
+    private var pendingPreviewProps: FilterImagePropsEntity?
     
     init(viewModel: DetailViewModel) {
         self.viewModel = viewModel
@@ -688,6 +694,8 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                     owner.metadataView.showEmptyMetadata()
                 }
                 owner.downloadCheck(data.isDownloaded)
+                owner.isFilterDownloaded = data.isDownloaded
+                owner.previewFilterProps = data.filterValues.toFilterImagePropsEntity()
                 owner.currentBuyerCount = data.buyerCount
                 owner.downloadCountLabel.text = owner.formattedCount(data.buyerCount)
                 owner.likeCountLabel.text = owner.formattedCount(data.likeCount)
@@ -830,12 +838,17 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
         buyButton.rx.tap
             .withLatestFrom(output.filterDetailData)
             .bind(with: self) { owner, data in
-                let vm = PaymentViewModel(product: [data])
-                let vc = PaymentViewController(viewModel: vm)
-                vc.onPaymentValidated = { [weak owner] receipt in
-                    owner?.applyPurchasedFilterValues(from: receipt)
+                if owner.isFilterDownloaded {
+                    let props = owner.previewFilterProps ?? data.filterValues.toFilterImagePropsEntity()
+                    owner.presentImagePickerForPreview(with: props)
+                } else {
+                    let vm = PaymentViewModel(product: [data])
+                    let vc = PaymentViewController(viewModel: vm)
+                    vc.onPaymentValidated = { [weak owner] receipt in
+                        owner?.applyPurchasedFilterValues(from: receipt)
+                    }
+                    owner.navigationController?.pushViewController(vc, animated: true)
                 }
-                owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
     }
@@ -1064,22 +1077,24 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     private func downloadCheck(_ isDownload: Bool) {
         filterValuesBlurView.isHidden = isDownload
         if isDownload{
-            buyButton.setTitle("구매완료", for: .normal)
-            buyButton.backgroundColor = GrayStyle.gray90.color
-            buyButton.setTitleColor(GrayStyle.gray75.color, for: .normal)
+            buyButton.setTitle("적용하기", for: .normal)
+            buyButton.backgroundColor = Brand.brightTurquoise.color
+            buyButton.setTitleColor(GrayStyle.gray30.color, for: .normal)
         }else{
             buyButton.setTitle("결제하기", for: .normal)
             buyButton.backgroundColor = Brand.brightTurquoise.color
             buyButton.setTitleColor(GrayStyle.gray30.color, for: .normal)
         }
-        buyButton.isUserInteractionEnabled = !isDownload
+        buyButton.isUserInteractionEnabled = true
     }
 
     private func applyPurchasedFilterValues(from receipt: ReceiptOrderResponseDTO) {
         guard let filter = receipt.orderItem?.filter else { return }
         if let values = filter.filterValues {
             viewModel.updateFilterValues(values)
+            previewFilterProps = values.toFilterImagePropsEntity()
         }
+        isFilterDownloaded = true
         downloadCheck(true)
         if let count = currentBuyerCount {
             let next = count + 1
@@ -1205,5 +1220,45 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
     
     private func fileSizeString(fromBytes byteCount: Int) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(byteCount), countStyle: .file)
+    }
+}
+
+extension DetailViewController: PHPickerViewControllerDelegate {
+    private func presentImagePickerForPreview(with props: FilterImagePropsEntity) {
+        pendingPreviewProps = props
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.selectionLimit = 1
+        configuration.filter = .images
+
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        let props = pendingPreviewProps
+        pendingPreviewProps = nil
+        guard !results.isEmpty else { return }
+        guard let props else { return }
+        loadPreviewImage(from: results, props: props)
+    }
+
+    private func loadPreviewImage(from results: [PHPickerResult], props: FilterImagePropsEntity) {
+        guard let result = results.first else { return }
+        let provider = result.itemProvider
+        guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else { return }
+
+        applySelectionToken += 1
+        let token = applySelectionToken
+
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] data, _ in
+            guard let self, let data, UIImage(data: data) != nil else { return }
+            DispatchQueue.main.async {
+                guard token == self.applySelectionToken else { return }
+                let vc = FilterPreviewViewController(imageData: data, filterProps: props)
+                self.navigationController?.pushViewController(vc, animated: true)
+            }
+        }
     }
 }

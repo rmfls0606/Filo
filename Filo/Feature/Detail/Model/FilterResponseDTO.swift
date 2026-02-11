@@ -134,6 +134,32 @@ extension FilterValuesDTO {
             FilterValuesEntity(iconName: "blackPoint", valueText: text(blackPoint))
         ]
     }
+
+    func toFilterImagePropsEntity() -> FilterImagePropsEntity {
+        return FilterImagePropsEntity(
+            blackPoint: blackPoint ?? 0,
+            blur: blur ?? 0,
+            brightness: brightness ?? 0,
+            contrast: contrast ?? 1,
+            exposure: exposure ?? 0,
+            highlights: highlights ?? 1,
+            noise: noiseReduction ?? 0,
+            saturation: saturation ?? 1,
+            shadows: shadows ?? 0,
+            sharpness: sharpness ?? 0,
+            temperature: incomingTemperatureToUI(temperature),
+            vignette: vignette ?? 0
+        )
+    }
+
+    private func incomingTemperatureToUI(_ value: Double?) -> Double {
+        guard let value else { return 0.0 }
+        if value >= 1000.0 {
+            let ui = (value - 6500.0) / 25.0
+            return min(max(ui, -100.0), 100.0)
+        }
+        return min(max(value, -100.0), 100.0)
+    }
 }
 
 struct FilterCommentResponseDTO: Decodable, Sendable{
