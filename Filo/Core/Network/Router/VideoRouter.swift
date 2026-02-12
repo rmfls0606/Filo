@@ -18,7 +18,7 @@ enum VideoRouter: APITarget{
             return "/videos"
         case .stream(let videoId):
             return "/videos/\(videoId)/stream"
-        case .like(let videoId):
+        case .like(let videoId, _):
             return "/videos/\(videoId)/like"
         }
     }
