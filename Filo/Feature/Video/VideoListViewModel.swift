@@ -45,6 +45,9 @@ final class VideoListViewModel: ViewModelType {
                     let dto: VideoListResponseDTO = try await NetworkManager.shared.request(
                         VideoRouter.videos(next: next, limit: 30)
                     )
+                    dto.data.forEach { item in
+                        LikeStore.shared.setLiked(id: item.videoId, liked: item.isLiked, count: item.likeCount)
+                    }
 
                     let merged: [VideoResponseDTO]
                     if append {

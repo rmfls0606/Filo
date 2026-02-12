@@ -4,7 +4,7 @@ import SnapKit
 import RxSwift
 import RxCocoa
 
-final class VideoPlayerViewController: BaseViewController {
+final class VideoPlayerViewController: BaseViewController, UIGestureRecognizerDelegate {
     override var prefersCustomTabBarHidden: Bool { true }
     override var shouldAutorotate: Bool { true }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
@@ -110,6 +110,7 @@ final class VideoPlayerViewController: BaseViewController {
     private lazy var playerTapGesture: UITapGestureRecognizer = {
         let gesture = UITapGestureRecognizer()
         gesture.cancelsTouchesInView = false
+        gesture.delegate = self
         return gesture
     }()
 
@@ -177,8 +178,8 @@ final class VideoPlayerViewController: BaseViewController {
         self.videoTitleText = video.title
         self.videoCreatedAtText = video.createdAt
         self.viewCount = video.viewCount
-        self.likeCount = video.likeCount
-        self.isLiked = video.isLiked
+        self.likeCount = LikeStore.shared.likeCount(id: video.videoId) ?? video.likeCount
+        self.isLiked = LikeStore.shared.isLiked(id: video.videoId) || video.isLiked
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -225,8 +226,8 @@ final class VideoPlayerViewController: BaseViewController {
         }
 
         controlsContainerView.snp.makeConstraints { make in
-            make.leading.trailing.equalTo(playerContainerView).inset(12)
-            make.bottom.equalTo(playerContainerView).inset(8)
+            make.leading.trailing.equalTo(playerContainerView.safeAreaLayoutGuide).inset(12)
+            make.bottom.equalTo(playerContainerView.safeAreaLayoutGuide).inset(8)
             make.height.equalTo(62)
         }
 
@@ -269,13 +270,13 @@ final class VideoPlayerViewController: BaseViewController {
         }
 
         likeButton.snp.makeConstraints { make in
-            make.leading.equalTo(playerContainerView).inset(8)
-            make.top.equalTo(playerContainerView).inset(8)
+            make.leading.equalTo(playerContainerView.safeAreaLayoutGuide).inset(8)
+            make.top.equalTo(playerContainerView.safeAreaLayoutGuide).inset(8)
         }
 
         settingsButton.snp.makeConstraints { make in
-            make.trailing.equalTo(playerContainerView).inset(8)
-            make.top.equalTo(playerContainerView).inset(8)
+            make.trailing.equalTo(playerContainerView.safeAreaLayoutGuide).inset(8)
+            make.top.equalTo(playerContainerView.safeAreaLayoutGuide).inset(8)
         }
 
         loadingIndicator.snp.makeConstraints { make in
@@ -304,6 +305,7 @@ final class VideoPlayerViewController: BaseViewController {
         progressSlider.maximumTrackTintColor = UIColor.white.withAlphaComponent(0.35)
         progressSlider.setThumbImage(circleThumbImage(diameter: 10, color: .systemRed), for: .normal)
         videoTitleLabel.text = videoTitleText
+        LikeStore.shared.setLiked(id: videoId, liked: isLiked, count: likeCount)
         updateLikeButtonAppearance()
         updateVideoMetaText()
         NotificationCenter.default.addObserver(
@@ -415,6 +417,7 @@ final class VideoPlayerViewController: BaseViewController {
                 let optimisticCount = max(0, prevCount + (desiredLiked ? 1 : -1))
                 self.isLiked = desiredLiked
                 self.likeCount = optimisticCount
+                LikeStore.shared.setLiked(id: self.videoId, liked: desiredLiked, count: optimisticCount)
                 self.updateLikeButtonAppearance()
                 self.updateVideoMetaText()
                 self.likeRequestId += 1
@@ -460,6 +463,7 @@ final class VideoPlayerViewController: BaseViewController {
             .bind(with: self) { owner, result in
                 owner.isLiked = result.liked
                 owner.likeCount = result.resolvedCount
+                LikeStore.shared.setLiked(id: owner.videoId, liked: result.liked, count: result.resolvedCount)
                 owner.updateLikeButtonAppearance()
                 owner.updateVideoMetaText()
             }
@@ -836,6 +840,7 @@ final class VideoPlayerViewController: BaseViewController {
             self.controlsContainerView.alpha = targetAlpha
             self.settingsButton.alpha = targetAlpha
             self.expandButton.alpha = targetAlpha
+            self.likeButton.alpha = targetAlpha
             self.subtitleLabel.alpha = targetAlpha
             self.playPauseButton.alpha = targetAlpha
             self.rewindButton.alpha = targetAlpha
@@ -945,6 +950,19 @@ final class VideoPlayerViewController: BaseViewController {
             color.setFill()
             context.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: diameter, height: diameter))
         }
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard gestureRecognizer === playerTapGesture else { return true }
+        guard let touchedView = touch.view else { return true }
+
+        if touchedView is UIControl { return false }
+        if touchedView.isDescendant(of: controlsContainerView) { return false }
+        if touchedView.isDescendant(of: likeButton) { return false }
+        if touchedView.isDescendant(of: settingsButton) { return false }
+        if touchedView.isDescendant(of: subtitleLabel) { return false }
+
+        return true
     }
 
 }

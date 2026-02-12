@@ -1,8 +1,13 @@
 import UIKit
 import SnapKit
 import Kingfisher
+import RxSwift
+import RxCocoa
 
 final class VideoListTableViewCell: UITableViewCell {
+    private var disposeBag = DisposeBag()
+    private var currentVideoId: String?
+
     private let thumbnailImageView: UIImageView = {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
@@ -60,14 +65,28 @@ final class VideoListTableViewCell: UITableViewCell {
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        disposeBag = DisposeBag()
+        currentVideoId = nil
         thumbnailImageView.image = nil
         thumbnailImageView.kf.cancelDownloadTask()
     }
 
     func configure(_ item: VideoResponseDTO) {
+        currentVideoId = item.videoId
         titleLabel.text = item.title
         descriptionLabel.text = item.description
-        metadataLabel.text = "조회수 \(item.viewCount)회 · 좋아요 \(item.likeCount)"
+        let initialCount = LikeStore.shared.likeCount(id: item.videoId) ?? item.likeCount
+        metadataLabel.text = "조회수 \(item.viewCount)회 · 좋아요 \(initialCount)"
+        Observable
+            .combineLatest(LikeStore.shared.likedIds, LikeStore.shared.likeCounts)
+            .observe(on: MainScheduler.instance)
+            .subscribe(onNext: { [weak self] _, counts in
+                guard let self else { return }
+                guard self.currentVideoId == item.videoId else { return }
+                let likeCount = counts[item.videoId] ?? item.likeCount
+                self.metadataLabel.text = "조회수 \(item.viewCount)회 · 좋아요 \(likeCount)"
+            })
+            .disposed(by: disposeBag)
         setThumbnail(urlString: item.thumbnailURL)
     }
 
