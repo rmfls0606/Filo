@@ -215,6 +215,7 @@ final class SearchViewController: BaseViewController {
         view.backgroundColor = GrayStyle.gray100.color
         navigationItem.title = "커뮤니티"
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: nil, action: nil)
+        navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "play.rectangle"), style: .plain, target: nil, action: nil)
         tap.delegate = self
         view.addGestureRecognizer(tap)
         tap.cancelsTouchesInView = false
@@ -366,6 +367,13 @@ final class SearchViewController: BaseViewController {
                 vc.onCreated = { [weak owner] in
                     owner?.refreshRelay.accept(())
                 }
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
+
+        navigationItem.leftBarButtonItem?.rx.tap
+            .bind(with: self) { owner, _ in
+                let vc = VideoListViewController()
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)

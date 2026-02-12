@@ -14,6 +14,7 @@ import KakaoSDKCommon
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    static var orientationLock: UIInterfaceOrientationMask = .portrait
     private var pendingPushRoomId: String?
     private var pendingNavigationWorkItem: DispatchWorkItem?
     private let maxPendingNavigationRetry = 25
@@ -72,6 +73,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // If any sessions were discarded while the application was not running, this will be called shortly after application:didFinishLaunchingWithOptions.
         // Use this method to release any resources that were specific to the discarded scenes, as they will not return.
     }
+
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.orientationLock
+    }
 }
 
 extension AppDelegate: UNUserNotificationCenterDelegate{
@@ -100,7 +105,7 @@ extension AppDelegate: MessagingDelegate{
                   try await NetworkManager.shared.requestEmpty(
                       UserRouter.deviceToken(deviceToken: token)
                   )
-                  debugPrint("Device token updated: \(token)")
+                  print("Device token updated: \(token)")
               } catch {
                   debugPrint("Device token update failed: \(error)")
               }
