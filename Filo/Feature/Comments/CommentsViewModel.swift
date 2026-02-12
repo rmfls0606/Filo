@@ -22,6 +22,7 @@ final class CommentsViewModel: ViewModelType {
     
     struct Output {
         let comments: Driver<[CommentListItem]>
+        let rawComments: Driver<[PostCommentResponseDTO]>
         let sendEnabled: Driver<Bool>
         let sendSuccess: Signal<Void>
         let totalCount: Driver<Int>
@@ -237,6 +238,7 @@ final class CommentsViewModel: ViewModelType {
         
         return Output(
             comments: commentsRelay.asDriver(),
+            rawComments: commentsDataRelay.asDriver(),
             sendEnabled: sendEnabled.asDriver(onErrorJustReturn: false),
             sendSuccess: successRelay.asSignal(),
             totalCount: totalCount,

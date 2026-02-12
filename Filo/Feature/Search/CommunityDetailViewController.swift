@@ -520,6 +520,9 @@ final class CommunityDetailViewController: BaseViewController {
                 vc.onCountChanged = { [weak owner] count in
                     owner?.commentCountLabel.text = owner?.formatCount(count)
                 }
+                vc.onCommentsChanged = { [weak owner] comments in
+                    owner?.lastComments = comments
+                }
                 vc.onPostNotFound = { [weak owner] postId in
                     owner?.onDeleted?(postId)
                     owner?.navigationController?.popViewController(animated: true)

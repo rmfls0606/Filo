@@ -21,6 +21,7 @@ final class CommentsViewController: BaseViewController {
     private var inputBottomConstraint: Constraint?
     private var currentUserId: String = ""
     var onCountChanged: ((Int) -> Void)?
+    var onCommentsChanged: (([PostCommentResponseDTO]) -> Void)?
     var onPostNotFound: ((String) -> Void)?
     
     private let tableView: UITableView = {
@@ -278,6 +279,12 @@ final class CommentsViewController: BaseViewController {
         output.totalCount
             .drive(with: self) { owner, count in
                 owner.onCountChanged?(count)
+            }
+            .disposed(by: disposeBag)
+
+        output.rawComments
+            .drive(with: self) { owner, comments in
+                owner.onCommentsChanged?(comments)
             }
             .disposed(by: disposeBag)
 
