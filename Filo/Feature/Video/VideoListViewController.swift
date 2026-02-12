@@ -119,9 +119,9 @@ final class VideoListViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
 
-        output.selectedVideoId
-            .drive(with: self) { owner, videoId in
-                let vc = VideoPlayerViewController(videoId: videoId)
+        output.selectedVideo
+            .drive(with: self) { owner, video in
+                let vc = VideoPlayerViewController(videoId: video.videoId, initialIsLiked: video.isLiked)
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)

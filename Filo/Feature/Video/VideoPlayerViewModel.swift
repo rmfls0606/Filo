@@ -59,11 +59,6 @@ final class VideoPlayerViewModel: ViewModelType {
                         qualitiesRelay.accept(dto.qualities)
                         masterStreamURLRelay.accept(dto.streamURL)
                         subtitlesRelay.accept(dto.subtitles)
-                        #if DEBUG
-                        print("[VideoStream] videoId=\(dto.videoId)")
-                        print("[VideoStream] streamURL=\(dto.streamURL)")
-                        print("[VideoStream] qualities=\(dto.qualities.map(\.url))")
-                        #endif
                         let playURL = dto.streamURL.isEmpty ? (dto.qualities.first?.url ?? "") : dto.streamURL
                         playRequestRelay.accept(PlayRequest(urlString: playURL, preservingCurrentPosition: false))
 
@@ -81,15 +76,9 @@ final class VideoPlayerViewModel: ViewModelType {
                         isLoadingRelay.accept(false)
                     } catch let error as NetworkError {
                         isLoadingRelay.accept(false)
-                        #if DEBUG
-                        print("[VideoStream] networkError=\(error)")
-                        #endif
                         networkErrorRelay.accept(error)
                     } catch {
                         isLoadingRelay.accept(false)
-                        #if DEBUG
-                        print("[VideoStream] unknownError=\(error)")
-                        #endif
                         networkErrorRelay.accept(.unknown(error))
                     }
                 }

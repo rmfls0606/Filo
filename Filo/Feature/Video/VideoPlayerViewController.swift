@@ -16,6 +16,7 @@ final class VideoPlayerViewController: BaseViewController {
     private let videoId: String
     private let viewModel: VideoPlayerViewModel
     private let disposeBag = DisposeBag()
+    private let likeTapRelay = PublishRelay<Void>()
 
     private var player: AVPlayer?
     private let playerRenderView = PlayerRenderView()
@@ -34,6 +35,8 @@ final class VideoPlayerViewController: BaseViewController {
     private var areOverlayControlsHidden = false
     private var overlayAutoHideWorkItem: DispatchWorkItem?
     private var isLiked = false
+    private var likeRequestId = 0
+    private var latestLikeRequestId = 0
 
     private let playerContainerView: UIView = {
         let view = UIView()
@@ -57,6 +60,8 @@ final class VideoPlayerViewController: BaseViewController {
 
     private let settingsButton: UIButton = {
         var config = UIButton.Configuration.plain()
+        var imageConfig = UIImage.SymbolConfiguration(scale: .medium)
+        config.preferredSymbolConfigurationForImage = imageConfig
         config.image = UIImage(systemName: "gearshape.fill")
         config.baseForegroundColor = .white
         config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
@@ -66,9 +71,11 @@ final class VideoPlayerViewController: BaseViewController {
     
     private let expandButton: UIButton = {
         var config = UIButton.Configuration.plain()
+        var imageConfig = UIImage.SymbolConfiguration(scale: .medium)
+        config.preferredSymbolConfigurationForImage = imageConfig
         config.image = UIImage(systemName: "arrow.up.left.and.arrow.down.right")
         config.baseForegroundColor = .white
-        config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
+        config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
         let button = UIButton(configuration: config)
         return button
     }()
@@ -134,17 +141,19 @@ final class VideoPlayerViewController: BaseViewController {
 
     private let likeButton: UIButton = {
         var config = UIButton.Configuration.plain()
+        var imageConfig = UIImage.SymbolConfiguration(scale: .medium)
+        config.preferredSymbolConfigurationForImage = imageConfig
         config.image = UIImage(systemName: "heart")
         config.baseForegroundColor = .white
         config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
         let button = UIButton(configuration: config)
-        button.isHidden = true
         return button
     }()
 
-    init(videoId: String) {
+    init(videoId: String, initialIsLiked: Bool = false) {
         self.videoId = videoId
         self.viewModel = VideoPlayerViewModel(videoId: videoId)
+        self.isLiked = initialIsLiked
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -173,11 +182,11 @@ final class VideoPlayerViewController: BaseViewController {
         playerContainerView.addSubview(playPauseButton)
         playerContainerView.addSubview(rewindButton)
         playerContainerView.addSubview(forwardButton)
+        playerContainerView.addSubview(likeButton)
         controlsContainerView.addSubview(progressSlider)
         controlsContainerView.addSubview(currentTimeLabel)
         controlsContainerView.addSubview(durationLabel)
         controlsContainerView.addSubview(expandButton)
-        controlsContainerView.addSubview(likeButton)
     }
 
     override func configureLayout() {
@@ -228,21 +237,18 @@ final class VideoPlayerViewController: BaseViewController {
         }
         
         expandButton.snp.makeConstraints { make in
-            make.trailing.equalToSuperview().inset(2)
+            make.trailing.equalToSuperview().inset(8)
             make.centerY.equalTo(currentTimeLabel)
-            make.size.equalTo(28)
         }
 
         likeButton.snp.makeConstraints { make in
-            make.leading.equalTo(playerContainerView).inset(12)
-            make.top.equalTo(playerContainerView).inset(12)
-            make.size.equalTo(28)
+            make.leading.equalTo(playerContainerView).inset(8)
+            make.top.equalTo(playerContainerView).inset(8)
         }
 
         settingsButton.snp.makeConstraints { make in
-            make.trailing.equalTo(playerContainerView).inset(12)
-            make.top.equalTo(playerContainerView).inset(12)
-            make.size.equalTo(34)
+            make.trailing.equalTo(playerContainerView).inset(8)
+            make.top.equalTo(playerContainerView).inset(8)
         }
 
         loadingIndicator.snp.makeConstraints { make in
@@ -314,9 +320,7 @@ final class VideoPlayerViewController: BaseViewController {
             .disposed(by: disposeBag)
 
         likeButton.rx.tap
-            .bind(with: self) { owner, _ in
-                owner.toggleLike()
-            }
+            .bind(to: likeTapRelay)
             .disposed(by: disposeBag)
         
         expandButton.rx.tap
@@ -359,7 +363,55 @@ final class VideoPlayerViewController: BaseViewController {
         output.subtitles
             .drive(with: self) { owner, subtitles in
                 owner.currentSubtitles = subtitles
-                owner.likeButton.isHidden = !subtitles.isEmpty
+            }
+            .disposed(by: disposeBag)
+
+        likeTapRelay
+            .asObservable()
+            .compactMap { [weak self] _ -> (desiredLiked: Bool, requestId: Int, prevLiked: Bool)? in
+                guard let self else { return nil }
+                let prevLiked = self.isLiked
+                let desiredLiked = !prevLiked
+                self.isLiked = desiredLiked
+                self.updateLikeButtonAppearance()
+                self.likeRequestId += 1
+                self.latestLikeRequestId = self.likeRequestId
+                return (desiredLiked, self.likeRequestId, prevLiked)
+            }
+            .debounce(.milliseconds(300), scheduler: MainScheduler.instance)
+            .flatMapLatest { [weak self] payload -> Observable<Bool> in
+                guard let self else { return .empty() }
+                let desiredLiked = payload.desiredLiked
+                let requestId = payload.requestId
+                let prevLiked = payload.prevLiked
+
+                return Observable<Bool>.create { observer in
+                    Task {
+                        do {
+                            let likeStatus = try await self.requestVideoLike(desiredLiked: desiredLiked)
+                            observer.onNext(likeStatus)
+                            observer.onCompleted()
+                        } catch {
+                            observer.onError(error)
+                        }
+                    }
+                    return Disposables.create()
+                }
+                .flatMap { [weak self] likedNow -> Observable<Bool> in
+                    guard let self else { return .empty() }
+                    guard self.latestLikeRequestId == requestId else { return .empty() }
+                    return .just(likedNow)
+                }
+                .catch { [weak self] error in
+                    guard let self else { return .empty() }
+                    guard self.latestLikeRequestId == requestId else { return .empty() }
+                    self.showAlert(title: "오류", message: (error as? NetworkError)?.errorDescription ?? "좋아요 처리에 실패했습니다.")
+                    return .just(prevLiked)
+                }
+            }
+            .bind(with: self) { owner, liked in
+                owner.isLiked = liked
+                owner.updateLikeButtonAppearance()
             }
             .disposed(by: disposeBag)
 
@@ -388,9 +440,6 @@ final class VideoPlayerViewController: BaseViewController {
             loadingIndicator.stopAnimating()
             return
         }
-        #if DEBUG
-        print("[VideoPlayer] playURL=\(url.absoluteString)")
-        #endif
         let previousTime = preservingCurrentPosition ? player?.currentTime() : nil
         let wasPlaying = preservingCurrentPosition ? (player?.rate ?? 0) > 0 : true
 
@@ -540,30 +589,15 @@ final class VideoPlayerViewController: BaseViewController {
 
     private func observePlayerItemStatus(_ item: AVPlayerItem) {
         playerItemStatusObservation = item.observe(\.status, options: [.new, .initial]) { item, _ in
-            #if DEBUG
-            switch item.status {
-            case .unknown:
-                print("[VideoPlayer] item.status=unknown")
-            case .readyToPlay:
-                print("[VideoPlayer] item.status=readyToPlay")
-            case .failed:
-                print("[VideoPlayer] item.status=failed error=\(String(describing: item.error))")
-                DispatchQueue.main.async { [weak self] in
-                    self?.retryPlaybackIfPossible()
-                }
-            @unknown default:
-                print("[VideoPlayer] item.status=unknown-default")
+            guard item.status == .failed else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.retryPlaybackIfPossible()
             }
-            #endif
         }
     }
 
     @objc
     private func handlePlayerItemFailed(_ notification: Notification) {
-        #if DEBUG
-        let err = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey]
-        print("[VideoPlayer] failedToPlayToEnd error=\(String(describing: err))")
-        #endif
         retryPlaybackIfPossible()
     }
 
@@ -785,28 +819,16 @@ final class VideoPlayerViewController: BaseViewController {
         overlayAutoHideWorkItem = nil
     }
 
-    private func toggleLike() {
-        let next = !isLiked
-        Task {
-            do {
-                try await NetworkManager.shared.requestEmpty(
-                    VideoRouter.like(videoId: videoId, likeStatus: next)
-                )
-                await MainActor.run {
-                    self.isLiked = next
-                    self.updateLikeButtonAppearance()
-                }
-            } catch {
-                await MainActor.run {
-                    self.showAlert(title: "오류", message: "좋아요 처리에 실패했습니다.")
-                }
-            }
-        }
-    }
-
     private func updateLikeButtonAppearance() {
         likeButton.configuration?.image = UIImage(systemName: isLiked ? "heart.fill" : "heart")
         likeButton.configuration?.baseForegroundColor = isLiked ? .systemRed : .white
+    }
+
+    private func requestVideoLike(desiredLiked: Bool) async throws -> Bool {
+        let dto: VideoLikeStatus = try await NetworkManager.shared.request(
+            VideoRouter.like(videoId: videoId, likeStatus: desiredLiked)
+        )
+        return dto.likeStatus
     }
 
     private func circleThumbImage(diameter: CGFloat, color: UIColor) -> UIImage {

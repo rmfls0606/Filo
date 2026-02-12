@@ -15,13 +15,13 @@ final class VideoListViewModel: ViewModelType {
         let videos: Driver<[VideoResponseDTO]>
         let isInitialLoading: Driver<Bool>
         let isAppending: Driver<Bool>
-        let selectedVideoId: Driver<String>
+        let selectedVideo: Driver<VideoResponseDTO>
         let networkError: Signal<NetworkError>
     }
 
     func transform(input: Input) -> Output {
         let videosRelay = BehaviorRelay<[VideoResponseDTO]>(value: [])
-        let selectedVideoIdRelay = PublishRelay<String>()
+        let selectedVideoRelay = PublishRelay<VideoResponseDTO>()
         let networkErrorRelay = PublishRelay<NetworkError>()
         let isInitialLoadingRelay = BehaviorRelay<Bool>(value: false)
         let isAppendingRelay = BehaviorRelay<Bool>(value: false)
@@ -97,15 +97,14 @@ final class VideoListViewModel: ViewModelType {
             .disposed(by: disposeBag)
 
         input.selectedVideo
-            .map { $0.videoId }
-            .bind(to: selectedVideoIdRelay)
+            .bind(to: selectedVideoRelay)
             .disposed(by: disposeBag)
 
         return Output(
             videos: videosRelay.asDriver(),
             isInitialLoading: isInitialLoadingRelay.asDriver(),
             isAppending: isAppendingRelay.asDriver(),
-            selectedVideoId: selectedVideoIdRelay.asDriver(onErrorDriveWith: .empty()),
+            selectedVideo: selectedVideoRelay.asDriver(onErrorDriveWith: .empty()),
             networkError: networkErrorRelay.asSignal()
         )
     }
