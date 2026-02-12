@@ -17,6 +17,9 @@ final class VideoPlayerViewController: BaseViewController {
     private let viewModel: VideoPlayerViewModel
     private let disposeBag = DisposeBag()
     private let likeTapRelay = PublishRelay<Void>()
+    private let videoTitleText: String
+    private let videoCreatedAtText: String
+    private let viewCount: Int
 
     private var player: AVPlayer?
     private let playerRenderView = PlayerRenderView()
@@ -35,6 +38,7 @@ final class VideoPlayerViewController: BaseViewController {
     private var areOverlayControlsHidden = false
     private var overlayAutoHideWorkItem: DispatchWorkItem?
     private var isLiked = false
+    private var likeCount = 0
     private var likeRequestId = 0
     private var latestLikeRequestId = 0
 
@@ -55,6 +59,23 @@ final class VideoPlayerViewController: BaseViewController {
         label.layer.cornerRadius = 8
         label.clipsToBounds = true
         label.isHidden = true
+        return label
+    }()
+
+    private let videoTitleLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.body1
+        label.textColor = GrayStyle.gray15.color
+        label.numberOfLines = 1
+        label.lineBreakMode = .byTruncatingTail
+        return label
+    }()
+
+    private let videoMetaLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray45.color
+        label.numberOfLines = 1
         return label
     }()
 
@@ -150,10 +171,14 @@ final class VideoPlayerViewController: BaseViewController {
         return button
     }()
 
-    init(videoId: String, initialIsLiked: Bool = false) {
-        self.videoId = videoId
-        self.viewModel = VideoPlayerViewModel(videoId: videoId)
-        self.isLiked = initialIsLiked
+    init(video: VideoResponseDTO) {
+        self.videoId = video.videoId
+        self.viewModel = VideoPlayerViewModel(videoId: video.videoId)
+        self.videoTitleText = video.title
+        self.videoCreatedAtText = video.createdAt
+        self.viewCount = video.viewCount
+        self.likeCount = video.likeCount
+        self.isLiked = video.isLiked
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -176,6 +201,8 @@ final class VideoPlayerViewController: BaseViewController {
         view.addSubview(controlsContainerView)
         view.addSubview(settingsButton)
         view.addSubview(loadingIndicator)
+        view.addSubview(videoTitleLabel)
+        view.addSubview(videoMetaLabel)
 
         playerContainerView.addSubview(playerRenderView)
         playerContainerView.addGestureRecognizer(playerTapGesture)
@@ -258,6 +285,16 @@ final class VideoPlayerViewController: BaseViewController {
         playerRenderView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
+
+        videoTitleLabel.snp.makeConstraints { make in
+            make.top.equalTo(playerContainerView.snp.bottom).offset(12)
+            make.leading.trailing.equalToSuperview().inset(16)
+        }
+
+        videoMetaLabel.snp.makeConstraints { make in
+            make.top.equalTo(videoTitleLabel.snp.bottom).offset(6)
+            make.leading.trailing.equalToSuperview().inset(16)
+        }
     }
 
     override func configureView() {
@@ -266,7 +303,9 @@ final class VideoPlayerViewController: BaseViewController {
         progressSlider.minimumTrackTintColor = .systemRed
         progressSlider.maximumTrackTintColor = UIColor.white.withAlphaComponent(0.35)
         progressSlider.setThumbImage(circleThumbImage(diameter: 10, color: .systemRed), for: .normal)
+        videoTitleLabel.text = videoTitleText
         updateLikeButtonAppearance()
+        updateVideoMetaText()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handlePlayerItemFailed(_:)),
@@ -368,22 +407,28 @@ final class VideoPlayerViewController: BaseViewController {
 
         likeTapRelay
             .asObservable()
-            .compactMap { [weak self] _ -> (desiredLiked: Bool, requestId: Int, prevLiked: Bool)? in
+            .compactMap { [weak self] _ -> (desiredLiked: Bool, requestId: Int, prevLiked: Bool, prevCount: Int, optimisticCount: Int)? in
                 guard let self else { return nil }
                 let prevLiked = self.isLiked
+                let prevCount = self.likeCount
                 let desiredLiked = !prevLiked
+                let optimisticCount = max(0, prevCount + (desiredLiked ? 1 : -1))
                 self.isLiked = desiredLiked
+                self.likeCount = optimisticCount
                 self.updateLikeButtonAppearance()
+                self.updateVideoMetaText()
                 self.likeRequestId += 1
                 self.latestLikeRequestId = self.likeRequestId
-                return (desiredLiked, self.likeRequestId, prevLiked)
+                return (desiredLiked, self.likeRequestId, prevLiked, prevCount, optimisticCount)
             }
             .debounce(.milliseconds(300), scheduler: MainScheduler.instance)
-            .flatMapLatest { [weak self] payload -> Observable<Bool> in
+            .flatMapLatest { [weak self] payload -> Observable<(liked: Bool, resolvedCount: Int)> in
                 guard let self else { return .empty() }
                 let desiredLiked = payload.desiredLiked
                 let requestId = payload.requestId
                 let prevLiked = payload.prevLiked
+                let prevCount = payload.prevCount
+                let optimisticCount = payload.optimisticCount
 
                 return Observable<Bool>.create { observer in
                     Task {
@@ -397,21 +442,26 @@ final class VideoPlayerViewController: BaseViewController {
                     }
                     return Disposables.create()
                 }
-                .flatMap { [weak self] likedNow -> Observable<Bool> in
+                .flatMap { [weak self] likedNow -> Observable<(liked: Bool, resolvedCount: Int)> in
                     guard let self else { return .empty() }
                     guard self.latestLikeRequestId == requestId else { return .empty() }
-                    return .just(likedNow)
+                    let resolvedCount = (likedNow == desiredLiked)
+                        ? optimisticCount
+                        : max(0, prevCount + (likedNow ? 1 : -1))
+                    return .just((likedNow, resolvedCount))
                 }
                 .catch { [weak self] error in
                     guard let self else { return .empty() }
                     guard self.latestLikeRequestId == requestId else { return .empty() }
                     self.showAlert(title: "오류", message: (error as? NetworkError)?.errorDescription ?? "좋아요 처리에 실패했습니다.")
-                    return .just(prevLiked)
+                    return .just((prevLiked, prevCount))
                 }
             }
-            .bind(with: self) { owner, liked in
-                owner.isLiked = liked
+            .bind(with: self) { owner, result in
+                owner.isLiked = result.liked
+                owner.likeCount = result.resolvedCount
                 owner.updateLikeButtonAppearance()
+                owner.updateVideoMetaText()
             }
             .disposed(by: disposeBag)
 
@@ -822,6 +872,64 @@ final class VideoPlayerViewController: BaseViewController {
     private func updateLikeButtonAppearance() {
         likeButton.configuration?.image = UIImage(systemName: isLiked ? "heart.fill" : "heart")
         likeButton.configuration?.baseForegroundColor = isLiked ? .systemRed : .white
+    }
+
+    private func updateVideoMetaText() {
+        let relative = relativeCreatedAtText(from: videoCreatedAtText)
+        videoMetaLabel.text = "조회수 \(viewCount)회 좋아요 \(likeCount) \(relative)"
+    }
+
+    private func relativeCreatedAtText(from raw: String) -> String {
+        guard let date = parseDate(raw) else { return "방금 전" }
+        let interval = max(0, Int(Date().timeIntervalSince(date)))
+
+        let minute = 60
+        let hour = 3600
+        let day = 86_400
+        let month = 2_592_000
+        let year = 31_536_000
+
+        switch interval {
+        case 0..<minute: return "방금 전"
+        case minute..<hour: return "\(interval / minute)분 전"
+        case hour..<day: return "\(interval / hour)시간 전"
+        case day..<month: return "\(interval / day)일 전"
+        case month..<year: return "\(interval / month)개월 전"
+        default: return "\(interval / year)년 전"
+        }
+    }
+
+    private func parseDate(_ raw: String) -> Date? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+
+        let iso8601WithFractional = ISO8601DateFormatter()
+        iso8601WithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso8601WithFractional.date(from: text) {
+            return date
+        }
+
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime]
+        if let date = iso8601.date(from: text) {
+            return date
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
+        if let date = formatter.date(from: text) {
+            return date
+        }
+
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+        if let date = formatter.date(from: text) {
+            return date
+        }
+
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter.date(from: text)
     }
 
     private func requestVideoLike(desiredLiked: Bool) async throws -> Bool {

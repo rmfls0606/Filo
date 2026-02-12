@@ -67,7 +67,7 @@ final class VideoListTableViewCell: UITableViewCell {
     func configure(_ item: VideoResponseDTO) {
         titleLabel.text = item.title
         descriptionLabel.text = item.description
-        metadataLabel.text = "조회수 \(item.viewCount) · 좋아요 \(item.likeCount)"
+        metadataLabel.text = "조회수 \(item.viewCount)회 · 좋아요 \(item.likeCount)"
         setThumbnail(urlString: item.thumbnailURL)
     }
 
