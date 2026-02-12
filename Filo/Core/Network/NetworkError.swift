@@ -41,6 +41,10 @@ enum NetworkError: LocalizedError{
 
 extension NetworkError{
     static func mapping(error: Error?, statusCode: Int?, data: Data?) -> NetworkError{
+        if let statusCode, [401, 418, 419].contains(statusCode) {
+            return .statusCodeError(type: StatusCodeError.codeMapping(statusCode: statusCode))
+        }
+
         //서버 에러 DTO 우선
         if let data,
            let result = try? JSONDecoder().decode(ServerErrorDTO.self, from: data){
