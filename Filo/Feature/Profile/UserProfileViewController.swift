@@ -409,20 +409,11 @@ final class UserProfileViewController: BaseViewController {
             .combineLatest(output.userFilterItems, output.userCommunityItems, output.selectedSegment)
             .drive(onNext: { [weak self] (filterItems, communityItems, selected) in
                 guard let self else { return }
-                let isFilterTab = selected == 0
-                let currentItemsCount = isFilterTab ? filterItems.count : communityItems.count
-                self.emptyBackgroundLabel.text = isFilterTab
-                    ? "사용자가 만든 필터가 존재하지 않습니다."
-                    : "사용자가 작성한 게시글이 존재하지 않습니다."
-                self.filterCollectionView.backgroundView =
-                    currentItemsCount == 0 ? self.emptyBackgroundLabel : nil
-                self.filterCollectionView.isHidden = false
-                if currentItemsCount == 0 {
-                    let minHeight = self.minimumFilterHeight()
-                    self.filterCollectionHeightConstraint?.update(offset: minHeight)
-                    self.filterCollectionView.layoutIfNeeded()
-                    self.filterCollectionView.backgroundView?.frame = self.filterCollectionView.bounds
-                }
+                self.updateEmptyState(
+                    filterCount: filterItems.count,
+                    communityCount: communityItems.count,
+                    selectedSegment: selected
+                )
             })
             .disposed(by: disposeBag)
 
@@ -448,6 +439,26 @@ final class UserProfileViewController: BaseViewController {
             - 20
             - scrollView.adjustedContentInset.bottom
         return max(available, 0)
+    }
+    
+    private func updateEmptyState(filterCount: Int, communityCount: Int, selectedSegment: Int) {
+        let isFilterTab = selectedSegment == 0
+        let currentItemsCount = isFilterTab ? filterCount : communityCount
+        emptyBackgroundLabel.text = isFilterTab
+            ? "사용자가 올린 필터가 없습니다."
+            : "사용자가 올린 게시글이 없습니다."
+        filterCollectionView.isHidden = false
+        
+        if currentItemsCount == 0 {
+            filterCollectionView.backgroundView = emptyBackgroundLabel
+            let minHeight = minimumFilterHeight()
+            let contentHeight = filterCollectionView.collectionViewLayout.collectionViewContentSize.height
+            filterCollectionHeightConstraint?.update(offset: max(contentHeight, minHeight))
+            filterCollectionView.layoutIfNeeded()
+            filterCollectionView.backgroundView?.frame = filterCollectionView.bounds
+        } else {
+            filterCollectionView.backgroundView = nil
+        }
     }
 
     private func updateSegmentSelection(selectedIndex: Int, animated: Bool) {

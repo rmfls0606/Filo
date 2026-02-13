@@ -66,7 +66,9 @@ final class UserProfileViewModel: ViewModelType{
         
         Task{
             do{
-                let dto: PostSummaryPaginationResponseDTO = try await NetworkManager.shared.request(CommunityRouter.user(category: "", limit: "", next: "", userId: userId))
+                let dto: PostSummaryPaginationResponseDTO = try await NetworkManager.shared.request(
+                    CommunityRouter.user(category: "", limit: "30", next: "", userId: userId)
+                )
                 userCommunityItemsRelay.accept(dto.data)
             }catch let error as NetworkError{
                 networkErrorRelay.accept(error)
