@@ -134,8 +134,8 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
         currentURLString = urlString
         self.alignThumbnailOnLeft = alignThumbnailOnLeft
         let ext = Self.fileExtension(from: urlString)
-        let isImage = Self.isImageFile(extension: ext)
         let isPDF = ext == "pdf"
+        let isImage = !isPDF
 
         if isImage {
             fileBadge.isHidden = true
@@ -146,15 +146,30 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
             updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
             imageView.setKFImage(urlString: urlString)
         } else if isPDF {
-            fileBadge.isHidden = false
-            fileIconView.isHidden = true
-            fileNameLabel.isHidden = false
-            fileNameLabel.text = Self.fileName(from: urlString)
-            fileNameLabel.textAlignment = alignThumbnailOnLeft ? .left : .right
-            updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
-            imageView.image = UIImage(systemName: "doc")
-            imageView.tintColor = GrayStyle.gray60.color
-            loadPDFThumbnail(urlString: urlString)
+            // Signed URLs can have misleading extensions. Try image decode first.
+            imageView.setKFImage(urlString: urlString) { [weak self] result in
+                guard let self else { return }
+                guard self.currentURLString == urlString else { return }
+                switch result {
+                case .success:
+                    self.fileBadge.isHidden = true
+                    self.fileIconView.isHidden = true
+                    self.fileNameLabel.isHidden = true
+                    self.fileNameLabel.text = nil
+                    self.imageView.tintColor = nil
+                    self.updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
+                case .failure:
+                    self.fileBadge.isHidden = false
+                    self.fileIconView.isHidden = true
+                    self.fileNameLabel.isHidden = false
+                    self.fileNameLabel.text = Self.fileName(from: urlString)
+                    self.fileNameLabel.textAlignment = alignThumbnailOnLeft ? .left : .right
+                    self.updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
+                    self.imageView.image = UIImage(systemName: "doc")
+                    self.imageView.tintColor = GrayStyle.gray60.color
+                    self.loadPDFThumbnail(urlString: urlString)
+                }
+            }
         } else {
             fileBadge.isHidden = false
             fileIconView.isHidden = true
@@ -273,10 +288,7 @@ private extension ChatMessageAttachmentCell {
     }
 
     static func isImageFile(extension ext: String) -> Bool {
-        if ext.isEmpty {
-            return true
-        }
-        return ["jpg", "jpeg", "png", "heic", "gif"].contains(ext)
+        return ext != "pdf"
     }
 
     func updateLayout(alignThumbnailOnLeft: Bool) {

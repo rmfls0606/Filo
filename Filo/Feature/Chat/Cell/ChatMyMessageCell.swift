@@ -179,7 +179,7 @@ private extension ChatMyMessageCell {
         var required: CGFloat = 72
         for url in files {
             let ext = fileExtension(from: url)
-            let isImage = ext.isEmpty || ["jpg", "jpeg", "png", "heic", "gif"].contains(ext)
+            let isImage = ext != "pdf"
             if isImage {
                 required = max(required, 72)
             } else {
