@@ -12,6 +12,8 @@ import RxCocoa
 import AVKit
 
 final class CommunityDetailViewController: BaseViewController {
+    override var prefersCustomTabBarHidden: Bool { true }
+    
     // MARK: - Properties
     private let viewModel: CommunityDetailViewModel
     private let disposeBag = DisposeBag()

@@ -90,13 +90,10 @@ final class ChatRoomViewModel: ViewModelType {
                 messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
             }
 
-            let latest = self.localStore.latestMessage(roomId: roomId)
-            let next = latest?.createdAt ?? ""
-
             Task { [weak self] in
                 guard let self else { return }
                 do {
-                    let serverMessages = try await self.service.fetchChats(roomId: roomId, next: next)
+                    let serverMessages = try await self.service.fetchChats(roomId: roomId, next: "")
                     if !serverMessages.isEmpty {
                         self.localStore.upsertMessages(serverMessages)
                         if let latest = serverMessages.max(by: { $0.createdAt < $1.createdAt }) {
@@ -104,21 +101,6 @@ final class ChatRoomViewModel: ViewModelType {
                         }
                         messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                         self.refreshUsersIfNeeded(senderIds: serverMessages.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
-                            guard let self, updated else { return }
-                            messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
-                        }
-                    }
-                    self.connectSocket(messagesRelay: messagesRelay, errorRelay: errorRelay)
-                    let latestAfterSync = self.localStore.latestMessage(roomId: roomId)
-                    let nextAfterSync = latestAfterSync?.createdAt ?? ""
-                    let catchUp = try await self.service.fetchChats(roomId: roomId, next: nextAfterSync)
-                    if !catchUp.isEmpty {
-                        self.localStore.upsertMessages(catchUp)
-                        if let latest = catchUp.max(by: { $0.createdAt < $1.createdAt }) {
-                            self.localStore.updateRoomSummary(with: latest, currentUserId: self.currentUserIdValue, isCurrentRoom: true)
-                        }
-                        messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
-                        self.refreshUsersIfNeeded(senderIds: catchUp.map { $0.sender.userID }, forceIds: []) { [weak self] updated in
                             guard let self, updated else { return }
                             messagesRelay.accept(self.localStore.fetchMessages(roomId: roomId))
                         }
