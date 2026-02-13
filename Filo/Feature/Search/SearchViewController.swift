@@ -102,10 +102,20 @@ final class SearchViewController: BaseViewController {
         return view
     }()
     
+    private let emptyBackgroundLabel: UILabel = {
+        let label = UILabel()
+        label.textColor = GrayStyle.gray30.color
+        label.font = .Pretendard.body1
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        return label
+    }()
+    
     let tap = UITapGestureRecognizer()
 
     // MARK: - Properties
     private let viewModel: SearchViewModel
+    private let initialQuery: String
     private let disposeBag = DisposeBag()
     private let refreshRelay = PublishRelay<Void>()
     private var didInvalidateCategoryLayout = false
@@ -122,8 +132,9 @@ final class SearchViewController: BaseViewController {
     private var searchBarTrailingToSafeConstraint: Constraint?
     private var searchBarTrailingToCancelConstraint: Constraint?
 
-    init(viewModel: SearchViewModel = SearchViewModel()) {
+    init(viewModel: SearchViewModel = SearchViewModel(), initialQuery: String = "") {
         self.viewModel = viewModel
+        self.initialQuery = initialQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -215,7 +226,7 @@ final class SearchViewController: BaseViewController {
         view.backgroundColor = GrayStyle.gray100.color
         navigationItem.title = "커뮤니티"
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: nil, action: nil)
-        navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "play.rectangle"), style: .plain, target: nil, action: nil)
+        configureLeftNavigationItem()
         tap.delegate = self
         view.addGestureRecognizer(tap)
         tap.cancelsTouchesInView = false
@@ -225,6 +236,9 @@ final class SearchViewController: BaseViewController {
         resultsTableView.alpha = 0
         resultsTableView.isHidden = true
         cancelButton.isHidden = true
+        if !initialQuery.isEmpty {
+            searchBar.text = initialQuery
+        }
     }
 
     override func configureBind() {
@@ -288,6 +302,12 @@ final class SearchViewController: BaseViewController {
         output.posts
             .drive(with: self) { owner, posts in
                 owner.currentPosts = posts
+                if posts.isEmpty, !owner.initialQuery.isEmpty {
+                    owner.emptyBackgroundLabel.text = "\"\(owner.initialQuery)\" 검색 결과가 존재하지 않습니다."
+                    owner.collectionView.backgroundView = owner.emptyBackgroundLabel
+                } else {
+                    owner.collectionView.backgroundView = nil
+                }
             }
             .disposed(by: disposeBag)
         
@@ -371,13 +391,6 @@ final class SearchViewController: BaseViewController {
             }
             .disposed(by: disposeBag)
 
-        navigationItem.leftBarButtonItem?.rx.tap
-            .bind(with: self) { owner, _ in
-                let vc = VideoListViewController()
-                owner.navigationController?.pushViewController(vc, animated: true)
-            }
-            .disposed(by: disposeBag)
-
         searchBar.rx.textDidBeginEditing
             .bind(with: self) { owner, _ in
                 owner.setSearchMode(true, animated: true)
@@ -398,8 +411,8 @@ final class SearchViewController: BaseViewController {
                 let query = owner.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 guard !query.isEmpty else { return }
                 owner.searchBar.resignFirstResponder()
-                let vm = SearchResultViewModel(query: query)
-                let vc = SearchResultViewController(viewModel: vm)
+                let vm = SearchViewModel(initialQuery: query)
+                let vc = SearchViewController(viewModel: vm, initialQuery: query)
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
@@ -411,8 +424,8 @@ final class SearchViewController: BaseViewController {
                     let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !query.isEmpty else { return }
                     owner.searchBar.resignFirstResponder()
-                    let vm = SearchResultViewModel(query: query)
-                    let vc = SearchResultViewController(viewModel: vm)
+                    let vm = SearchViewModel(initialQuery: query)
+                    let vc = SearchViewController(viewModel: vm, initialQuery: query)
                     owner.navigationController?.pushViewController(vc, animated: true)
                 case .user(let user):
                     Task {
@@ -453,6 +466,7 @@ final class SearchViewController: BaseViewController {
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        configureLeftNavigationItem()
         navigationController?.delegate = self
         setSearchMode(false, animated: false)
         collectionView.allowsSelection = true
@@ -476,7 +490,45 @@ final class SearchViewController: BaseViewController {
     }
 }
 
-private extension SearchViewController {
+    private extension SearchViewController {
+    var isPushedFromAnotherScreen: Bool {
+        guard let navigationController else { return false }
+        return navigationController.viewControllers.first !== self
+    }
+    
+    func configureLeftNavigationItem() {
+        let video = UIBarButtonItem(
+            image: UIImage(systemName: "play.rectangle"),
+            style: .plain,
+            target: self,
+            action: #selector(handleVideoButtonTap)
+        )
+        
+        if isPushedFromAnotherScreen {
+            let back = UIBarButtonItem(
+                image: UIImage(systemName: "chevron.left"),
+                style: .plain,
+                target: self,
+                action: #selector(handleBackButtonTap)
+            )
+            navigationItem.leftBarButtonItems = [back, video]
+        } else {
+            navigationItem.leftBarButtonItems = [video]
+        }
+    }
+    
+    @objc
+    func handleBackButtonTap() {
+        guard isPushedFromAnotherScreen else { return }
+        navigationController?.popViewController(animated: true)
+    }
+    
+    @objc
+    func handleVideoButtonTap() {
+        let vc = VideoListViewController()
+        navigationController?.pushViewController(vc, animated: true)
+    }
+    
     func presentCommunityDetail(postId: String, selectedIndexPath: IndexPath) {
         guard let navigationController else { return }
         selectedPostIndexPath = selectedIndexPath
@@ -600,7 +652,9 @@ private extension SearchViewController {
         
         let completion: (Bool) -> Void = { _ in
             self.resultsTableView.isHidden = !isActive
+            self.resultsTableView.isUserInteractionEnabled = isActive
             self.collectionView.isHidden = isActive
+            self.collectionView.isUserInteractionEnabled = !isActive
             self.cancelButton.isHidden = !isActive
         }
         

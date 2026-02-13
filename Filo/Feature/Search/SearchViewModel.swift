@@ -82,9 +82,11 @@ final class SearchViewModel: ViewModelType {
     }
     
     private let service: NetworkManagerProtocol
+    private let initialQuery: String
     private let disposeBag = DisposeBag()
     
-    init(service: NetworkManagerProtocol = NetworkManager.shared) {
+    init(initialQuery: String = "", service: NetworkManagerProtocol = NetworkManager.shared) {
+        self.initialQuery = initialQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         self.service = service
     }
     
@@ -145,6 +147,22 @@ final class SearchViewModel: ViewModelType {
             input.refresh)
             .share(replay: 1)
         
+        let normalizedInitialQuery = initialQuery
+        
+        let sortAndFilterPosts: (_ posts: [PostSummaryResponseDTO], _ category: searchCategoryType, _ order: SearchOrder) -> [PostSummaryResponseDTO] = {
+            posts, category, order in
+            let filtered = category == .all ? posts : posts.filter { $0.category == category.query }
+            switch order {
+            case .createdAt:
+                return filtered.sorted { $0.createdAt > $1.createdAt }
+            case .like:
+                return filtered.sorted {
+                    if $0.likeCount == $1.likeCount { return $0.createdAt > $1.createdAt }
+                    return $0.likeCount > $1.likeCount
+                }
+            }
+        }
+        
         let requestPage: (_ next: String, _ append: Bool, _ queryId: Int, _ category: searchCategoryType, _ order: SearchOrder) -> Void = {
             next, append, queryId, category, order in
             inFlightPageTask?.cancel()
@@ -155,21 +173,35 @@ final class SearchViewModel: ViewModelType {
             
             inFlightPageTask = Task {
                 do {
-                    let dto: PostSummaryPaginationResponseDTO = try await self.service.request(
-                        CommunityRouter.geolocation(category: category.query,
-                                                    longitude: "",
-                                                    latitude: "",
-                                                    maxDistance: "",
-                                                    limit: "30",
-                                                    next: next,
-                                                    orderBy: order.orderBy)
-                    )
+                    if normalizedInitialQuery.isEmpty {
+                        let dto: PostSummaryPaginationResponseDTO = try await self.service.request(
+                            CommunityRouter.geolocation(category: category.query,
+                                                        longitude: "",
+                                                        latitude: "",
+                                                        maxDistance: "",
+                                                        limit: "30",
+                                                        next: next,
+                                                        orderBy: order.orderBy)
+                        )
+                        guard !Task.isCancelled else { return }
+                        guard currentQueryId == queryId, pagingRequestToken == requestToken else { return }
+                        let merged = append ? (postsRelay.value + dto.data) : dto.data
+                        postsRelay.accept(merged)
+                        nextCursorRelay.accept(dto.nextCursor)
+                        isLastPageRelay.accept(dto.nextCursor == "0")
+                    } else {
+                        let dto: PostSummaryListResponseDTO = try await self.service.request(
+                            CommunityRouter.search(title: normalizedInitialQuery)
+                        )
+                        guard !Task.isCancelled else { return }
+                        guard currentQueryId == queryId, pagingRequestToken == requestToken else { return }
+                        let normalized = sortAndFilterPosts(dto.data, category, order)
+                        postsRelay.accept(normalized)
+                        nextCursorRelay.accept(dto.nextCursor ?? "")
+                        isLastPageRelay.accept(true)
+                    }
                     guard !Task.isCancelled else { return }
                     guard currentQueryId == queryId, pagingRequestToken == requestToken else { return }
-                    let merged = append ? (postsRelay.value + dto.data) : dto.data
-                    postsRelay.accept(merged)
-                    nextCursorRelay.accept(dto.nextCursor)
-                    isLastPageRelay.accept(dto.nextCursor == "0")
                     isLoadingRelay.accept(false)
                     isAppendLoadingRelay.accept(false)
                 } catch let error as NetworkError {
@@ -213,7 +245,7 @@ final class SearchViewModel: ViewModelType {
                 orderRelay.asObservable()
             ))
             .filter { nextCursor, isLoading, isLastPage, _, _ in
-                !isLoading && !isLastPage && !nextCursor.isEmpty && nextCursor != "0"
+                normalizedInitialQuery.isEmpty && !isLoading && !isLastPage && !nextCursor.isEmpty && nextCursor != "0"
             }
             .subscribe(onNext: { nextCursor, _, _, category, order in
                 requestPage(nextCursor, true, currentQueryId, category, order)

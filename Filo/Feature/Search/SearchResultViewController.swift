@@ -37,34 +37,44 @@ final class SearchResultViewController: BaseViewController {
     }()
     
     private let viewModel: SearchResultViewModel
+    private let showsSearchUI: Bool
     private let disposeBag = DisposeBag()
     private let refreshRelay = PublishRelay<Void>()
     
-    init(viewModel: SearchResultViewModel) {
+    init(viewModel: SearchResultViewModel, showsSearchUI: Bool = false) {
         self.viewModel = viewModel
+        self.showsSearchUI = showsSearchUI
         super.init(nibName: nil, bundle: nil)
     }
     
     override func configureHierarchy() {
-        view.addSubview(searchBar)
-        view.addSubview(searchBarLineView)
+        if showsSearchUI {
+            view.addSubview(searchBar)
+            view.addSubview(searchBarLineView)
+        }
         view.addSubview(collectionView)
     }
     
     override func configureLayout() {
-        searchBar.snp.makeConstraints { make in
-            make.top.equalTo(view.safeAreaLayoutGuide).inset(4)
-            make.horizontalEdges.equalTo(view.safeAreaLayoutGuide).inset(12)
+        if showsSearchUI {
+            searchBar.snp.makeConstraints { make in
+                make.top.equalTo(view.safeAreaLayoutGuide).inset(4)
+                make.horizontalEdges.equalTo(view.safeAreaLayoutGuide).inset(12)
+            }
+            
+            searchBarLineView.snp.makeConstraints { make in
+                make.top.equalTo(searchBar.snp.bottom)
+                make.horizontalEdges.equalToSuperview()
+                make.height.equalTo(1)
+            }
         }
-        
-        searchBarLineView.snp.makeConstraints { make in
-            make.top.equalTo(searchBar.snp.bottom)
-            make.horizontalEdges.equalToSuperview()
-            make.height.equalTo(1)
-        }
-        
+
         collectionView.snp.makeConstraints { make in
-            make.top.equalTo(searchBarLineView.snp.bottom).offset(4)
+            if showsSearchUI {
+                make.top.equalTo(searchBarLineView.snp.bottom).offset(4)
+            } else {
+                make.top.equalTo(view.safeAreaLayoutGuide)
+            }
             make.horizontalEdges.equalTo(view.safeAreaLayoutGuide)
             make.bottom.equalTo(view.safeAreaLayoutGuide)
         }
@@ -72,7 +82,11 @@ final class SearchResultViewController: BaseViewController {
     
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
-        navigationItem.title = "검색 결과"
+        if showsSearchUI {
+            navigationItem.title = "검색 결과"
+        } else {
+            navigationItem.title = "커뮤니티"
+        }
     }
     
     override func configureBind() {
