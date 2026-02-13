@@ -91,6 +91,14 @@ final class CommentsViewController: BaseViewController {
         return view
     }()
     
+    private let inputPlaceholderLabel: UILabel = {
+        let label = UILabel()
+        label.text = "댓글을 입력해주세요"
+        label.font = .Pretendard.body2
+        label.textColor = GrayStyle.gray75.color
+        return label
+    }()
+    
     private let sendButton: UIButton = {
         var config = UIButton.Configuration.plain()
         let imageConfig = UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
@@ -100,7 +108,7 @@ final class CommentsViewController: BaseViewController {
         // 이미지 렌더링 방식 확인
         let image = UIImage(named: "message")?.withRenderingMode(.alwaysTemplate)
         config.image = image
-        config.contentInsets = .zero
+        config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
         
         let button = UIButton(configuration: config)
         button.imageView?.contentMode = .scaleAspectFit
@@ -129,6 +137,7 @@ final class CommentsViewController: BaseViewController {
         replyInfoView.addSubview(replyCancelButton)
         view.addSubview(inputContainer)
         inputContainer.addSubview(inputTextView)
+        inputTextView.addSubview(inputPlaceholderLabel)
         inputContainer.addSubview(sendButton)
     }
     
@@ -157,9 +166,9 @@ final class CommentsViewController: BaseViewController {
         }
         
         sendButton.snp.makeConstraints { make in
-            make.trailing.equalToSuperview().inset(6)
-            make.bottom.equalToSuperview().inset(6)
-            make.size.equalTo(28)
+            make.trailing.equalToSuperview().inset(8)
+            make.centerY.equalTo(inputTextView)
+            make.size.equalTo(32)
         }
         
         inputTextView.snp.makeConstraints { make in
@@ -168,6 +177,11 @@ final class CommentsViewController: BaseViewController {
             make.trailing.equalTo(sendButton.snp.leading).offset(-4)
             make.height.greaterThanOrEqualTo(32)
             make.height.lessThanOrEqualTo(100)
+        }
+        
+        inputPlaceholderLabel.snp.makeConstraints { make in
+            make.leading.equalToSuperview().inset(11)
+            make.top.equalToSuperview().inset(8)
         }
         
         tableView.snp.makeConstraints { make in
@@ -317,6 +331,7 @@ final class CommentsViewController: BaseViewController {
                 let size = CGSize(width: owner.inputTextView.frame.width, height: .infinity)
                 let estimatedSize = owner.inputTextView.sizeThatFits(size)
                 
+                owner.inputPlaceholderLabel.isHidden = !owner.inputTextView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 owner.inputTextView.isScrollEnabled = estimatedSize.height > 100
                 owner.view.layoutIfNeeded()
             }
