@@ -248,6 +248,7 @@ final class FilterPreviewViewController: BaseViewController, UIScrollViewDelegat
                     guard let self else { return }
                     if success {
                         self.view.makeToast("사진을 저장했습니다.", duration: 1.2, position: .bottom)
+                        self.navigationController?.popViewController(animated: true)
                     } else {
                         self.view.makeToast("사진을 저장하는데 실패했습니다.", duration: 1.2, position: .bottom)
                     }
