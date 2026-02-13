@@ -33,6 +33,22 @@ final class CommunityCreateViewController: BaseViewController {
     
     private let scrollView = UIScrollView()
     private let contentView = UIView()
+    private let formCardView: UIView = {
+        let view = UIView()
+        view.backgroundColor = .clear
+        return view
+    }()
+    private let categoryTitleLabel = CommunityCreateViewController.makeSectionLabel(text: "카테고리")
+    private let titleSectionLabel = CommunityCreateViewController.makeSectionLabel(text: "제목")
+    private let contentSectionLabel = CommunityCreateViewController.makeSectionLabel(text: "내용")
+    private let mediaSectionLabel = CommunityCreateViewController.makeSectionLabel(text: "미디어")
+    private let mediaCountLabel: UILabel = {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray75.color
+        label.text = "0/5"
+        return label
+    }()
     
     private let loadingView: UIView = {
         let view = UIView()
@@ -50,29 +66,35 @@ final class CommunityCreateViewController: BaseViewController {
     
     private let titleField: UITextField = {
         let field = UITextField()
-        field.placeholder = "제목"
+        field.placeholder = "제목을 입력해주세요"
         field.font = .Pretendard.body2
-        field.textColor = GrayStyle.gray45.color
-        field.backgroundColor = GrayStyle.gray90.color
+        field.textColor = GrayStyle.gray30.color
+        field.backgroundColor = .clear
         field.layer.cornerRadius = 10
+        field.layer.borderWidth = 1.5
+        field.layer.borderColor = Brand.deepTurquoise.color?.withAlphaComponent(0.5).cgColor
         field.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
         field.leftViewMode = .always
+        field.tintColor = Brand.deepTurquoise.color
         return field
     }()
     
     private let contentTextView: UITextView = {
         let view = UITextView()
         view.font = .Pretendard.body2
-        view.textColor = GrayStyle.gray45.color
-        view.backgroundColor = GrayStyle.gray90.color
+        view.textColor = GrayStyle.gray30.color
+        view.backgroundColor = .clear
         view.layer.cornerRadius = 10
+        view.layer.borderWidth = 1.5
+        view.layer.borderColor = Brand.deepTurquoise.color?.withAlphaComponent(0.5).cgColor
         view.textContainerInset = .init(top: 12, left: 8, bottom: 12, right: 8)
+        view.tintColor = Brand.deepTurquoise.color
         return view
     }()
     
     private let contentPlaceholderLabel: UILabel = {
         let label = UILabel()
-        label.text = "내용"
+        label.text = "내용을 입력해주세요"
         label.font = .Pretendard.body2
         label.textColor = GrayStyle.gray75.color
         return label
@@ -92,11 +114,22 @@ final class CommunityCreateViewController: BaseViewController {
     
     private let addMediaButton: UIButton = {
         var config = UIButton.Configuration.filled()
+        let imageConfig = UIImage.SymbolConfiguration(scale: .medium)
+        config.preferredSymbolConfigurationForImage = imageConfig
         config.cornerStyle = .capsule
-        config.baseBackgroundColor = GrayStyle.gray90.color
-        config.baseForegroundColor = GrayStyle.gray45.color
-        config.title = "미디어 추가"
+        config.baseBackgroundColor = .clear
+        config.baseForegroundColor = Brand.deepTurquoise.color
+        config.image = UIImage(systemName: "plus")
+        config.imagePadding = 2
+        config.titlePadding = 2
+        config.attributedTitle = AttributedString("미디어 추가", attributes: AttributeContainer([
+            .font: UIFont.Pretendard.caption1 ?? UIFont.systemFont(ofSize: 12),
+            .foregroundColor: Brand.deepTurquoise.color ?? UIColor.systemTeal
+        ]))
+        config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
         let button = UIButton(configuration: config)
+        button.layer.borderWidth = 1.5
+        button.layer.borderColor = Brand.deepTurquoise.color?.withAlphaComponent(0.5).cgColor
         return button
     }()
     
@@ -119,8 +152,13 @@ final class CommunityCreateViewController: BaseViewController {
         var config = UIButton.Configuration.filled()
         config.cornerStyle = .capsule
         config.baseBackgroundColor = Brand.deepTurquoise.color
-        config.baseForegroundColor = GrayStyle.gray45.color
+        config.baseForegroundColor = GrayStyle.gray30.color
         config.title = "등록"
+        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var outgoing = incoming
+            outgoing.font = UIFont.Pretendard.body1
+            return outgoing
+        }
         let button = UIButton(configuration: config)
         return button
     }()
@@ -147,12 +185,18 @@ final class CommunityCreateViewController: BaseViewController {
         scrollView.addSubview(contentView)
         view.addSubview(loadingView)
         loadingView.addSubview(loadingIndicator)
-        contentView.addSubview(categoryCollectionView)
-        contentView.addSubview(titleField)
-        contentView.addSubview(contentTextView)
+        contentView.addSubview(formCardView)
+        formCardView.addSubview(categoryTitleLabel)
+        formCardView.addSubview(categoryCollectionView)
+        formCardView.addSubview(titleSectionLabel)
+        formCardView.addSubview(titleField)
+        formCardView.addSubview(contentSectionLabel)
+        formCardView.addSubview(contentTextView)
         contentTextView.addSubview(contentPlaceholderLabel)
-        contentView.addSubview(addMediaButton)
-        contentView.addSubview(mediaCollectionView)
+        formCardView.addSubview(mediaSectionLabel)
+        formCardView.addSubview(mediaCountLabel)
+        formCardView.addSubview(addMediaButton)
+        formCardView.addSubview(mediaCollectionView)
         contentView.addSubview(submitButton)
     }
     
@@ -174,21 +218,41 @@ final class CommunityCreateViewController: BaseViewController {
             make.center.equalToSuperview()
         }
         
-        categoryCollectionView.snp.makeConstraints { make in
+        formCardView.snp.makeConstraints { make in
             make.top.equalToSuperview().inset(16)
-            make.horizontalEdges.equalToSuperview().inset(16)
+            make.horizontalEdges.equalToSuperview().inset(20)
+        }
+        
+        categoryTitleLabel.snp.makeConstraints { make in
+            make.top.equalToSuperview().inset(18)
+            make.horizontalEdges.equalToSuperview()
+        }
+        
+        categoryCollectionView.snp.makeConstraints { make in
+            make.top.equalTo(categoryTitleLabel.snp.bottom).offset(8)
+            make.horizontalEdges.equalToSuperview()
             make.height.equalTo(36)
         }
         
+        titleSectionLabel.snp.makeConstraints { make in
+            make.top.equalTo(categoryCollectionView.snp.bottom).offset(14)
+            make.horizontalEdges.equalToSuperview()
+        }
+        
         titleField.snp.makeConstraints { make in
-            make.top.equalTo(categoryCollectionView.snp.bottom).offset(12)
-            make.horizontalEdges.equalToSuperview().inset(16)
+            make.top.equalTo(titleSectionLabel.snp.bottom).offset(8)
+            make.horizontalEdges.equalToSuperview()
             make.height.equalTo(44)
         }
         
+        contentSectionLabel.snp.makeConstraints { make in
+            make.top.equalTo(titleField.snp.bottom).offset(14)
+            make.horizontalEdges.equalToSuperview()
+        }
+        
         contentTextView.snp.makeConstraints { make in
-            make.top.equalTo(titleField.snp.bottom).offset(12)
-            make.horizontalEdges.equalToSuperview().inset(16)
+            make.top.equalTo(contentSectionLabel.snp.bottom).offset(8)
+            make.horizontalEdges.equalToSuperview()
             make.height.equalTo(160)
         }
         
@@ -197,21 +261,31 @@ final class CommunityCreateViewController: BaseViewController {
             make.top.equalToSuperview().inset(12)
         }
         
-        addMediaButton.snp.makeConstraints { make in
+        mediaSectionLabel.snp.makeConstraints { make in
             make.top.equalTo(contentTextView.snp.bottom).offset(12)
-            make.leading.equalToSuperview().inset(16)
-            make.height.equalTo(36)
+            make.leading.equalToSuperview()
+        }
+        
+        mediaCountLabel.snp.makeConstraints { make in
+            make.centerY.equalTo(mediaSectionLabel)
+            make.trailing.equalToSuperview()
+        }
+        
+        addMediaButton.snp.makeConstraints { make in
+            make.top.equalTo(mediaSectionLabel.snp.bottom).offset(8)
+            make.leading.equalToSuperview()
         }
         
         mediaCollectionView.snp.makeConstraints { make in
             make.top.equalTo(addMediaButton.snp.bottom).offset(12)
-            make.horizontalEdges.equalToSuperview().inset(16)
+            make.horizontalEdges.equalToSuperview()
             mediaCollectionHeightConstraint = make.height.equalTo(0).constraint
+            make.bottom.equalToSuperview().inset(16)
         }
         
         submitButton.snp.makeConstraints { make in
-            make.top.equalTo(mediaCollectionView.snp.bottom).offset(20)
-            make.horizontalEdges.equalToSuperview().inset(16)
+            make.top.equalTo(formCardView.snp.bottom).offset(20)
+            make.horizontalEdges.equalToSuperview().inset(20)
             make.height.equalTo(44)
             make.bottom.equalToSuperview().inset(24)
         }
@@ -220,6 +294,9 @@ final class CommunityCreateViewController: BaseViewController {
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
         navigationItem.title = viewModel.isEditMode ? "게시글 수정" : "게시글 등록"
+        titleField.delegate = self
+        contentTextView.delegate = self
+        updateSubmitButton(enabled: false)
         if viewModel.isEditMode {
             var config = submitButton.configuration
             config?.title = "수정"
@@ -314,7 +391,7 @@ final class CommunityCreateViewController: BaseViewController {
         
         output.submitEnabled
             .drive(with: self) { owner, enabled in
-                owner.submitButton.alpha = enabled ? 1.0 : 0.4
+                owner.updateSubmitButton(enabled: enabled)
             }
             .disposed(by: disposeBag)
         
@@ -332,6 +409,13 @@ final class CommunityCreateViewController: BaseViewController {
                     self.navigationController?.popViewController(animated: true)
                 }
             })
+            .disposed(by: disposeBag)
+
+        output.mediaItems
+            .map(\.count)
+            .drive(with: self) { owner, count in
+                owner.mediaCountLabel.text = "\(count)/5"
+            }
             .disposed(by: disposeBag)
         
         output.networkError
@@ -384,6 +468,26 @@ final class CommunityCreateViewController: BaseViewController {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         let vc = MediaPreviewPagerViewController(items: items, startIndex: index)
         present(vc, animated: true)
+    }
+
+    private static func makeSectionLabel(text: String) -> UILabel {
+        let label = UILabel()
+        label.font = .Pretendard.caption1
+        label.textColor = GrayStyle.gray60.color
+        label.text = text
+        return label
+    }
+
+    private func updateSubmitButton(enabled: Bool) {
+        var config = submitButton.configuration
+        config?.baseBackgroundColor = Brand.deepTurquoise.color?.withAlphaComponent(enabled ? 1.0 : 0.45)
+        config?.baseForegroundColor = GrayStyle.gray30.color
+        submitButton.configuration = config
+    }
+
+    private func updateInputFocusState(_ view: UIView, isFocused: Bool) {
+        view.layer.borderColor = (isFocused ? Brand.deepTurquoise.color : Brand.deepTurquoise.color?.withAlphaComponent(0.5))?.cgColor
+        view.layer.borderWidth = isFocused ? 2.0 : 1.5
     }
 }
 
@@ -717,6 +821,24 @@ private extension CommunityCreateViewController {
         default:
             return "bin"
         }
+    }
+}
+
+extension CommunityCreateViewController: UITextFieldDelegate, UITextViewDelegate {
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        updateInputFocusState(textField, isFocused: true)
+    }
+    
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        updateInputFocusState(textField, isFocused: false)
+    }
+    
+    func textViewDidBeginEditing(_ textView: UITextView) {
+        updateInputFocusState(textView, isFocused: true)
+    }
+    
+    func textViewDidEndEditing(_ textView: UITextView) {
+        updateInputFocusState(textView, isFocused: false)
     }
 }
 
