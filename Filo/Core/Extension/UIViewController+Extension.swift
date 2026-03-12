@@ -26,4 +26,41 @@ extension UIViewController {
         }))
         present(alert, animated: true)
     }
+
+    @MainActor
+    func presentMessageAlert(title: String, message: String?) async {
+        await withCheckedContinuation { continuation in
+            let alert = UIAlertController(title: title, message: message ?? "", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "확인", style: .default, handler: { _ in
+                continuation.resume()
+            }))
+            present(alert, animated: true)
+        }
+    }
+
+    @MainActor
+    func presentTextInputAlert(
+        title: String,
+        message: String?,
+        placeholder: String,
+        isSecure: Bool,
+        keyboardType: UIKeyboardType,
+        confirmTitle: String
+    ) async -> String? {
+        await withCheckedContinuation { continuation in
+            let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            alert.addTextField { textField in
+                textField.placeholder = placeholder
+                textField.isSecureTextEntry = isSecure
+                textField.keyboardType = keyboardType
+            }
+            alert.addAction(UIAlertAction(title: "취소", style: .cancel, handler: { _ in
+                continuation.resume(returning: nil)
+            }))
+            alert.addAction(UIAlertAction(title: confirmTitle, style: .default, handler: { _ in
+                continuation.resume(returning: alert.textFields?.first?.text)
+            }))
+            present(alert, animated: true)
+        }
+    }
 }
