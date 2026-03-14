@@ -21,6 +21,7 @@ final class ProfileViewController: BaseViewController {
         view.hidesWhenStopped = true
         return view
     }()
+    private var isAuthenticatingChatAccess = false
 
     private let menuItems: [ProfileMenuCell.Item] = [
         .init(title: "내가 작성한\n필터", iconName: "camera.filters"),
@@ -330,6 +331,9 @@ final class ProfileViewController: BaseViewController {
                 } else if item.title.contains("구매내역") {
                     let vc = PurchaseHistoryViewController()
                     owner.navigationController?.pushViewController(vc, animated: true)
+                } else if item.title.contains("설정") {
+                    let vc = SettingsViewController()
+                    owner.navigationController?.pushViewController(vc, animated: true)
                 }
             }
             .disposed(by: disposeBag)
@@ -340,11 +344,7 @@ final class ProfileViewController: BaseViewController {
             .compactMap{ $0 }
             .throttle(.milliseconds(500), scheduler: MainScheduler.instance)
             .subscribe(onNext: { [weak self] in
-                guard let self else { return }
-                let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
-                let vm = ChatRoomListViewModel(currentUserId: currentUserId)
-                let vc = ChatRoomListViewController(viewModel: vm)
-                self.navigationController?.pushViewController(vc, animated: true)
+                self?.openChatListIfAuthorized()
             })
             .disposed(by: disposeBag)
     }
@@ -405,5 +405,12 @@ private extension ProfileViewController {
             self?.logoutRelay.accept(())
         }))
         present(alert, animated: true)
+    }
+
+    func openChatListIfAuthorized() {
+        let currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
+        let vm = ChatRoomListViewModel(currentUserId: currentUserId)
+        let vc = ChatRoomListViewController(viewModel: vm)
+        navigationController?.pushViewController(vc, animated: true)
     }
 }
