@@ -25,6 +25,8 @@ private enum UserProfileGridItem {
 }
 
 final class UserProfileViewController: BaseViewController {
+    private var isAuthenticatingChatAccess = false
+
     private let scrollView: UIScrollView = {
         let view = UIScrollView()
         view.showsVerticalScrollIndicator = true
@@ -347,27 +349,7 @@ final class UserProfileViewController: BaseViewController {
         chatButton.rx.tap
             .throttle(.milliseconds(500), scheduler: MainScheduler.instance)
             .subscribe(onNext: { [weak self] in
-                guard let self else { return }
-                let opponentId = self.viewModel.profileUserId
-                let opponentNick = self.userNickname.text
-                Task {
-                    do {
-                        let room = try await ChatService.shared.createOrFetchRoom(opponentId: opponentId)
-                        let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: opponentId)
-                        let vc = ChatRoomViewController(viewModel: vm, title: opponentNick)
-                        await MainActor.run {
-                            self.navigationController?.pushViewController(vc, animated: true)
-                        }
-                    } catch let error as NetworkError {
-                        await MainActor.run {
-                            self.showAlert(title: "오류", message: error.errorDescription)
-                        }
-                    } catch {
-                        await MainActor.run {
-                            self.showAlert(title: "오류", message: NetworkError.unknown(error).errorDescription)
-                        }
-                    }
-                }
+                self?.openDirectChatIfAuthorized()
             })
             .disposed(by: disposeBag)
         
@@ -482,6 +464,32 @@ final class UserProfileViewController: BaseViewController {
             }
         } else {
             segmentContainerView.layoutIfNeeded()
+        }
+    }
+}
+
+private extension UserProfileViewController {
+    func openDirectChatIfAuthorized() {
+        guard !isAuthenticatingChatAccess else { return }
+        isAuthenticatingChatAccess = true
+
+        let opponentId = viewModel.profileUserId
+        let opponentNick = userNickname.text
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isAuthenticatingChatAccess = false }
+
+            do {
+                let room = try await ChatService.shared.createOrFetchRoom(opponentId: opponentId)
+                let vm = ChatRoomViewModel(roomId: room.roomId, opponentId: opponentId)
+                let vc = ChatRoomViewController(viewModel: vm, title: opponentNick)
+                navigationController?.pushViewController(vc, animated: true)
+            } catch let error as NetworkError {
+                showAlert(title: "오류", message: error.errorDescription)
+            } catch {
+                showAlert(title: "오류", message: NetworkError.unknown(error).errorDescription)
+            }
         }
     }
 }

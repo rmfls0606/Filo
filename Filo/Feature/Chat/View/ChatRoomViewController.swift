@@ -91,10 +91,6 @@ final class ChatRoomViewController: BaseViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         IQKeyboardManager.shared.isEnabled = false
-        CurrentChatRoom.shared.roomId = viewModel.currentRoomId
-        if let roomId = viewModel.currentRoomId {
-            ChatLocalStore.shared.resetUnread(roomId: roomId)
-        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -330,6 +326,7 @@ final class ChatRoomViewController: BaseViewController {
             self.scrollToBottom(animated: false)
         }
     }
+
 }
 
 extension ChatRoomViewController: UITextViewDelegate {
