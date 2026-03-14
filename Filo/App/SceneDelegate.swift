@@ -37,12 +37,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 } catch {
                     await TokenStorage.shared.clear()
                     await MainActor.run {
-                        self.setRootViewController(UINavigationController(rootViewController: LoginViewController()))
+                        self.setRootViewController(
+                            UINavigationController(
+                                rootViewController: MainTabBarController()
+                            )
+                        )
                     }
                 }
             } else {
                 await MainActor.run {
-                    self.setRootViewController(UINavigationController(rootViewController: LoginViewController()))
+                    self.setRootViewController(UINavigationController(rootViewController: MainTabBarController()))
                 }
             }
         }
@@ -51,6 +55,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func setRootViewController(_ viewController: UIViewController) {
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
+        AppLockCoordinator.shared.markNeedsUnlock()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            AppLockCoordinator.shared.presentLockIfNeeded(in: self.window)
+        }
     }
     
     func sceneDidDisconnect(_ scene: UIScene) {
@@ -63,11 +72,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func sceneDidBecomeActive(_ scene: UIScene) {
         // Called when the scene has moved from an inactive state to an active state.
         // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
+        AppLockCoordinator.shared.presentLockIfNeeded(in: window)
     }
     
     func sceneWillResignActive(_ scene: UIScene) {
         // Called when the scene will move from an active state to an inactive state.
         // This may occur due to temporary interruptions (ex. an incoming phone call).
+        AppLockCoordinator.shared.markNeedsUnlock()
     }
     
     func sceneWillEnterForeground(_ scene: UIScene) {
