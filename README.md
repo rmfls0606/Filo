@@ -28,7 +28,7 @@ UIKit 기반 커스텀 UI와 MVVM + RxSwift, async/await를 함께 사용해 실
 
 | 로그인 화면 | 회원 가입 화면 | 오늘의 필터 소개 화면 | 핫 트렌드 & 오늘의 작가 소개 화면 | 05화면 | 06화면 |
 |---|---|---|---|---|---|
-| ![Screenshot 01](docs/screenshots/Login.png) | ![Screenshot 02](docs/screenshots/join.png) | ![Screenshot 03](docs/screenshots/todayFilter.png) | ![Screenshot 04](docs/screenshots/hotTrendAndTodayAuthor.png) | ![Screenshot 05](docs/screenshots/bannerWebBridge.png) | ![Screenshot 06](docs/screenshots/bannerWebBridgeAction) |
+| ![Screenshot 01](docs/screenshots/Login.png) | ![Screenshot 02](docs/screenshots/join.png) | ![Screenshot 03](docs/screenshots/todayFilter.png) | ![Screenshot 04](docs/screenshots/hotTrendAndTodayAuthor.png) | ![Screenshot 05](docs/screenshots/bannerWebBridge.png) | ![Screenshot 06](docs/screenshots/) |
 | 07화면 | 08화면 | 09화면 | 10화면 | 11화면 | 12화면 |
 |---|---|---|---|---|---|
 | ![Screenshot 07](docs/screenshots/07.png) | ![Screenshot 08](docs/screenshots/08.png) | ![Screenshot 09](docs/screenshots/09.png) | ![Screenshot 10](docs/screenshots/10.png) | ![Screenshot 11](docs/screenshots/11.png) | ![Screenshot 12](docs/screenshots/12.png) |
