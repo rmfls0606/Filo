@@ -100,7 +100,7 @@ final class DeviceSecurityAuthenticator {
         from presenter: UIViewController,
         title: String,
         message: String,
-        leadingAction: ChatLockEntryViewController.LeadingAction
+        leadingAction: ChatLockLeadingAction
     ) async throws {
         guard store.settings().hasPasscode else {
             throw DeviceSecurityAuthError.unavailable

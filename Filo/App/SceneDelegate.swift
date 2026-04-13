@@ -12,6 +12,7 @@ import KakaoSDKAuth
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     var window: UIWindow?
+    private var privacyCoverView: UIView?
     
     
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
@@ -55,6 +56,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func setRootViewController(_ viewController: UIViewController) {
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
+        removePrivacyCover()
         AppLockCoordinator.shared.markNeedsUnlock()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -73,12 +75,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Called when the scene has moved from an inactive state to an active state.
         // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
         AppLockCoordinator.shared.presentLockIfNeeded(in: window)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.removePrivacyCover()
+        }
     }
     
     func sceneWillResignActive(_ scene: UIScene) {
         // Called when the scene will move from an active state to an inactive state.
         // This may occur due to temporary interruptions (ex. an incoming phone call).
         AppLockCoordinator.shared.markNeedsUnlock()
+        showPrivacyCoverIfNeeded()
     }
     
     func sceneWillEnterForeground(_ scene: UIScene) {
@@ -90,6 +96,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Called as the scene transitions from the foreground to the background.
         // Use this method to save data, release shared resources, and store enough scene-specific state information
         // to restore the scene back to its current state.
+        showPrivacyCoverIfNeeded()
     }
     
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -102,5 +109,40 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 _ = AuthController.handleOpenUrl(url: url)
             }
         }
+    }
+
+    private func showPrivacyCoverIfNeeded() {
+        guard ChatLockSettingsStore.shared.settings().isLockEnabled else { return }
+        guard let window else { return }
+
+        if let cover = privacyCoverView {
+            window.bringSubviewToFront(cover)
+            return
+        }
+
+        let cover = makePrivacyCoverView()
+        cover.frame = window.bounds
+        cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        window.addSubview(cover)
+        window.bringSubviewToFront(cover)
+        privacyCoverView = cover
+    }
+
+    private func removePrivacyCover() {
+        privacyCoverView?.removeFromSuperview()
+        privacyCoverView = nil
+    }
+
+    private func makePrivacyCoverView() -> UIView {
+        let settings = ChatLockSettingsStore.shared.settings()
+        let leadingAction: ChatLockLeadingAction = settings.isBiometricEnabled && ChatLockSettingsStore.shared.canUseBiometrics() ? .biometric : .empty
+        let cover = ChatLockScreenView(
+            title: "Filo 잠금",
+            message: "Filo 암호를 입력해 주세요.",
+            leadingAction: leadingAction,
+            showsCloseButton: false,
+            isInteractive: false
+        )
+        return cover
     }
 }

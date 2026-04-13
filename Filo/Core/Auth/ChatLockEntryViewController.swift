@@ -8,34 +8,256 @@
 import UIKit
 import SnapKit
 import LocalAuthentication
+import RxSwift
+import RxCocoa
 
 final class ChatLockEntryViewController: BaseViewController {
-    private enum KeypadItem {
-        case digit(String)
-        case biometric
-        case cancel
-        case delete
-        case empty
-    }
-
-    enum LeadingAction {
-        case biometric
-        case cancel
-        case empty
-    }
+    private let disposeBag = DisposeBag()
+    private let viewDidAppearRelay = PublishRelay<Void>()
+    private let biometricResultRelay = PublishRelay<Result<Void, DeviceSecurityAuthError>>()
 
     private let titleText: String
     private let messageText: String
-    private let leadingAction: LeadingAction
+    private let leadingAction: ChatLockLeadingAction
     private let showsCloseButton: Bool
-    private let verifyPasscode: (String) -> Bool
     private let biometricAction: (() async -> Result<Void, DeviceSecurityAuthError>)?
-    private var enteredPasscode = ""
-    private var hasAttemptedBiometric = false
-    private var dotViews: [UIView] = []
+    private let viewModel: ChatLockEntryViewModel
+
+    private lazy var lockScreenView = ChatLockScreenView(
+        title: titleText,
+        message: messageText,
+        leadingAction: leadingAction,
+        showsCloseButton: showsCloseButton,
+        isInteractive: true
+    )
 
     var onSuccess: (() -> Void)?
     var onCancel: (() -> Void)?
+
+    init(
+        title: String,
+        message: String,
+        leadingAction: ChatLockLeadingAction,
+        showsCloseButton: Bool,
+        verifyPasscode: @escaping (String) -> Bool,
+        biometricAction: (() async -> Result<Void, DeviceSecurityAuthError>)?
+    ) {
+        self.titleText = title
+        self.messageText = message
+        self.leadingAction = leadingAction
+        self.showsCloseButton = showsCloseButton
+        self.biometricAction = biometricAction
+        self.viewModel = ChatLockEntryViewModel(
+            leadingAction: leadingAction,
+            verifyPasscode: verifyPasscode
+        )
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .overFullScreen
+        modalTransitionStyle = .crossDissolve
+    }
+
+    override func configureHierarchy() {
+        view.addSubview(lockScreenView)
+    }
+
+    override func configureLayout() {
+        lockScreenView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+    }
+
+    override func configureBind() {
+        let input = ChatLockEntryViewModel.Input(
+            itemTapped: lockScreenView.itemTapped,
+            closeTapped: lockScreenView.closeTapped,
+            viewDidAppear: viewDidAppearRelay.asObservable(),
+            biometricResult: biometricResultRelay.asObservable()
+        )
+        let output = viewModel.transform(input: input)
+
+        output.filledCount
+            .drive(with: self) { owner, count in
+                owner.lockScreenView.updateDots(filledCount: count)
+            }
+            .disposed(by: disposeBag)
+
+        output.requestBiometric
+            .emit(with: self) { owner, _ in
+                owner.runBiometricAuthentication()
+            }
+            .disposed(by: disposeBag)
+
+        output.dismissSuccess
+            .emit(with: self) { owner, _ in
+                owner.dismiss(animated: true) { [weak owner] in
+                    owner?.onSuccess?()
+                }
+            }
+            .disposed(by: disposeBag)
+
+        output.dismissCancel
+            .emit(with: self) { owner, _ in
+                owner.dismiss(animated: true) { [weak owner] in
+                    owner?.onCancel?()
+                }
+            }
+            .disposed(by: disposeBag)
+
+        output.alert
+            .emit(with: self) { owner, alert in
+                owner.showAlert(title: alert.title, message: alert.message)
+            }
+            .disposed(by: disposeBag)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        viewDidAppearRelay.accept(())
+    }
+
+    private func runBiometricAuthentication() {
+        guard let biometricAction else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await biometricAction()
+            biometricResultRelay.accept(result)
+        }
+    }
+}
+
+private final class ChatLockEntryViewModel: ViewModelType {
+    struct Input {
+        let itemTapped: Observable<ChatLockScreenItem>
+        let closeTapped: Observable<Void>
+        let viewDidAppear: Observable<Void>
+        let biometricResult: Observable<Result<Void, DeviceSecurityAuthError>>
+    }
+
+    struct Output {
+        let filledCount: Driver<Int>
+        let requestBiometric: Signal<Void>
+        let dismissSuccess: Signal<Void>
+        let dismissCancel: Signal<Void>
+        let alert: Signal<ChatLockAlert>
+    }
+
+    private let disposeBag = DisposeBag()
+    private let leadingAction: ChatLockLeadingAction
+    private let verifyPasscode: (String) -> Bool
+
+    init(
+        leadingAction: ChatLockLeadingAction,
+        verifyPasscode: @escaping (String) -> Bool
+    ) {
+        self.leadingAction = leadingAction
+        self.verifyPasscode = verifyPasscode
+    }
+
+    func transform(input: Input) -> Output {
+        let passcodeRelay = BehaviorRelay<String>(value: "")
+        let requestBiometricRelay = PublishRelay<Void>()
+        let dismissSuccessRelay = PublishRelay<Void>()
+        let dismissCancelRelay = PublishRelay<Void>()
+        let alertRelay = PublishRelay<ChatLockAlert>()
+
+        let autoBiometricTrigger = input.viewDidAppear
+            .take(1)
+            .filter { [leadingAction] in leadingAction == .biometric }
+            .map { _ in }
+
+        Observable.merge(
+            autoBiometricTrigger,
+            input.itemTapped.compactMap { item -> Void? in
+                guard case .biometric = item else { return nil }
+                return ()
+            }
+        )
+        .bind(to: requestBiometricRelay)
+        .disposed(by: disposeBag)
+
+        input.closeTapped
+            .bind(to: dismissCancelRelay)
+            .disposed(by: disposeBag)
+
+        input.itemTapped
+            .subscribe(onNext: { [weak self] item in
+                guard let self else { return }
+                var passcode = passcodeRelay.value
+
+                switch item {
+                case .digit(let number):
+                    guard passcode.count < 4 else { return }
+                    passcode.append(number)
+                    passcodeRelay.accept(passcode)
+                    guard passcode.count == 4 else { return }
+
+                    if self.verifyPasscode(passcode) {
+                        dismissSuccessRelay.accept(())
+                    } else {
+                        passcodeRelay.accept("")
+                        alertRelay.accept(
+                            ChatLockAlert(
+                                title: "암호 입력",
+                                message: "암호가 올바르지 않습니다."
+                            )
+                        )
+                    }
+                case .delete:
+                    guard !passcode.isEmpty else { return }
+                    passcode.removeLast()
+                    passcodeRelay.accept(passcode)
+                case .cancel:
+                    dismissCancelRelay.accept(())
+                case .biometric, .empty:
+                    break
+                }
+            })
+            .disposed(by: disposeBag)
+
+        input.biometricResult
+            .subscribe(onNext: { result in
+                switch result {
+                case .success:
+                    dismissSuccessRelay.accept(())
+                case .failure(let error):
+                    guard error != .canceled else { return }
+                    alertRelay.accept(
+                        ChatLockAlert(
+                            title: "생체 인증",
+                            message: error.errorDescription ?? ""
+                        )
+                    )
+                }
+            })
+            .disposed(by: disposeBag)
+
+        return Output(
+            filledCount: passcodeRelay
+                .map(\.count)
+                .distinctUntilChanged()
+                .asDriver(onErrorJustReturn: 0),
+            requestBiometric: requestBiometricRelay.asSignal(),
+            dismissSuccess: dismissSuccessRelay.asSignal(),
+            dismissCancel: dismissCancelRelay.asSignal(),
+            alert: alertRelay.asSignal()
+        )
+    }
+}
+
+final class ChatLockScreenView: UIView {
+    private let disposeBag = DisposeBag()
+    private let itemTappedRelay = PublishRelay<ChatLockScreenItem>()
+    private let closeTappedRelay = PublishRelay<Void>()
+
+    var itemTapped: Observable<ChatLockScreenItem> { itemTappedRelay.asObservable() }
+    var closeTapped: Observable<Void> { closeTappedRelay.asObservable() }
+ 
+    private let titleText: String
+    private let messageText: String
+    private let leadingAction: ChatLockLeadingAction
+    private let showsCloseButton: Bool
+    private let isInteractive: Bool
+    private var dotViews: [UIView] = []
 
     private let closeButton: UIButton = {
         let button = UIButton(type: .system)
@@ -77,31 +299,67 @@ final class ChatLockEntryViewController: BaseViewController {
         view.distribution = .fillEqually
         return view
     }()
+    
+    private let topContentArea = UIView()
+    
+    private let headerStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 12
+        view.alignment = .fill
+        return view
+    }()
+    
+    private let contentStackView: UIStackView = {
+        let view = UIStackView()
+        view.axis = .vertical
+        view.spacing = 28
+        view.alignment = .center
+        return view
+    }()
 
     init(
         title: String,
         message: String,
-        leadingAction: LeadingAction,
+        leadingAction: ChatLockLeadingAction,
         showsCloseButton: Bool,
-        verifyPasscode: @escaping (String) -> Bool,
-        biometricAction: (() async -> Result<Void, DeviceSecurityAuthError>)?
+        isInteractive: Bool
     ) {
         self.titleText = title
         self.messageText = message
         self.leadingAction = leadingAction
         self.showsCloseButton = showsCloseButton
-        self.verifyPasscode = verifyPasscode
-        self.biometricAction = biometricAction
-        super.init(nibName: nil, bundle: nil)
-        modalPresentationStyle = .overFullScreen
+        self.isInteractive = isInteractive
+        super.init(frame: .zero)
+        configureHierarchy()
+        configureLayout()
+        configureView()
+        configureBind()
     }
 
-    override func configureHierarchy() {
-        view.addSubview(closeButton)
-        view.addSubview(titleLabel)
-        view.addSubview(messageLabel)
-        view.addSubview(dotsStackView)
-        view.addSubview(keypadStackView)
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func updateDots(filledCount: Int) {
+        for (index, dot) in dotViews.enumerated() {
+            let filled = index < filledCount
+            dot.backgroundColor = filled ? (Brand.brightTurquoise.color ?? .systemTeal) : .clear
+            dot.layer.borderColor = (filled ? Brand.brightTurquoise.color : GrayStyle.gray60.color)?.cgColor
+        }
+    }
+
+    private func configureHierarchy() {
+        addSubview(closeButton)
+        addSubview(topContentArea)
+        addSubview(keypadStackView)
+        
+        topContentArea.addSubview(contentStackView)
+        contentStackView.addArrangedSubview(headerStackView)
+        contentStackView.addArrangedSubview(dotsStackView)
+        headerStackView.addArrangedSubview(titleLabel)
+        headerStackView.addArrangedSubview(messageLabel)
 
         for _ in 0..<4 {
             let dot = UIView()
@@ -116,7 +374,7 @@ final class ChatLockEntryViewController: BaseViewController {
             dotsStackView.addArrangedSubview(dot)
         }
 
-        let rows: [[KeypadItem]] = [
+        let rows: [[ChatLockScreenItem]] = [
             [.digit("1"), .digit("2"), .digit("3")],
             [.digit("4"), .digit("5"), .digit("6")],
             [.digit("7"), .digit("8"), .digit("9")],
@@ -136,55 +394,46 @@ final class ChatLockEntryViewController: BaseViewController {
         }
     }
 
-    override func configureLayout() {
+    private func configureLayout() {
         closeButton.snp.makeConstraints { make in
-            make.top.equalTo(view.safeAreaLayoutGuide).inset(12)
+            make.top.equalTo(safeAreaLayoutGuide).inset(12)
             make.trailing.equalToSuperview().inset(20)
             make.size.equalTo(28)
         }
 
-        titleLabel.snp.makeConstraints { make in
-            make.top.equalTo(closeButton.snp.bottom).offset(24)
-            make.horizontalEdges.equalToSuperview().inset(24)
-        }
-
-        messageLabel.snp.makeConstraints { make in
-            make.top.equalTo(titleLabel.snp.bottom).offset(12)
-            make.horizontalEdges.equalToSuperview().inset(28)
-        }
-
-        dotsStackView.snp.makeConstraints { make in
-            make.top.equalTo(messageLabel.snp.bottom).offset(32)
-            make.centerX.equalToSuperview()
-        }
-
         keypadStackView.snp.makeConstraints { make in
-            make.top.equalTo(dotsStackView.snp.bottom).offset(40)
             make.horizontalEdges.equalToSuperview().inset(20)
             make.height.equalTo(360)
+            make.bottom.equalTo(safeAreaLayoutGuide).inset(28)
+        }
+
+        topContentArea.snp.makeConstraints { make in
+            make.top.equalTo(safeAreaLayoutGuide)
+            make.horizontalEdges.equalToSuperview()
+            make.bottom.equalTo(keypadStackView.snp.top)
+        }
+        
+        contentStackView.snp.makeConstraints { make in
+            make.centerY.equalToSuperview()
+            make.horizontalEdges.equalToSuperview().inset(28)
         }
     }
 
-    override func configureView() {
-        view.backgroundColor = GrayStyle.gray100.color
+    private func configureView() {
+        backgroundColor = GrayStyle.gray100.color
         titleLabel.text = titleText
         messageLabel.text = messageText
         closeButton.isHidden = !showsCloseButton
-        updateDots()
+        updateDots(filledCount: 0)
     }
 
-    override func configureBind() {
-        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+    private func configureBind() {
+        closeButton.rx.tap
+            .bind(to: closeTappedRelay)
+            .disposed(by: disposeBag)
     }
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        guard leadingAction == .biometric, !hasAttemptedBiometric else { return }
-        hasAttemptedBiometric = true
-        attemptBiometricAuthentication()
-    }
-
-    private func makeButton(for item: KeypadItem) -> UIView {
+    private func makeButton(for item: ChatLockScreenItem) -> UIView {
         switch item {
         case .empty:
             let view = UIView()
@@ -218,70 +467,14 @@ final class ChatLockEntryViewController: BaseViewController {
                 break
             }
 
-            button.addAction(UIAction(handler: { [weak self] _ in
-                self?.handleTap(item)
-            }), for: .touchUpInside)
+            button.isUserInteractionEnabled = isInteractive
+            if isInteractive {
+                button.rx.tap
+                    .map { item }
+                    .bind(to: itemTappedRelay)
+                    .disposed(by: disposeBag)
+            }
             return button
-        }
-    }
-
-    private func handleTap(_ item: KeypadItem) {
-        switch item {
-        case .digit(let number):
-            guard enteredPasscode.count < 4 else { return }
-            enteredPasscode.append(number)
-            updateDots()
-            if enteredPasscode.count == 4 {
-                validatePasscode()
-            }
-        case .delete:
-            guard !enteredPasscode.isEmpty else { return }
-            enteredPasscode.removeLast()
-            updateDots()
-        case .biometric:
-            attemptBiometricAuthentication()
-        case .cancel:
-            closeTapped()
-        case .empty:
-            break
-        }
-    }
-
-    private func validatePasscode() {
-        if verifyPasscode(enteredPasscode) {
-            dismiss(animated: true) { [weak self] in
-                self?.onSuccess?()
-            }
-            return
-        }
-
-        enteredPasscode = ""
-        updateDots()
-        showAlert(title: "암호 입력", message: "암호가 올바르지 않습니다.")
-    }
-
-    private func updateDots() {
-        for (index, dot) in dotViews.enumerated() {
-            let filled = index < enteredPasscode.count
-            dot.backgroundColor = filled ? (Brand.brightTurquoise.color ?? .systemTeal) : .clear
-            dot.layer.borderColor = (filled ? Brand.brightTurquoise.color : GrayStyle.gray60.color)?.cgColor
-        }
-    }
-
-    private func attemptBiometricAuthentication() {
-        guard let biometricAction else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let result = await biometricAction()
-            switch result {
-            case .success:
-                dismiss(animated: true) { [weak self] in
-                    self?.onSuccess?()
-                }
-            case .failure(let error):
-                guard error != .canceled else { return }
-                showAlert(title: "생체 인증", message: error.errorDescription)
-            }
         }
     }
 
@@ -298,7 +491,7 @@ final class ChatLockEntryViewController: BaseViewController {
         }
     }
 
-    private func leadingKeypadItem() -> KeypadItem {
+    private func leadingKeypadItem() -> ChatLockScreenItem {
         switch leadingAction {
         case .biometric:
             return .biometric
@@ -306,12 +499,6 @@ final class ChatLockEntryViewController: BaseViewController {
             return .cancel
         case .empty:
             return .empty
-        }
-    }
-
-    @objc private func closeTapped() {
-        dismiss(animated: true) { [weak self] in
-            self?.onCancel?()
         }
     }
 }
