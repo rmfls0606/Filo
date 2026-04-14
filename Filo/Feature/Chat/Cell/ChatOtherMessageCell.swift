@@ -167,7 +167,7 @@ final class ChatOtherMessageCell: BaseTableViewCell {
         rebuildAttachments()
         updateBubbleMinWidth()
         if let url = message.sender.profileImage {
-            avatarImageView.setKFImage(urlString: url)
+            avatarImageView.setKFImage(urlString: url, targetSize: avatarImageView.bounds.size)
         } else {
             avatarImageView.image = nil
         }

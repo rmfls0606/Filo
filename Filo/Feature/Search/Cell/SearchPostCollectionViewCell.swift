@@ -169,7 +169,7 @@ final class SearchPostCollectionViewCell: BaseCollectionViewCell {
             generateVideoDuration(urlString: urlString)
         } else {
             imageView.backgroundColor = GrayStyle.gray90.color
-            imageView.setKFImageNoFade(urlString: urlString)
+            imageView.setKFImageNoFade(urlString: urlString, targetSize: imageView.bounds.size)
             imageView.contentMode = .scaleAspectFill
         }
     }

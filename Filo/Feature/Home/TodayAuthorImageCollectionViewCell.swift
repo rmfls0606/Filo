@@ -29,6 +29,6 @@ final class TodayAuthorImageCollectionViewCell: BaseCollectionViewCell {
     }
 
     func configure(urlString: String) {
-        authorImage.setKFImage(urlString: urlString)
+        authorImage.setKFImage(urlString: urlString, targetSize: authorImage.bounds.size)
     }
 }

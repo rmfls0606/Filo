@@ -121,7 +121,7 @@ final class FeedBlockCollectionViewCell: BaseCollectionViewCell {
             make.height.equalTo(thumbnailImageView.snp.width).multipliedBy(imageRatio)
         }
         setLiked(item.isLiked, item.likeCount)
-        thumbnailImageView.setKFImage(urlString: item.files[1])
+        thumbnailImageView.setKFImage(urlString: item.files[1], targetSize: thumbnailImageView.bounds.size)
         titleLabel.text = item.title
         nicknameLabel.text = item.creator.nick
 

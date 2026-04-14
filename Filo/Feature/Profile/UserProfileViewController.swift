@@ -305,7 +305,7 @@ final class UserProfileViewController: BaseViewController {
             .drive(with: self) { owner, item in
                 guard let item else { return }
                 if let urlString = item.profileImage {
-                    owner.userProfileImage.setKFImage(urlString: urlString)
+                    owner.userProfileImage.setKFImage(urlString: urlString, targetSize: owner.userProfileImage.bounds.size)
                 }
                 owner.userName.text = item.name
                 owner.userNickname.text = item.nick

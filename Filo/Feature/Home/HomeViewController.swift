@@ -246,7 +246,7 @@ final class HomeViewController: BaseViewController {
         
         output.todayFilterData
             .drive(with: self){ owner, data in
-                owner.todayFilterImageView.setKFImage(urlString: data.files[1])
+                owner.todayFilterImageView.setKFImage(urlString: data.files[1], targetSize: owner.todayFilterImageView.bounds.size)
                 owner.todayFilterTitle.text = data.title
                 owner.todayFilterDescription.text = data.description
             }

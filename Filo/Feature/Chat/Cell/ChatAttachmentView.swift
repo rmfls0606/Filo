@@ -145,10 +145,10 @@ final class ChatAttachmentView: UIView {
             fileNameLabel.text = nil
             fileNameLabel.textAlignment = alignThumbnailOnLeft ? .left : .right
             updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
-            imageView.setKFImage(urlString: urlString)
+            imageView.setKFImage(urlString: urlString, targetSize: imageView.bounds.size)
         } else if isPDF {
             // Some signed URLs can end with ".pdf" even when payload is an image.
-            imageView.setKFImage(urlString: urlString) { [weak self] result in
+            imageView.setKFImage(urlString: urlString, targetSize: imageView.bounds.size) { [weak self] result in
                 guard let self else { return }
                 guard self.currentURLString == urlString else { return }
                 switch result {

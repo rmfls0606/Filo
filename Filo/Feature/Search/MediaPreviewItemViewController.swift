@@ -55,7 +55,7 @@ final class MediaPreviewItemViewController: UIViewController {
                 }
             }
         } else if let remotePath = item.remotePath {
-            imageView.setKFImage(urlString: remotePath)
+            imageView.setKFImage(urlString: remotePath, targetSize: imageView.bounds.size)
         }
     }
     

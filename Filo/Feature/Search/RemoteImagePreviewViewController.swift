@@ -40,7 +40,7 @@ final class RemoteImagePreviewViewController: UIViewController {
         view.backgroundColor = .black
         view.addSubview(imageView)
         view.addSubview(closeButton)
-        imageView.setKFImage(urlString: urlString)
+        imageView.setKFImage(urlString: urlString, targetSize: imageView.bounds.size)
         
         imageView.snp.makeConstraints { make in
             make.edges.equalToSuperview()

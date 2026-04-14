@@ -144,10 +144,10 @@ final class ChatMessageAttachmentCell: BaseCollectionViewCell {
             fileNameLabel.text = nil
             fileNameLabel.textAlignment = alignThumbnailOnLeft ? .left : .right
             updateLayout(alignThumbnailOnLeft: alignThumbnailOnLeft)
-            imageView.setKFImage(urlString: urlString)
+            imageView.setKFImage(urlString: urlString, targetSize: imageView.bounds.size)
         } else if isPDF {
             // Signed URLs can have misleading extensions. Try image decode first.
-            imageView.setKFImage(urlString: urlString) { [weak self] result in
+            imageView.setKFImage(urlString: urlString, targetSize: imageView.bounds.size) { [weak self] result in
                 guard let self else { return }
                 guard self.currentURLString == urlString else { return }
                 switch result {

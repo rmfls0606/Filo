@@ -13,6 +13,7 @@ import RxCocoa
 import PhotosUI
 import UniformTypeIdentifiers
 import AVFoundation
+import ImageIO
 
 final class CommunityCreateViewController: BaseViewController {
     private let viewModel: CommunityCreateViewModel
@@ -580,14 +581,14 @@ private extension CommunityCreateViewController {
         if data.count <= maxSize, let item = makeMediaItem(data: data, fileName: fileName, mimeType: mimeType, fileExtension: fileExtension, isVideo: false) {
             return .success(item)
         }
-        
-        guard let image = UIImage(data: data) else {
+
+        guard let image = downsampledImage(from: data, maxDimension: 1600) ?? UIImage(data: data) else {
             return .failedCompression(makeInvalidItem(thumbnail: nil, isVideo: false))
         }
-        let resized = resizeImageIfNeeded(image, maxDimension: 1600)
+
         let qualities: [CGFloat] = [0.8, 0.6, 0.4, 0.3]
         for quality in qualities {
-            if let jpgData = resized.jpegData(compressionQuality: quality), jpgData.count <= maxSize {
+            if let jpgData = image.jpegData(compressionQuality: quality), jpgData.count <= maxSize {
                 let jpgName = "post_media_\(UUID().uuidString).jpg"
                 if let item = makeMediaItem(data: jpgData, fileName: jpgName, mimeType: "image/jpeg", fileExtension: "jpg", isVideo: false) {
                     return .success(item)
@@ -597,17 +598,20 @@ private extension CommunityCreateViewController {
         
         return .rejectedTooLarge(makeInvalidItem(thumbnail: image, isVideo: false))
     }
-    
-    func resizeImageIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
-        let size = image.size
-        let maxSide = max(size.width, size.height)
-        guard maxSide > maxDimension else { return image }
-        let scale = maxDimension / maxSide
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
+
+    func downsampledImage(from data: Data, maxDimension: CGFloat) -> UIImage? {
+        let cfData = data as CFData
+        guard let source = CGImageSourceCreateWithData(cfData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(maxDimension)
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
         }
+        return UIImage(cgImage: image)
     }
     
     func thumbnailFromVideo(data: Data, fileExtension: String) -> UIImage? {

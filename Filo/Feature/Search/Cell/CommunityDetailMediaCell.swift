@@ -97,7 +97,7 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
         } else {
             imageView.backgroundColor = GrayStyle.gray90.color
             imageView.contentMode = .scaleAspectFill
-            imageView.setKFImageNoFade(urlString: urlString)
+            imageView.setKFImageNoFade(urlString: urlString, targetSize: imageView.bounds.size)
         }
     }
     

@@ -382,7 +382,7 @@ final class CommunityDetailViewController: BaseViewController {
                 self.commentCountLabel.text = self.formatCount(dto.comments.count + replyCount)
                 
                 if let profile = dto.creator.profileImage {
-                    self.profileImageView.setKFImage(urlString: profile)
+                    self.profileImageView.setKFImage(urlString: profile, targetSize: self.profileImageView.bounds.size)
                 } else {
                     self.profileImageView.image = nil
                 }

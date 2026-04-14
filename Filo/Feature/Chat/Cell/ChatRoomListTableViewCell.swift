@@ -123,7 +123,7 @@ final class ChatRoomListTableViewCell: BaseTableViewCell {
             timeLabel.text = ""
         }
         if let url = opponent?.profileImage {
-            avatarImageView.setKFImage(urlString: url)
+            avatarImageView.setKFImage(urlString: url, targetSize: avatarImageView.bounds.size)
         } else {
             avatarImageView.image = nil
         }
@@ -140,7 +140,7 @@ final class ChatRoomListTableViewCell: BaseTableViewCell {
             timeLabel.text = ""
         }
         if let url = opponent?.profileImage {
-            avatarImageView.setKFImage(urlString: url)
+            avatarImageView.setKFImage(urlString: url, targetSize: avatarImageView.bounds.size)
         } else {
             avatarImageView.image = nil
         }
@@ -151,7 +151,7 @@ final class ChatRoomListTableViewCell: BaseTableViewCell {
         lastMessageLabel.text = summary.lastMessage.isEmpty ? "대화를 시작해보세요" : summary.lastMessage
         timeLabel.text = summary.lastMessageAt.isEmpty ? "" : summary.lastMessageAt.toChatTimestamp()
         if let url = cachedUser?.profileImage {
-            avatarImageView.setKFImage(urlString: url)
+            avatarImageView.setKFImage(urlString: url, targetSize: avatarImageView.bounds.size)
         } else {
             avatarImageView.image = nil
         }

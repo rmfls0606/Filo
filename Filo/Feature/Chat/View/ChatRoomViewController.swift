@@ -631,7 +631,7 @@ private final class ChatMessageAttachmentPreviewViewController: UIViewController
 
     private func loadRemoteImageFast(url: URL, requestID: UUID) {
         imageView.kf.cancelDownloadTask()
-        imageView.setKFAbsoluteImage(url: url, fade: false) { [weak self] result in
+        imageView.setKFAbsoluteImage(url: url, targetSize: imageView.bounds.size, fade: false) { [weak self] result in
             guard let self else { return }
             guard self.loadRequestID == requestID else { return }
             self.loadingIndicator.stopAnimating()

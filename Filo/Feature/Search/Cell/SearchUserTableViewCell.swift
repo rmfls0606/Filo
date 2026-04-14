@@ -107,7 +107,7 @@ final class SearchUserTableViewCell: BaseTableViewCell {
         nameLabel.text = item.name ?? item.introduction ?? ""
         
         if let url = item.profileImage {
-            profileImageView.setKFImage(urlString: url)
+            profileImageView.setKFImage(urlString: url, targetSize: profileImageView.bounds.size)
         } else {
             profileImageView.image = nil
         }

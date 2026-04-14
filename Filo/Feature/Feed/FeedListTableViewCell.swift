@@ -155,7 +155,7 @@ final class FeedListTableViewCell: BaseTableViewCell {
     }
     
     func configure(_ item: FilterSummaryResponseEntity, isLiked: Bool) {
-        thumbnailImageView.setKFImage(urlString: item.files[1])
+        thumbnailImageView.setKFImage(urlString: item.files[1], targetSize: thumbnailImageView.bounds.size)
         setLiked(isLiked)
         titleLabel.text = item.title
         if let category = item.category{

@@ -224,7 +224,7 @@ final class TodayAuthorView: BaseView {
         items
             .map{ $0.author }
             .drive(with: self){ owner, author in
-                owner.authorProfileImage.setKFImage(urlString: author.profileImage)
+                owner.authorProfileImage.setKFImage(urlString: author.profileImage, targetSize: owner.authorProfileImage.bounds.size)
                 owner.authorName.text = author.name
                 owner.authorNickname.text = author.nick
                 owner.authorIntroductionLabel.text = author.introduction

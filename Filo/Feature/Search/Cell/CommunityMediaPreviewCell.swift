@@ -104,7 +104,7 @@ final class CommunityMediaPreviewCell: BaseCollectionViewCell {
             if item.isVideo {
                 generateVideoThumbnail(path: remotePath)
             } else {
-                imageView.setKFImage(urlString: remotePath)
+                imageView.setKFImage(urlString: remotePath, targetSize: imageView.bounds.size)
             }
         } else {
             currentRemotePath = nil

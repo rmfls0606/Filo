@@ -208,7 +208,7 @@ final class ProfileEditViewController: BaseViewController {
                 let hashText = item.hashTags.map { "#\($0)" }.joined(separator: " ")
                 owner.hashTagsField.text = hashText
                 if let profile = item.profileImage {
-                    owner.profileImageView.setKFImage(urlString: profile)
+                    owner.profileImageView.setKFImage(urlString: profile, targetSize: owner.profileImageView.bounds.size)
                 } else {
                     owner.profileImageView.image = nil
                 }

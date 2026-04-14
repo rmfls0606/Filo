@@ -133,7 +133,7 @@ final class RankingCollectionViewCell: BaseCollectionViewCell {
     }
     
     func configure(rank: Int, _ item: FilterSummaryResponseEntity) {
-        imageView.setKFImage(urlString: item.files[1])
+        imageView.setKFImage(urlString: item.files[1], targetSize: imageView.bounds.size)
         nicknameLabel.text = item.creator.nick
         titleLabel.text = item.title
         if let category = item.category{

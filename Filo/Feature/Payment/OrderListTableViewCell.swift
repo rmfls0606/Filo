@@ -98,14 +98,14 @@ final class OrderListTableViewCell: BaseTableViewCell {
     }
     
     func configure(product: FilterResponseDTO){
-        productImage.setKFImage(urlString: product.files[1])
+        productImage.setKFImage(urlString: product.files[1], targetSize: productImage.bounds.size)
         productName.text = product.title
         productContent.text = product.description
         productPrice.text = "\(product.price.formattedDecimal())원"
     }
 
     func configure(orderFilter: FilterSummaryResponseDTO_Order){
-        productImage.setKFImage(urlString: orderFilter.files[1])
+        productImage.setKFImage(urlString: orderFilter.files[1], targetSize: productImage.bounds.size)
         productName.text = orderFilter.title
         productContent.text = orderFilter.description
         productPrice.text = "\(orderFilter.price.formattedDecimal())원"

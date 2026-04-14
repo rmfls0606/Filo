@@ -86,7 +86,7 @@ final class HotTrendCollectionViewCell: BaseCollectionViewCell {
     
     //MARK: - Function
     func configure(_ item: FilterSummaryResponseEntity) {
-        imageView.setKFImage(urlString: item.files[1])
+        imageView.setKFImage(urlString: item.files[1], targetSize: imageView.bounds.size)
         titleLabel.text = item.title
         
         Observable

@@ -28,6 +28,6 @@ final class HomeBannerCollectionViewCell: BaseCollectionViewCell {
     }
 
     func configure(urlString: String) {
-        bannerImageView.setKFImage(urlString: urlString)
+        bannerImageView.setKFImage(urlString: urlString, targetSize: bannerImageView.bounds.size)
     }
 }

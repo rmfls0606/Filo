@@ -676,11 +676,11 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.filterImageContainer.alpha = 0
                 let group = DispatchGroup()
                 group.enter()
-                owner.originalImageView.setKFImage(urlString: data.files[0]) { _ in
+                owner.originalImageView.setKFImage(urlString: data.files[0], targetSize: owner.originalImageView.bounds.size) { _ in
                     group.leave()
                 }
                 group.enter()
-                owner.filteredImageView.setKFImage(urlString: data.files[1]) { _ in
+                owner.filteredImageView.setKFImage(urlString: data.files[1], targetSize: owner.filteredImageView.bounds.size) { _ in
                     group.leave()
                 }
                 group.notify(queue: .main) {
@@ -702,7 +702,7 @@ final class DetailViewController: BaseViewController, UICollectionViewDelegateFl
                 owner.likeCountLabel.text = owner.formattedCount(data.likeCount)
                 //creator
                 if let urlString = data.creator.profileImage{
-                    owner.authorProfileImage.setKFImage(urlString: urlString)
+                    owner.authorProfileImage.setKFImage(urlString: urlString, targetSize: owner.authorProfileImage.bounds.size)
                 }
                 
                 owner.coinLabel.text = data.price.formattedDecimal()

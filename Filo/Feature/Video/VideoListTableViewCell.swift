@@ -118,10 +118,10 @@ final class VideoListTableViewCell: UITableViewCell {
     private func setThumbnail(urlString: String) {
         if urlString.hasPrefix("http://") || urlString.hasPrefix("https://") {
             guard let url = URL(string: urlString) else { return }
-            thumbnailImageView.setKFAbsoluteImage(url: url)
+            thumbnailImageView.setKFAbsoluteImage(url: url, targetSize: thumbnailImageView.bounds.size)
             return
         }
 
-        thumbnailImageView.setKFImage(urlString: urlString)
+        thumbnailImageView.setKFImage(urlString: urlString, targetSize: thumbnailImageView.bounds.size)
     }
 }

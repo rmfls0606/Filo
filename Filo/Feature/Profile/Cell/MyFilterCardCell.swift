@@ -137,9 +137,9 @@ final class MyFilterCardCell: BaseCollectionViewCell {
     
     func configure(_ item: FilterSummaryResponseEntity, isLiked: Bool) {
         if item.files.indices.contains(1) {
-            thumbnailImageView.setKFImage(urlString: item.files[1])
+            thumbnailImageView.setKFImage(urlString: item.files[1], targetSize: thumbnailImageView.bounds.size)
         } else if let first = item.files.first {
-            thumbnailImageView.setKFImage(urlString: first)
+            thumbnailImageView.setKFImage(urlString: first, targetSize: thumbnailImageView.bounds.size)
         } else {
             thumbnailImageView.image = nil
         }

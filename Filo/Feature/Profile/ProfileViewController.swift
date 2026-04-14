@@ -268,7 +268,7 @@ final class ProfileViewController: BaseViewController {
                 owner.nameLabel.text = item.name
                 owner.nickLabel.text = item.nick
                 if let profile = item.profileImage {
-                    owner.profileImageView.setKFImage(urlString: profile)
+                    owner.profileImageView.setKFImage(urlString: profile, targetSize: owner.profileImageView.bounds.size)
                 } else {
                     owner.profileImageView.image = nil
                 }
