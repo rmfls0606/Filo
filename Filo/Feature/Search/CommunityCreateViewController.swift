@@ -586,7 +586,7 @@ private extension CommunityCreateViewController {
             return .failedCompression(makeInvalidItem(thumbnail: nil, isVideo: false))
         }
 
-        let qualities: [CGFloat] = [0.8, 0.6, 0.4, 0.3]
+        let qualities: [CGFloat] = [0.8, 0.7, 0.6]
         for quality in qualities {
             if let jpgData = image.jpegData(compressionQuality: quality), jpgData.count <= maxSize {
                 let jpgName = "post_media_\(UUID().uuidString).jpg"
