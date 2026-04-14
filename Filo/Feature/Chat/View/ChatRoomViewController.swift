@@ -630,13 +630,8 @@ private final class ChatMessageAttachmentPreviewViewController: UIViewController
     }
 
     private func loadRemoteImageFast(url: URL, requestID: UUID) {
-        let resource = KF.ImageResource(downloadURL: url, cacheKey: url.absoluteString)
-        let options: KingfisherOptionsInfo = [
-            .requestModifier(RequestModifier.modifer),
-            .cacheOriginalImage
-        ]
         imageView.kf.cancelDownloadTask()
-        imageView.kf.setImage(with: resource, options: options) { [weak self] result in
+        imageView.setKFAbsoluteImage(url: url, fade: false) { [weak self] result in
             guard let self else { return }
             guard self.loadRequestID == requestID else { return }
             self.loadingIndicator.stopAnimating()

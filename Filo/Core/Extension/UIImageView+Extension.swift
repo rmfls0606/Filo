@@ -21,18 +21,30 @@ enum RequestModifier{
 }
 
 extension UIImageView{
-    func setKFImage(urlString: String){
-        guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
+    private var kfTargetSize: CGSize {
+        let size = bounds.size == .zero ? frame.size : bounds.size
+        return size == .zero ? CGSize(width: 200, height: 200) : size
+    }
 
-        let targetSize = bounds.size == .zero ? frame.size : bounds.size
-        let processor = DownsamplingImageProcessor(size: targetSize)
-        let options: KingfisherOptionsInfo = [
+    private func kfOptions(withFade: Bool) -> KingfisherOptionsInfo {
+        let processor = DownsamplingImageProcessor(size: kfTargetSize)
+        var options: KingfisherOptionsInfo = [
             .scaleFactor(UIScreen.main.scale),
             .processor(processor),
             .cacheOriginalImage,
-            .transition(.fade(0.3)),
             .requestModifier(RequestModifier.modifer)
         ]
+        if withFade {
+            options.append(.transition(.fade(0.3)))
+        } else {
+            options.append(.keepCurrentImageWhileLoading)
+        }
+        return options
+    }
+
+    func setKFImage(urlString: String){
+        guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
+        let options = kfOptions(withFade: true)
 
         let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
         kf.cancelDownloadTask()
@@ -42,16 +54,7 @@ extension UIImageView{
 
     func setKFImage(urlString: String, completion: ((Result<RetrieveImageResult, KingfisherError>) -> Void)?){
         guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
-
-        let targetSize = bounds.size == .zero ? frame.size : bounds.size
-        let processor = DownsamplingImageProcessor(size: targetSize)
-        let options: KingfisherOptionsInfo = [
-            .scaleFactor(UIScreen.main.scale),
-            .processor(processor),
-            .cacheOriginalImage,
-            .transition(.fade(0.3)),
-            .requestModifier(RequestModifier.modifer)
-        ]
+        let options = kfOptions(withFade: true)
 
         let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
         kf.cancelDownloadTask()
@@ -63,11 +66,7 @@ extension UIImageView{
     
     func setKFImageNoFade(urlString: String) {
         guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
-        let options: KingfisherOptionsInfo = [
-            .cacheOriginalImage,
-            .keepCurrentImageWhileLoading,
-            .requestModifier(RequestModifier.modifer)
-        ]
+        let options = kfOptions(withFade: false)
 
         let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
         kf.cancelDownloadTask()
@@ -77,13 +76,19 @@ extension UIImageView{
     
     func setKFImageNoFade(urlString: String, completion: ((Result<RetrieveImageResult, KingfisherError>) -> Void)?) {
         guard let url = URL(string: NetworkConfig.baseURL + "/" + urlString) else { return }
-        let options: KingfisherOptionsInfo = [
-            .cacheOriginalImage,
-            .keepCurrentImageWhileLoading,
-            .requestModifier(RequestModifier.modifer)
-        ]
+        let options = kfOptions(withFade: false)
 
         let resource = KF.ImageResource(downloadURL: url, cacheKey: urlString)
+        kf.cancelDownloadTask()
+        kf.indicatorType = .activity
+        kf.setImage(with: resource, options: options) { result in
+            completion?(result)
+        }
+    }
+
+    func setKFAbsoluteImage(url: URL, fade: Bool = true, completion: ((Result<RetrieveImageResult, KingfisherError>) -> Void)? = nil) {
+        let options = kfOptions(withFade: fade)
+        let resource = KF.ImageResource(downloadURL: url, cacheKey: url.absoluteString)
         kf.cancelDownloadTask()
         kf.indicatorType = .activity
         kf.setImage(with: resource, options: options) { result in
