@@ -16,8 +16,6 @@ final class ChatRoomListViewModel: ViewModelType {
     let currentUserId: String
 
     private let disposeBag = DisposeBag()
-    private let userCacheTTL: TimeInterval = 60 * 60 * 24
-    private let maxUserRefreshCount = 20
 
     init(currentUserId: String,
          service: ChatServiceProtocol = ChatService.shared,
@@ -55,11 +53,6 @@ final class ChatRoomListViewModel: ViewModelType {
                         let participants = rooms.flatMap { $0.participants }
                         self.localStore.upsertUsers(participants)
                         self.localStore.upsertRoomSummaries(from: rooms, currentUserId: self.currentUserId)
-                        self.refreshUsersIfNeeded(rooms: rooms) { updated in
-                            if updated {
-                                roomsRelay.accept(self.localStore.fetchRoomSummaries())
-                            }
-                        }
                         roomsRelay.accept(self.localStore.fetchRoomSummaries())
                         let roomIds = rooms.map { $0.roomId }
                         self.socketService.connect(roomIds: roomIds)
@@ -90,31 +83,5 @@ final class ChatRoomListViewModel: ViewModelType {
             chatRoomList: roomsRelay.asDriver(),
             networkError: errorRelay.asSignal()
         )
-    }
-
-    private func refreshUsersIfNeeded(rooms: [ChatRoomResponseDTO], completion: ((Bool) -> Void)? = nil) {
-        let opponentIds = rooms.compactMap { room in
-            room.participants.first(where: { $0.userID != currentUserId })?.userID
-        }
-        var stale = localStore.staleUserIds(opponentIds, ttl: userCacheTTL)
-        stale.append(contentsOf: opponentIds)
-        stale = Array(Set(stale))
-        guard !stale.isEmpty else { return }
-
-        Task {
-            var updated = false
-            for userId in stale.prefix(maxUserRefreshCount) {
-                do {
-                    let dto: UserInfoResponseDTO = try await NetworkManager.shared.request(UserRouter.otherProfile(userId: userId))
-                    localStore.upsertUsers([dto])
-                    updated = true
-                } catch {
-                    continue
-                }
-            }
-            if updated {
-                completion?(true)
-            }
-        }
     }
 }
