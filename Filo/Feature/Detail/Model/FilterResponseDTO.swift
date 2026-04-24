@@ -113,6 +113,14 @@ extension FilterValuesDTO {
         return String(format: "%.1f", value)
     }
 
+    private func temperatureText(_ value: Double?) -> String {
+        guard let value else { return "-" }
+        if value >= 1000.0 {
+            return String(format: "%.0fK", value)
+        }
+        return String(format: "%.1f", value)
+    }
+
     private func centeredText(_ value: Double?) -> String {
         guard let value else { return "-" }
         return String(format: "%.1f", value - 1.0)
@@ -130,7 +138,7 @@ extension FilterValuesDTO {
             FilterValuesEntity(iconName: "noise", valueText: text(noiseReduction)),
             FilterValuesEntity(iconName: "highlights", valueText: centeredText(highlights)),
             FilterValuesEntity(iconName: "shadows", valueText: text(shadows)),
-            FilterValuesEntity(iconName: "temperature", valueText: text(temperature)),
+            FilterValuesEntity(iconName: "temperature", valueText: temperatureText(temperature)),
             FilterValuesEntity(iconName: "blackPoint", valueText: text(blackPoint))
         ]
     }
