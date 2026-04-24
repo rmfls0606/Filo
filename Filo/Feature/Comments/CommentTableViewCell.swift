@@ -82,6 +82,8 @@ final class CommentTableViewCell: BaseTableViewCell {
     }()
     
     private var profileLeadingConstraint: Constraint?
+    private var profileTopConstraint: Constraint?
+    private var profileSizeConstraint: Constraint?
     private var currentProfileKey: String?
     let replyTap = PublishRelay<Void>()
     let moreTap = PublishRelay<Void>()
@@ -102,8 +104,8 @@ final class CommentTableViewCell: BaseTableViewCell {
     override func configureLayout() {
         profileImageView.snp.makeConstraints { make in
             profileLeadingConstraint = make.leading.equalToSuperview().inset(14).constraint
-            make.top.equalToSuperview().inset(10)
-            make.size.equalTo(30)
+            profileTopConstraint = make.top.equalToSuperview().inset(10).constraint
+            profileSizeConstraint = make.size.equalTo(30).constraint
         }
         
         moreButton.snp.makeConstraints { make in
@@ -173,7 +175,10 @@ final class CommentTableViewCell: BaseTableViewCell {
             contentLabel.text = item.content
         }
         replyButton.isHidden = item.isReply
-        profileLeadingConstraint?.update(offset: item.isReply ? 26 : 14)
+        profileImageView.isHidden = false
+        profileLeadingConstraint?.update(offset: item.isReply ? 54 : 14)
+        profileTopConstraint?.update(offset: item.isReply ? 14 : 10)
+        profileSizeConstraint?.update(offset: 30)
         textStack.layoutMargins = .zero
         textStack.isLayoutMarginsRelativeArrangement = false
         moreButton.isHidden = !showMore
@@ -184,7 +189,9 @@ final class CommentTableViewCell: BaseTableViewCell {
         currentProfileKey = nil
         if let url = item.creator.profileImage {
             let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let fullURL = URL(string: NetworkConfig.baseURL + "/" + trimmed), !trimmed.isEmpty {
+            if let assetName = Self.assetImageName(from: trimmed) {
+                profileImageView.image = UIImage(named: assetName)
+            } else if let fullURL = URL(string: NetworkConfig.baseURL + "/" + trimmed), !trimmed.isEmpty {
                 let targetSize = CGSize(width: 30, height: 30)
                 let processor = DownsamplingImageProcessor(size: targetSize)
                 let options: KingfisherOptionsInfo = [
@@ -215,5 +222,10 @@ final class CommentTableViewCell: BaseTableViewCell {
         let delete = UIAction(title: "삭제", attributes: .destructive) { _ in onDelete() }
         moreButton.menu = UIMenu(title: "", children: [edit, delete])
     }
-    
+
+    private static func assetImageName(from path: String) -> String? {
+        let prefix = "asset://"
+        guard path.hasPrefix(prefix) else { return nil }
+        return String(path.dropFirst(prefix.count))
+    }
 }

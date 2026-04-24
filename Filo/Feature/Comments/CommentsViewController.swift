@@ -20,6 +20,7 @@ final class CommentsViewController: BaseViewController {
     private let deleteRelay = PublishRelay<String>()
     private var inputBottomConstraint: Constraint?
     private var currentUserId: String = ""
+    private let backgroundTapGesture = UITapGestureRecognizer()
     var onCountChanged: ((Int) -> Void)?
     var onCommentsChanged: (([PostCommentResponseDTO]) -> Void)?
     var onPostNotFound: ((String) -> Void)?
@@ -30,6 +31,10 @@ final class CommentsViewController: BaseViewController {
         view.separatorStyle = .none
         view.showsVerticalScrollIndicator = false
         view.keyboardDismissMode = .interactive
+        view.rowHeight = UITableView.automaticDimension
+        view.estimatedRowHeight = 96
+        view.estimatedSectionHeaderHeight = 0
+        view.estimatedSectionFooterHeight = 0
         view.register(CommentTableViewCell.self, forCellReuseIdentifier: CommentTableViewCell.identifier)
         view.register(CommentMoreRepliesCell.self, forCellReuseIdentifier: CommentMoreRepliesCell.identifier)
         view.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 12, right: 0)
@@ -131,6 +136,7 @@ final class CommentsViewController: BaseViewController {
     }
     
     override func configureHierarchy() {
+        view.addGestureRecognizer(backgroundTapGesture)
         view.addSubview(tableView)
         view.addSubview(replyInfoView)
         replyInfoView.addSubview(replyInfoLabel)
@@ -193,6 +199,7 @@ final class CommentsViewController: BaseViewController {
     
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
+        backgroundTapGesture.cancelsTouchesInView = false
         let navTitle = UILabel()
         navTitle.text = "댓글"
         navTitle.font = .Pretendard.body1
@@ -232,6 +239,7 @@ final class CommentsViewController: BaseViewController {
             .bind(with: self) { owner, _ in
                 owner.currentUserId = (try? KeychainManager.shared.read(key: .userId)) ?? ""
                 owner.tableView.reloadData()
+                owner.tableView.layoutIfNeeded()
             }
             .disposed(by: disposeBag)
         
@@ -270,6 +278,13 @@ final class CommentsViewController: BaseViewController {
                     cell.configure(remaining: remaining)
                     return cell
                 }
+            }
+            .disposed(by: disposeBag)
+
+        output.comments
+            .drive(with: self) { owner, _ in
+                owner.tableView.beginUpdates()
+                owner.tableView.endUpdates()
             }
             .disposed(by: disposeBag)
         
@@ -382,6 +397,12 @@ final class CommentsViewController: BaseViewController {
                 owner.editTargetRelay.accept(nil)
                 owner.inputTextView.text = ""
                 owner.inputTextView.setNeedsLayout()
+            }
+            .disposed(by: disposeBag)
+
+        backgroundTapGesture.rx.event
+            .bind(with: self) { owner, _ in
+                owner.view.endEditing(true)
             }
             .disposed(by: disposeBag)
         
