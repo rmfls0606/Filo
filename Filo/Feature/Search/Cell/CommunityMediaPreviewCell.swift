@@ -9,6 +9,8 @@ import UIKit
 import SnapKit
 import AVFoundation
 import Kingfisher
+import RxSwift
+import RxCocoa
 
 final class CommunityMediaPreviewCell: BaseCollectionViewCell {    
     private let imageView: UIImageView = {
@@ -46,6 +48,7 @@ final class CommunityMediaPreviewCell: BaseCollectionViewCell {
     
     private var thumbnailRequestId = UUID()
     private var currentRemotePath: String?
+    private var actionDisposeBag = DisposeBag()
     var onDelete: (() -> Void)?
     
     override func configureHierarchy() {
@@ -80,11 +83,13 @@ final class CommunityMediaPreviewCell: BaseCollectionViewCell {
     
     override func configureView() {
         contentView.backgroundColor = .clear
-        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+        bindCloseButton()
     }
     
     override func prepareForReuse() {
         super.prepareForReuse()
+        actionDisposeBag = DisposeBag()
+        bindCloseButton()
         imageView.kf.cancelDownloadTask()
         imageView.image = nil
         playIconView.isHidden = true
@@ -110,13 +115,17 @@ final class CommunityMediaPreviewCell: BaseCollectionViewCell {
             currentRemotePath = nil
         }
     }
-    
-    @objc private func closeTapped() {
-        onDelete?()
-    }
 }
 
 private extension CommunityMediaPreviewCell {
+    func bindCloseButton() {
+        closeButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.onDelete?()
+            }
+            .disposed(by: actionDisposeBag)
+    }
+    
     func makeAuthorizedAsset(path: String) -> AVURLAsset? {
         guard let url = URL(string: NetworkConfig.baseURL + "/" + path) else { return nil }
         let headers = [

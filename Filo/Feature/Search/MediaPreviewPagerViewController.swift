@@ -7,10 +7,13 @@
 
 import UIKit
 import SnapKit
+import RxSwift
+import RxCocoa
 
 final class MediaPreviewPagerViewController: UIPageViewController {
     private let items: [PostMediaItem]
     private let startIndex: Int
+    private let disposeBag = DisposeBag()
     
     private let closeButton: UIButton = {
         let button = UIButton(type: .system)
@@ -42,7 +45,11 @@ final class MediaPreviewPagerViewController: UIPageViewController {
             make.trailing.equalToSuperview().inset(16)
             make.size.equalTo(28)
         }
-        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+        closeButton.rx.tap
+            .bind(with: self) { owner, _ in
+                owner.dismiss(animated: true)
+            }
+            .disposed(by: disposeBag)
         
         if let vc = viewController(at: startIndex) {
             setViewControllers([vc], direction: .forward, animated: false)
@@ -56,9 +63,6 @@ final class MediaPreviewPagerViewController: UIPageViewController {
         return vc
     }
     
-    @objc private func closeTapped() {
-        dismiss(animated: true)
-    }
 }
 
 extension MediaPreviewPagerViewController: UIPageViewControllerDataSource, UIPageViewControllerDelegate {

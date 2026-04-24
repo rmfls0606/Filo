@@ -8,6 +8,7 @@
 import UIKit
 import SnapKit
 import AVFoundation
+import Foundation
 
 final class CommunityDetailMediaCell: BaseCollectionViewCell {
     private let imageView: UIImageView = {
@@ -66,8 +67,6 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
     
     override func configureView() {
         contentView.backgroundColor = .clear
-        let tap = UITapGestureRecognizer(target: self, action: #selector(togglePlayback))
-        contentView.addGestureRecognizer(tap)
     }
     
     override func prepareForReuse() {
@@ -205,12 +204,4 @@ final class CommunityDetailMediaCell: BaseCollectionViewCell {
         loadingIndicator.stopAnimating()
     }
     
-    @objc private func togglePlayback() {
-        guard isVideo, let player else { return }
-        if player.timeControlStatus == .playing {
-            player.pause()
-        } else {
-            player.play()
-        }
-    }
 }

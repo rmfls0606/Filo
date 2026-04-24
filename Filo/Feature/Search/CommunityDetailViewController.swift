@@ -354,6 +354,12 @@ final class CommunityDetailViewController: BaseViewController {
                 cell.configure(urlString: item)
             }
             .disposed(by: disposeBag)
+
+        mediaCollectionView.rx.itemSelected
+            .bind(with: self) { owner, indexPath in
+                owner.presentMediaPreview(startIndex: indexPath.item)
+            }
+            .disposed(by: disposeBag)
         
         output.postDetail
             .drive(onNext: { [weak self] dto in
@@ -536,19 +542,39 @@ final class CommunityDetailViewController: BaseViewController {
             .disposed(by: disposeBag)
     }
     
-    private func presentMedia(urlString: String) {
-        let ext = (urlString as NSString).pathExtension.lowercased()
-        let isVideo = ["mp4", "mov", "avi", "mkv", "wmv", "webm"].contains(ext)
-        if isVideo {
-            return
-        } else {
-            let vc = RemoteImagePreviewViewController(imageURL: urlString)
-            present(vc, animated: true)
+    private func presentMediaPreview(startIndex: Int) {
+        let paths = mediaItemsRelay.value
+        guard paths.indices.contains(startIndex) else { return }
+        for cell in mediaCollectionView.visibleCells {
+            if let mediaCell = cell as? CommunityDetailMediaCell {
+                mediaCell.stopPlayback()
+            }
         }
+        let items = paths.map(makePostMediaItem)
+        let vc = MediaPreviewPagerViewController(items: items, startIndex: startIndex)
+        present(vc, animated: true)
+    }
+
+    private func makePostMediaItem(path: String) -> PostMediaItem {
+        return PostMediaItem(
+            id: UUID(),
+            data: nil,
+            fileName: (path as NSString).lastPathComponent,
+            mimeType: nil,
+            thumbnail: UIImage(),
+            isVideo: Self.isVideoPath(path),
+            isValid: true,
+            remotePath: path
+        )
     }
 }
 
 private extension CommunityDetailViewController {
+    static func isVideoPath(_ path: String) -> Bool {
+        let ext = (path as NSString).pathExtension.lowercased()
+        return ["mp4", "mov", "avi", "mkv", "wmv", "webm"].contains(ext)
+    }
+
     func shouldPopAfterError(_ error: NetworkError) -> Bool {
         if case .statusCodeError(let status) = error, status == .notFound {
             return true

@@ -528,13 +528,14 @@ private extension CommunityCreateViewController {
     }
     
     func hideKeyboardWhenTapped() {
-        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        let tap = UITapGestureRecognizer()
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
-    }
-    
-    @objc func dismissKeyboard() {
-        view.endEditing(true)
+        tap.rx.event
+            .bind(with: self) { owner, _ in
+                owner.view.endEditing(true)
+            }
+            .disposed(by: disposeBag)
     }
     
     func makeMediaItem(data: Data, fileName: String, mimeType: String, fileExtension: String, isVideo: Bool) -> PostMediaItem? {

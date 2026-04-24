@@ -111,6 +111,10 @@ final class SearchViewController: BaseViewController {
         return label
     }()
     
+    private let addPostBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: nil, action: nil)
+    private let videoBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "play.rectangle"), style: .plain, target: nil, action: nil)
+    private let backBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "chevron.left"), style: .plain, target: nil, action: nil)
+    
     let tap = UITapGestureRecognizer()
 
     // MARK: - Properties
@@ -225,7 +229,7 @@ final class SearchViewController: BaseViewController {
     override func configureView() {
         view.backgroundColor = GrayStyle.gray100.color
         navigationItem.title = "커뮤니티"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: nil, action: nil)
+        navigationItem.rightBarButtonItem = addPostBarButtonItem
         configureLeftNavigationItem()
         tap.delegate = self
         view.addGestureRecognizer(tap)
@@ -390,6 +394,20 @@ final class SearchViewController: BaseViewController {
                 owner.navigationController?.pushViewController(vc, animated: true)
             }
             .disposed(by: disposeBag)
+        
+        backBarButtonItem.rx.tap
+            .bind(with: self) { owner, _ in
+                guard owner.isPushedFromAnotherScreen else { return }
+                owner.navigationController?.popViewController(animated: true)
+            }
+            .disposed(by: disposeBag)
+        
+        videoBarButtonItem.rx.tap
+            .bind(with: self) { owner, _ in
+                let vc = VideoListViewController()
+                owner.navigationController?.pushViewController(vc, animated: true)
+            }
+            .disposed(by: disposeBag)
 
         searchBar.rx.textDidBeginEditing
             .bind(with: self) { owner, _ in
@@ -490,43 +508,18 @@ final class SearchViewController: BaseViewController {
     }
 }
 
-    private extension SearchViewController {
+private extension SearchViewController {
     var isPushedFromAnotherScreen: Bool {
         guard let navigationController else { return false }
         return navigationController.viewControllers.first !== self
     }
     
     func configureLeftNavigationItem() {
-        let video = UIBarButtonItem(
-            image: UIImage(systemName: "play.rectangle"),
-            style: .plain,
-            target: self,
-            action: #selector(handleVideoButtonTap)
-        )
-        
         if isPushedFromAnotherScreen {
-            let back = UIBarButtonItem(
-                image: UIImage(systemName: "chevron.left"),
-                style: .plain,
-                target: self,
-                action: #selector(handleBackButtonTap)
-            )
-            navigationItem.leftBarButtonItems = [back, video]
+            navigationItem.leftBarButtonItems = [backBarButtonItem, videoBarButtonItem]
         } else {
-            navigationItem.leftBarButtonItems = [video]
+            navigationItem.leftBarButtonItems = [videoBarButtonItem]
         }
-    }
-    
-    @objc
-    func handleBackButtonTap() {
-        guard isPushedFromAnotherScreen else { return }
-        navigationController?.popViewController(animated: true)
-    }
-    
-    @objc
-    func handleVideoButtonTap() {
-        let vc = VideoListViewController()
-        navigationController?.pushViewController(vc, animated: true)
     }
     
     func presentCommunityDetail(postId: String, selectedIndexPath: IndexPath) {
