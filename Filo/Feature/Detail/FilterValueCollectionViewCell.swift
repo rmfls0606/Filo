@@ -21,6 +21,10 @@ final class FilterValueCollectionViewCell: BaseCollectionViewCell {
         label.font = .Pretendard.body2
         label.textColor = GrayStyle.gray75.color
         label.textAlignment = .center
+        label.numberOfLines = 1
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.65
+        label.lineBreakMode = .byClipping
         return label
     }()
 
