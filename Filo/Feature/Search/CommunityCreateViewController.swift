@@ -16,6 +16,8 @@ import AVFoundation
 import ImageIO
 
 final class CommunityCreateViewController: BaseViewController {
+    override var prefersCustomTabBarHidden: Bool { true }
+
     private let viewModel: CommunityCreateViewModel
     private let disposeBag = DisposeBag()
     var onUpdated: (() -> Void)?
@@ -577,16 +579,17 @@ private extension CommunityCreateViewController {
     
     func makeImageItem(data: Data, mimeType: String, fileExtension: String) -> ImageProcessResult {
         let maxSize = 5 * 1024 * 1024
+        let downsampleMaxDimension: CGFloat = 1080
         let fileName = "post_media_\(UUID().uuidString).\(fileExtension)"
         if data.count <= maxSize, let item = makeMediaItem(data: data, fileName: fileName, mimeType: mimeType, fileExtension: fileExtension, isVideo: false) {
             return .success(item)
         }
 
-        guard let image = downsampledImage(from: data, maxDimension: 1600) ?? UIImage(data: data) else {
+        guard let image = downsampledImage(from: data, maxDimension: downsampleMaxDimension) ?? UIImage(data: data) else {
             return .failedCompression(makeInvalidItem(thumbnail: nil, isVideo: false))
         }
 
-        let qualities: [CGFloat] = [0.8, 0.7, 0.6]
+        let qualities: [CGFloat] = [0.95, 0.9, 0.8, 0.7, 0.6]
         for quality in qualities {
             if let jpgData = image.jpegData(compressionQuality: quality), jpgData.count <= maxSize {
                 let jpgName = "post_media_\(UUID().uuidString).jpg"
