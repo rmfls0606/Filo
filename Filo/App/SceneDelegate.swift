@@ -112,7 +112,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     private func showPrivacyCoverIfNeeded() {
-        guard ChatLockSettingsStore.shared.settings().isLockEnabled else { return }
         guard let window else { return }
 
         if let cover = privacyCoverView {
@@ -135,6 +134,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     private func makePrivacyCoverView() -> UIView {
         let settings = ChatLockSettingsStore.shared.settings()
+        guard settings.isLockEnabled else {
+            return makePlainPrivacyCoverView()
+        }
+
         let leadingAction: ChatLockLeadingAction = settings.isBiometricEnabled && ChatLockSettingsStore.shared.canUseBiometrics() ? .biometric : .empty
         let cover = ChatLockScreenView(
             title: "Filo 잠금",
@@ -144,5 +147,34 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             isInteractive: false
         )
         return cover
+    }
+
+    private func makePlainPrivacyCoverView() -> UIView {
+        let cover = UIView()
+        cover.backgroundColor = Brand.blackTurquoise.color
+
+        let logoImageView = UIImageView(image: appIconImage())
+        logoImageView.contentMode = .scaleAspectFit
+        logoImageView.layer.cornerRadius = 22
+        logoImageView.clipsToBounds = true
+        logoImageView.translatesAutoresizingMaskIntoConstraints = false
+        cover.addSubview(logoImageView)
+        NSLayoutConstraint.activate([
+            logoImageView.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
+            logoImageView.centerYAnchor.constraint(equalTo: cover.centerYAnchor),
+            logoImageView.widthAnchor.constraint(equalToConstant: 96),
+            logoImageView.heightAnchor.constraint(equalToConstant: 96)
+        ])
+        return cover
+    }
+
+    private func appIconImage() -> UIImage? {
+        guard
+            let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+            let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+            let files = primary["CFBundleIconFiles"] as? [String],
+            let iconName = files.last
+        else { return nil }
+        return UIImage(named: iconName)
     }
 }
