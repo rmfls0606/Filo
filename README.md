@@ -1,247 +1,316 @@
-<h1><img src="Filo/Resources/Assets.xcassets/AppIcon.appiconset/A_digital_vector_icon_features_a_square_with_round.jpg" alt="Filo Icon" height="28" style="vertical-align: -4px;" /> Filo</h1>
+<h1>
+  <img src="Filo/Resources/Assets.xcassets/AppIcon.appiconset/A_digital_vector_icon_features_a_square_with_round.jpg" alt="Filo Icon" height="32" style="vertical-align: -6px;" />
+  Filo
+</h1>
 
-Filo는 필터 제작/공유, 커뮤니티, 결제, 채팅, VOD 시청을 하나의 경험으로 묶은 iOS 앱입니다.  
-UIKit 기반 커스텀 UI와 MVVM + RxSwift, async/await를 함께 사용해 실제 서비스 시나리오(로그인/결제/푸시/실시간 채팅/미디어 업로드)를 구현했습니다.
+Filo는 필터 제작/공유, 커뮤니티, 실시간 채팅, VOD, PG 결제를 하나의 사용자 흐름으로 연결한 iOS 앱입니다.
+UIKit 기반 커스텀 UI와 MVVM + Input/Output, RxSwift, async/await를 함께 사용해 로그인/결제/푸시/실시간 채팅/미디어 업로드 같은 실제 서비스 시나리오를 구현했습니다.
 
-## 프로젝트 요약
+| 항목 | 내용 |
+|---|---|
+| 개발 기간 | 2025.12 - 2026.02 |
+| 담당 역할 | iOS App Developer |
+| 프로젝트 성격 | 팀 프로젝트 |
+| 최소 지원 버전 | iOS 16.0+ |
 
-- 플랫폼: iOS
-- 아키텍처: MVVM + RxSwift + async/await
-- 핵심 도메인: 필터 편집/판매, 커뮤니티, 결제, 채팅, 영상 스트리밍
-- 구현 포인트: 토큰 재발급 단일화, 실시간 메시지 동기화, 미디어 최적화 업로드, 커스텀 플레이어
+## 목차
+
+- [핵심 기능](#핵심-기능)
+- [스크린샷](#스크린샷)
+- [기술 스택](#기술-스택)
+- [아키텍처](#아키텍처)
+- [핵심 구현 포인트](#핵심-구현-포인트)
+- [트러블슈팅](#트러블슈팅)
+- [실행 방법](#실행-방법)
 
 ## 핵심 기능
 
-- 인증: 이메일/카카오/Apple 로그인
-- 홈: 배너(WebView 브릿지), 오늘의 작가, 트렌드 필터
-- 피드: Top Ranking 캐러셀 + 리스트/핀터레스트 블록 모드 + 무한 스크롤
-- 필터: 사진 선택, Core Image 기반 필터 파라미터 조절, EXIF 메타데이터 추출/표시, 필터 등록
-- 커뮤니티: 게시글 검색/작성/수정/상세, 이미지+동영상 혼합 미디어 지원
-- 결제: PG 결제 연동 및 영수증 검증 플로우 (iamport SDK)
-- 알림: FCM/APNs 기반 Push 수신, 앱 상태별 표시 제어, 탭 시 딥링크 이동
-- 채팅: 채팅방 목록/대화, 소켓 실시간 수신, Realm 로컬 저장, PDF 첨부/미리보기, 푸시 연동
-- 영상: HLS 재생, 커스텀 플레이어, 화질/속도/자막 제어
+| 도메인 | 구현 내용 |
+|---|---|
+| <nobr>인증</nobr> | 이메일 회원가입/로그인, 카카오 로그인, Apple 로그인, Keychain 기반 토큰 저장, 만료 토큰 자동 갱신 |
+| <nobr>홈</nobr> | 오늘의 필터, 카테고리, 핫 트렌드, 오늘의 작가, WebView 이벤트 배너 |
+| <nobr>피드</nobr> | Top Ranking 캐러셀, 리스트/블록 모드 전환, 정렬, 무한 스크롤, 좋아요 낙관적 반영 |
+| <nobr>필터</nobr> | 이미지 선택, EXIF 메타데이터 추출, Core Image 기반 12개 조절값 편집, 원본/적용 이미지 비교, 필터 등록/수정/삭제 |
+| <nobr>필터 구매</nobr> | 결제 상태에 따른 조절값 잠금/해제, 구매 후 사진 적용 및 저장 |
+| <nobr>커뮤니티</nobr> | 게시글/사용자 검색, 게시글 작성/상세/수정/삭제, 이미지/동영상 혼합 미디어, 댓글/대댓글 |
+| <nobr>채팅</nobr> | Socket.IO 기반 실시간 메시지, Realm 로컬 저장, 이미지/PDF 첨부, PDF 미리보기, unread 배지 |
+| <nobr>알림</nobr> | Firebase Messaging, FCM/APNs 토큰 관리, 포그라운드 알림, 채팅방 딥링크 |
+| <nobr>VOD</nobr> | HLS 스트리밍, 커스텀 AVPlayer, 화질/속도/자막 제어, 전체 화면 전환 |
+| <nobr>보안</nobr> | 커스텀 앱 잠금, 생체 인증, 앱 스위처 민감 정보 보호 화면 |
 
 ## 스크린샷
 
-> 아래 파일 경로를 실제 이미지로 교체하면 됩니다. (예: `docs/screenshots/01_home.png`)
+| 로그인 | 회원가입 | 메인화면(오늘의 필터) | 메인화면(핫 트랜드 & 오늘의 작가) |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/Login.png" alt="로그인" width="200"> | <img src="docs/screenshots/join.png" alt="회원가입" width="200"> | <img src="docs/screenshots/todayFilter.png" alt="홈" width="200"> | <img src="docs/screenshots/hotTrendAndTodayAuthor.png" alt="핫 트렌드와 오늘의 작가" width="200"> |
+| 배너 웹 브릿지 | 배너 웹 브릿지 동작 | 피드(탑 랭킹) | 피드 리스트 |
+| <img src="docs/screenshots/bannerWebBridge.png" alt="배너 WebView" width="200"> | <img src="docs/screenshots/bannerWebBridgeAction.png" alt="WebView 이벤트 완료" width="200"> | <img src="docs/screenshots/feedRanking.png" alt="피드 랭킹" width="200"> | <img src="docs/screenshots/feedList.png" alt="피드 리스트" width="200"> |
+| 필터 등록  | 필터 생성 | 필터 편집 | 필터 상세 |
+| <img src="docs/screenshots/filterUpload.png" alt="필터 등록" width="200"> | <img src="docs/screenshots/filterCreate.png" alt="필터 생성" width="200"> | <img src="docs/screenshots/filterEdit.png" alt="필터 편집" width="200"> | <img src="docs/screenshots/filterDetail.png" alt="필터 상세" width="200"> |
+| 필터 상세(결제 전) | 필터 상세(결제 후) | 필터 적용 미리보기 | 커뮤니티 탐색 |
+| <img src="docs/screenshots/filterBeforePay.png" alt="필터 상세(결제 전)" width="200"> | <img src="docs/screenshots/filterAfterPay.png" alt="필터 상세(결제 후)" width="200"> | <img src="docs/screenshots/filterPreview.png" alt="필터 적용 미리보기" width="200"> | <img src="docs/screenshots/community.png" alt="커뮤니티 탐색" width="200"> |
+| 게시글 상세 | 게시글 작성 | 미디어 프리뷰 | 댓글 |
+| <img src="docs/screenshots/communityDetail.png" alt="게시글 상세" width="200"> | <img src="docs/screenshots/communityCreate.png" alt="게시글 작성" width="200"> | <img src="docs/screenshots/mediaPreview.png" alt="미디어 프리뷰" width="200"> | <img src="docs/screenshots/comments.png" alt="댓글" width="200"> |
+| 대댓글 | 채팅 목록 | 채팅방 | PDF 첨부 미리보기 |
+| <img src="docs/screenshots/replies.png" alt="대댓글" width="200"> | <img src="docs/screenshots/chatList.png" alt="채팅 목록" width="200"> | <img src="docs/screenshots/chatRoom.png" alt="채팅방" width="200"> | <img src="docs/screenshots/chatPdfPreview.png" alt="PDF 첨부 미리보기" width="200"> |
+| 결제 | 결제 검증 | 영수증 | 영상 목록 |
+| <img src="docs/screenshots/payment.png" alt="결제" width="200"> | <img src="docs/screenshots/paymentValidation.png" alt="결제 검증" width="200"> | <img src="docs/screenshots/receipt.png" alt="영수증" width="200"> | <img src="docs/screenshots/videoList.png" alt="영상 목록" width="200"> |
+| 영상 플레이어 | 전체 화면 플레이어 |  |  |
+| <img src="docs/screenshots/videoPlayer.png" alt="영상 플레이어" width="200"> | <img src="docs/screenshots/videoFullscreen.png" alt="전체 화면 플레이어" width="200"> |  | |
 
-| 로그인 화면 | 회원 가입 화면 | 오늘의 필터 소개 화면 | 핫 트렌드 & 오늘의 작가 소개 화면 | 05화면 | 06화면 |
-|---|---|---|---|---|---|
-| ![Screenshot 01](docs/screenshots/Login.png) | ![Screenshot 02](docs/screenshots/join.png) | ![Screenshot 03](docs/screenshots/todayFilter.png) | ![Screenshot 04](docs/screenshots/hotTrendAndTodayAuthor.png) | ![Screenshot 05](docs/screenshots/bannerWebBridge.png) | ![Screenshot 06](docs/screenshots/) |
-| 07화면 | 08화면 | 09화면 | 10화면 | 11화면 | 12화면 |
-|---|---|---|---|---|---|
-| ![Screenshot 07](docs/screenshots/07.png) | ![Screenshot 08](docs/screenshots/08.png) | ![Screenshot 09](docs/screenshots/09.png) | ![Screenshot 10](docs/screenshots/10.png) | ![Screenshot 11](docs/screenshots/11.png) | ![Screenshot 12](docs/screenshots/12.png) |
 
 ## 기술 스택
 
 | Category | Stack |
 |---|---|
-| Language | ![Swift](https://img.shields.io/badge/Swift-5.0-FA7343?logo=swift&logoColor=white) |
-| UI | ![UIKit](https://img.shields.io/badge/UIKit-iOS%2016%2B-0A84FF?logo=apple&logoColor=white) ![SnapKit](https://img.shields.io/badge/SnapKit-5.7.1%2B-2F80ED?logo=swift&logoColor=white) |
-| Reactive | ![RxSwift](https://img.shields.io/badge/RxSwift-6.9.1%2B-A855F7?logo=reactivex&logoColor=white) ![RxCocoa](https://img.shields.io/badge/RxCocoa-6.9.1%2B-A855F7?logo=reactivex&logoColor=white) |
-| Network | ![Alamofire](https://img.shields.io/badge/Alamofire-5.11.0%2B-06B6D4?logo=swift&logoColor=white) |
-| Media Processing | ![Core Image](https://img.shields.io/badge/Core%20Image-iOS%2016%2B-0EA5A4?logo=apple&logoColor=white) ![AVFoundation](https://img.shields.io/badge/AVFoundation-iOS%2016%2B-4F46E5?logo=apple&logoColor=white) |
-| Image | ![Kingfisher](https://img.shields.io/badge/Kingfisher-8.6.2%2B-3B82F6?logo=swift&logoColor=white) |
-| Realtime | ![Socket.IO](https://img.shields.io/badge/Socket.IO-16.1.1-111827?logo=socketdotio&logoColor=white) |
-| Local DB | ![RealmSwift](https://img.shields.io/badge/RealmSwift-20.0.3-6366F1?logo=realm&logoColor=white) |
-| Auth/Social | ![Kakao SDK](https://img.shields.io/badge/Kakao%20iOS%20SDK-master-FFCD00?logo=kakaotalk&logoColor=000000) ![Apple Sign In](https://img.shields.io/badge/Sign%20in%20with%20Apple-iOS%2016%2B-1F2937?logo=apple&logoColor=white) |
-| Push/Analytics | ![Firebase Messaging](https://img.shields.io/badge/Firebase%20Messaging-12.6.0%2B-F59E0B?logo=firebase&logoColor=white) ![Firebase Analytics](https://img.shields.io/badge/Firebase%20Analytics-12.6.0%2B-F59E0B?logo=firebase&logoColor=white) |
-| Payment | ![iamport-ios](https://img.shields.io/badge/iamport--ios-1.4.7%2B-2563EB?logo=ios&logoColor=white) |
-| ETC | ![IQKeyboardManager](https://img.shields.io/badge/IQKeyboardManager-8.0.2%2B-6B7280?logo=swift&logoColor=white) ![Toast-Swift](https://img.shields.io/badge/Toast--Swift-5.1.1%2B-6B7280?logo=swift&logoColor=white) |
+| Language | Swift |
+| UI | UIKit, SnapKit |
+| Architecture | MVVM, Input/Output|
+| Reactive | RxSwift, RxCocoa |
+| Network | Alamofire |
+| Auth / Security | Keychain, LocalAuthentication, Kakao SDK, Sign in with Apple |
+| Media | Core Image, ImageIO, AVFoundation, HLS |
+| Image | Kingfisher |
+| Realtime | Socket.IO |
+| Local DB | Realm |
+| Push | Firebase Messaging, Firebase Analytics |
+| Web | WebKit |
+| Payment | iamportSDK |
+| ETC | IQKeyboardManager, Toast-Swift |
 
 ## 아키텍처
 
-- `App`: 앱 생명주기, 루트 전환, 푸시 진입 처리
-- `Core`: 인증/네트워크/채팅 로컬스토어/공통 프로토콜 및 확장
-- `Feature`: 기능 단위 화면과 ViewModel
-- `UI`: 재사용 컴포넌트, 커스텀 탭바
-- `Resources`: Assets, plist, entitlements
-- `아키텍처 패턴`: MVVM + Input/Output 기반 단방향 데이터 흐름
-  - ViewController는 Input 전달/Output 바인딩 중심으로 역할을 제한
-  - 상태 변경과 비즈니스 로직은 ViewModel에서 일관되게 관리
+```text
+Filo/
+├── App/                 # AppDelegate, SceneDelegate, 루트 전환, 푸시 진입, 세션 만료 처리
+├── Core/
+│   ├── Auth/            # TokenStorage, 앱 잠금, 생체 인증, 보안 설정
+│   ├── Network/         # NetworkManager, APITarget, 도메인별 Router, 에러 매핑
+│   ├── Chat/            # Socket, Realm 로컬 저장소, 채팅방/메시지 동기화
+│   ├── Store/           # LikeStore 등 공통 상태 저장소
+│   ├── Cache/           # 썸네일 캐시
+│   ├── Base/            # BaseViewController, ViewModelType, Base Cell
+│   └── DesignSystem/    # 컬러, 폰트, 버튼/네비게이션 스타일
+├── Feature/             # Home, Feed, Filter, Detail, Search, Comments, Chat, Payment, Profile, Video
+├── UI/                  # 공통 컴포넌트, 커스텀 탭바
+└── Resources/           # Assets, Info.plist, entitlements
+```
 
-## 핵심 기술 포인트
+### MVVM + Input/Output
 
-### 1) 인증/토큰 복구 전략 (동시성 + 재시도 정책)
-- 문제:
-  - 동시 401 상황에서 refresh 중복 호출 시 토큰 경합 발생 가능
-  - 요청마다 만료 처리를 따로 두면 실패 분기 누락/중복 구현 위험
-- 구현:
-  - Actor 기반 토큰 저장소에서 진행 중 토큰 갱신 작업을 공유해 refresh 단일화
-  - 공통 네트워크 레이어에서 `401/만료 감지 -> refresh -> 원요청 재실행`을 공통 처리
-  - refresh 실패 시 `SessionExpiryHandler`를 통해 세션 종료 UX 일원화
-- 정책:
-  - 재시도 최대 2회 (최초 포함 총 3회 시도)
-  - refresh API(`/auth/refresh`)는 재귀 재시도 금지
-  - 인증 헤더 없는 요청은 refresh 분기 제외
-- 실패 분기:
-  - 앱 시작 세션 복원 실패: 즉시 로그인 화면 전환
-  - 앱 사용 중 세션 만료: Alert 노출 후 로그인 화면 전환
-- 동시성 시나리오:
-  - 동시 401 N건 발생 -> refresh는 1회만 실행 -> 나머지 요청은 동일 task 결과를 공유
-- 효과:
-  - 중복 refresh 호출 억제, 토큰 상태 정합성 개선
-  - 네트워크 계층의 책임 경계가 명확해져 유지보수성 향상
+각 화면은 `ViewModelType`의 `transform(input:) -> Output` 구조를 따릅니다.
+ViewController는 터치, 선택, 페이지네이션 같은 UI 이벤트를 `Input`으로 전달하고, ViewModel은 API 호출/상태 변경/비즈니스 판단을 처리한 뒤 `Driver`와 `Signal` 기반 `Output`으로 UI에 전달합니다.
 
+이 구조 덕분에 화면은 바인딩과 렌더링에 집중하고, 네트워크 재시도, 좋아요 상태, 댓글 상태, 채팅 동기화처럼 복잡한 흐름은 ViewModel과 Store 계층으로 분리할 수 있었습니다.
 
-### 2) 메타데이터 원본 우선 추출
-- 문제:
-  - `PHPicker`에서 얻은 `Data`는 재인코딩/포맷 변환 과정에서 EXIF/TIFF/GPS 유실 가능
-  - 특히 `UIImage` 경유(`jpegData()` 재생성)나 HEIC -> JPEG 변환 경로에서 메타데이터 누락 확률 증가
-- 우선순위 정책:
-  - 원본 에셋 식별자 기반 원본 파일 URL -> Data fallback
-- 구현:
-  - `assetIdentifier`가 존재하면 사진 라이브러리 원본 에셋 조회 후 원본 URL에서 메타데이터 파싱
-  - `assetIdentifier == nil` 또는 원본 URL 확보 실패 시 `Data` 기반 추출로 fallback
-- 효과:
-  - 카메라/렌즈/위치 정보 신뢰도 향상
-  - 원본 접근 불가 케이스에서도 사용자 흐름 유지
+### Network Layer
 
+`APITarget` 프로토콜과 도메인별 Router(`UserRouter`, `FilterRouter`, `ChatRouter`, `CommunityRouter`, `CommentRouter`, `OrderRouter`, `PaymentRouter`, `PushRouter`, `VideoRouter`, `BannerRouter`)로 endpoint, method, header, parameter, encoding을 타입 단위로 관리합니다.
 
-### 3) 커뮤니티 미디어 업로드 최적화
-- 기준: 파일별 5MB 제한
-- 이미지: 1600px 리사이즈 + JPEG 단계 압축(`0.8 -> 0.6 -> 0.4 -> 0.3`)
-- 영상: `AVAssetExportPresetMediumQuality` -> 실패/초과 시 `LowQuality` 재시도
-- 실패 처리: 실패 파일은 경고 상태로 유지하되 업로드 대상에서 제외
-- 효과: 전체 작성 실패를 줄이고 실제 업로드 성공률 개선
+`NetworkManager`는 모든 요청의 단일 진입점입니다. 공통 에러 매핑, 인증 만료 감지, refresh, 원 요청 재시도, 세션 만료 처리를 한 곳에서 수행해 기능별 중복 분기를 줄였습니다.
 
-### 4) Core Image 기반 필터 처리
-- 구현: 조절값을 Core Image 필터 체인으로 적용해 실시간 미리보기/비교 이미지를 렌더링
-- 효과: 파라미터 변경 반응성을 유지하면서 필터 편집 UX 일관성 확보
+## 핵심 구현 포인트
 
+### 1. 토큰 갱신 동시성 제어
 
-### 5) 좋아요 낙관적 UI + 정합성 보장
-- 문제: 연타 시 응답 순서 역전으로 UI 오염 가능
-- 구현: 즉시 낙관적 반영 + trailing debounce + 요청 버전(requestId) 검증 + 실패 롤백
-- 효과: 즉시 반응 UX 유지, 마지막 사용자 의도만 확정 반영
+여러 API가 동시에 401 응답을 받으면 refresh API가 중복 호출되고, 토큰 저장 순서가 꼬일 수 있습니다.
+이를 막기 위해 `TokenStorage`를 `actor`로 구현하고, 진행 중인 refresh 작업을 `refreshTask`로 공유했습니다.
 
+- access token 만료 또는 unauthorized 응답 감지
+- 인증 헤더가 있는 일반 요청만 refresh 대상에 포함
+- `/auth/refresh` 요청은 재귀 재시도 대상에서 제외
+- refresh 성공 후 원 요청 재실행
+- refresh 실패 시 `SessionExpiryHandler`에서 로그인 화면으로 전환
 
-### 6) 채팅 동기화 안정화 (API + Socket)
-- 문제: 초기 동기화 중 소켓 메시지와 API 이력 중복 저장
-- 구현: 동기화 구간 버퍼링 + `chatId` Set 중복 제거 + flush 처리
-- 효과: 중복 메시지 방지, 로컬/서버 상태 정합성 유지
+### 2. 원본 메타데이터 보존
 
+필터 등록은 사진의 촬영 정보와 분위기를 함께 공유하는 기능이므로 EXIF/TIFF/GPS 정보의 신뢰도가 중요했습니다.
+`PHPickerResult.assetIdentifier`가 있으면 `PHAsset` 원본 파일 URL을 우선 조회하고, 실패할 때만 선택 결과의 `Data`에서 메타데이터를 추출합니다.
 
-### 7) unread 카운트 일관성
-- 구현:
-  - `ChatLocalStore`에서 unread 증감 규칙을 단일화
-  - 채팅 목록 소켓 수신(`ChatRoomListViewModel`)과 포그라운드 푸시 수신(`AppDelegate`) 모두 같은 저장소 규칙 사용
-  - 채팅방 진입 시 `resetUnread(roomId:)`로 즉시 0 처리
-- 규칙:
-  - 현재 보고 있는 방이면 `unread = 0`
-  - 현재 방이 아니고 상대 메시지일 때만 `+1`
-  - 상한은 `300`으로 제한해 UI는 `300+` 정책 사용
-- 효과:
-  - 앱 상태(목록/채팅방/다른 화면/푸시 수신)와 무관하게 unread 일관성 유지
-  - 백그라운드 복귀/딥링크 진입 후에도 배지 카운트 신뢰성 확보
+GPS가 있는 경우 `CLGeocoder`로 주소를 변환하고, 필터 등록 요청에는 카메라/렌즈/초점거리/조리개/ISO/셔터스피드/이미지 크기/파일 크기/좌표 정보를 함께 포함합니다.
 
+### 3. Core Image 필터 편집
 
-### 8) 커스텀 HLS 플레이어 고도화
-- 구현: `AVPlayer` 기반 커스텀 UI, 자막 파싱/동기화, 설정 시트(화질/속도/자막)
-- 화질 전환: 마스터 스트림에서는 URL 교체 대신 적응형 비트레이트 상한 제어
-- 효과: 화질 변경 시 재생 리셋 체감 감소, 시청 연속성 향상
+밝기, 대비, 채도, 온도, 하이라이트, 그림자, 선명도 등 조절값을 Core Image 필터 체인으로 적용합니다.
+편집 화면에서는 원본 이미지와 필터 적용 이미지를 분리해 비교할 수 있고, 조절값 변경 이력을 상태로 관리해 실행 취소/다시 실행을 지원합니다.
 
+구매 전 상세 화면에서는 조절값 영역을 잠그고, 구매 후에는 사용자가 선택한 사진에 필터를 적용한 뒤 미리보기와 앨범 저장까지 이어지도록 구성했습니다.
 
-### 9) PG 결제 정합성 확보
-- 문제: SDK 성공 콜백만으로 구매 확정 시 오결제/위변조 리스크
-- 구현: 결제 성공 후 `imp_uid` 기반 서버 영수증 검증 성공 시에만 구매 확정
-- 효과: 결제 상태 정합성/신뢰성 강화, 오권한 오픈 방지
+### 4. 미디어 업로드 용량 제어
 
+커뮤니티 작성 화면은 이미지와 동영상이 섞일 수 있어 파일별 용량 제한을 넘기 쉬웠습니다.
+이미지는 ImageIO 기반 다운샘플링 후 JPEG 품질을 단계적으로 낮추고, 동영상은 `AVAssetExportSession`의 `MediumQuality -> LowQuality` 순서로 재압축합니다.
 
-### 10) 채팅 PDF 첨부/미리보기 처리
-- 구현: 첨부 타입별(텍스트/이미지/PDF) 메시지 분리 전송, PDF는 채팅 셀에서 미리보기 UI 제공
-- 효과: 첨부 가독성과 전송 결과 해석성을 높여 채팅 사용성 개선
+- 파일별 제한: 5MB
+- 이미지: 1080px 기준 다운샘플링 후 JPEG 품질 단계 조정
+- 동영상: medium preset 실패 또는 초과 시 low preset fallback
+- 제한 초과 파일은 제외하고 사용자에게 경고 메시지 제공
 
+### 5. 좋아요 낙관적 UI와 응답 순서 보정
 
-### 11) 채팅 이미지 처리 안정화 (프로필 캐시 + 셀 재사용 오염 방지)
-- 문제: 채팅/댓글 리스트에서 프로필 캐시에 오래된 이미지가 남아 최신 프로필 반영이 지연되거나, 셀 재사용 구간에서 이미지 오염이 발생할 수 있음
-- 구현:
-  - 이미지 로딩 전 이전 다운로드 작업 취소로 잔여 작업 정리
-  - 캐시 키에 `URL + userId`를 결합해 사용자 단위 이미지 식별
-  - 로딩 완료 시 셀 바인딩 키 일치 여부 검증 후 불일치 이미지 폐기
-  - 채팅 유저 프로필은 별도 사용자 캐시 테이블 + TTL 갱신 + 목록 participant upsert로 최신성 유지
-- 효과: 잘못된 이미지 반영을 방지하면서도, 캐시 기반으로 최신 프로필을 안정적으로 유지
+좋아요는 즉시 반응해야 하지만, 연타 시 이전 요청의 늦은 응답이 최신 상태를 덮어쓸 수 있습니다.
+`LikeStore`에 먼저 낙관적 상태를 반영하고, 항목별 `requestId`를 부여해 최신 요청과 일치하는 응답만 확정 반영합니다.
 
+Feed, Detail, Video 화면이 같은 Store를 구독하므로 목록에서 누른 좋아요가 상세/영상 재진입 후에도 일관되게 유지됩니다.
 
-## 설계 고려사항
+### 6. 채팅 동기화와 unread 일관성
 
-- 단일 책임: 인증/네트워크/로컬 저장소/화면 로직을 분리해 변경 영향 최소화
-- API 추상화: `APITarget` 프로토콜 + 도메인별 Router(`UserRouter`, `FilterRouter`, `ChatRouter` 등)로 endpoint/method/header/parameter를 타입 안전하게 관리
-- 네트워크 일관성: 공통 네트워크 레이어 단일 진입점에서 공통 에러 매핑, 재시도, 인증(토큰 갱신) 정책을 적용
-- 동시성 안전: actor, requestId, debounce를 조합해 레이스 컨디션 억제
-- 부분 실패 허용: 미디어 업로드 실패를 전체 실패로 확장하지 않고 사용자 흐름 유지
-- 정합성 우선: 결제/토큰/채팅 unread처럼 비즈니스 중요 상태는 서버 검증과 규칙 통일 우선
-- UX 우선순위: 즉시 피드백(낙관적 반영)과 안전 롤백을 함께 적용
-- 성능 예산: 메모리/디스크 캐시 제한, prefetch 기반 선로딩, 목록 요약 모델 분리
-- 확장성: 공통 Store/Router/ViewModel 패턴으로 피처 확장 시 재사용성 확보
+채팅은 API 이력과 Socket.IO 실시간 메시지가 동시에 들어올 수 있어 중복 저장과 unread 카운트 오염 가능성이 있습니다.
+`ChatLocalStore`를 Realm 기반 단일 저장소로 두고 메시지는 `chatId` 기준으로 upsert하며, unread 규칙도 저장소에 모았습니다.
 
-## 성능/UX 최적화
+- 현재 보고 있는 방이면 unread 0
+- 현재 방이 아니고 상대 메시지일 때만 +1
+- 최대 300으로 제한하고 UI는 `300+` 표시
+- 채팅 목록 소켓 수신과 포그라운드 푸시 수신 모두 같은 저장소 규칙 사용
+- 채팅방 진입 시 `resetUnread(roomId:)`로 즉시 읽음 처리
 
-- 이미지 캐시: memory 120MB, disk 500MB, memory 1h, disk 30d
-- 스크롤 로딩: `willDisplay` + `prefetchRows/prefetchItems` 병행
-- 채팅 목록: 메시지 전체가 아니라 요약 데이터 중심 렌더링
-- 플레이어: 컨트롤 오버레이 자동 숨김, observer 정리로 누수 방지
+### 7. 채팅 첨부와 프로필 캐시 최신화
 
-## 트러블 슈팅 (Troubleshooting)
+채팅 메시지는 텍스트, 이미지, PDF 첨부를 분리해서 전송하고, PDF는 첫 페이지 썸네일을 만들어 채팅 셀에서 미리보기로 표시합니다.
+원본 파일은 Quick Look으로 연결해 대화 흐름 안에서 확인할 수 있게 했습니다.
 
-### 1) Token refresh 동시 호출
-- 문제: 여러 API가 동시에 401을 받으면 refresh API가 중복 호출됨
-- 원인: 요청별 refresh 처리로 토큰 갱신 경합 발생
-- 해결: Actor 기반 토큰 저장소에 진행 중 refresh 작업을 공유하고, 동시 요청은 동일 작업 결과를 await
-- 결과: refresh 폭주 방지, 토큰 정합성 개선, 재시도 흐름 안정화
+채팅/댓글 리스트의 프로필 이미지는 셀 재사용 타이밍에 잘못된 이미지가 잠깐 노출될 수 있습니다.
+이미지 로딩 전 이전 다운로드를 취소하고, 캐시 키와 바인딩 키를 검증해 현재 셀의 사용자와 일치하는 이미지일 때만 반영했습니다.
+채팅 사용자 정보는 Realm에 upsert해 목록/대화 화면의 최신 프로필 반영도 보정했습니다.
 
-### 2) PHPicker 메타데이터 유실
-- 문제: 선택 이미지의 EXIF/TIFF 정보가 일부 케이스에서 누락됨
-- 원인: `Data` 기반 추출 시 재인코딩된 데이터가 들어오는 경우 존재
-- 해결: `assetIdentifier`가 있으면 사진 라이브러리 원본 에셋 URL 우선, 실패 시 `Data` fallback
-- 결과: 카메라/렌즈/위치 정보 신뢰도 향상, 예외 상황에서도 등록 흐름 유지
+### 8. 커스텀 HLS 플레이어
 
-### 3) 댓글 상태/개수 동기화 방식 개선
-- 문제: 댓글 작성/수정/삭제마다 fetch API까지 재호출하면 비용이 크고, 댓글은 채팅처럼 초실시간 정합성이 필수는 아님
-- 원인: 초기 구현에서 쓰기 API 성공 후 즉시 fetch로 전체 목록을 다시 받아 과도한 네트워크 호출 발생
-- 해결: 작성/수정/삭제 API만 호출하고, 성공 응답을 기준으로 로컬 댓글 상태 저장소를 즉시 갱신해 UI와 개수를 동기화
-- 결과: 네트워크 비용 감소 + 체감 반응 속도 개선 + 재진입 전까지 상태 일관성 유지
+`AVPlayer` 기반으로 재생 화면, 오버레이 컨트롤, 진행 바, 10초 이동, 전체 화면 전환, 재생 속도, 자막 선택, 화질 선택을 직접 구성했습니다.
+마스터 스트림에서는 URL 교체 대신 `preferredPeakBitRate`를 조절해 화질 변경 시 재생 리셋 체감을 줄였습니다.
 
-### 4) 채팅 unread 누락/과증가
-- 문제: unread가 상황에 따라 누락되거나 2배 증가하는 케이스가 발생
-- 원인:
-  - 목록/채팅방/다른 화면에서 unread 규칙이 분산되어 누락 가능
-  - 서버가 이미 push를 발송하는 구조에서 클라이언트가 push API를 추가 호출하면 알림이 중복 수신되어 카운트가 과증가
-- 해결:
-  - 저장소 계층에서 unread 증감 규칙 통일(`현재 방=0`, `비현재 방+상대 메시지`일 때만 증가)
-  - 클라이언트 중복 push 호출 제거, 서버 발송 push만 단일 소스로 사용
-  - 포그라운드/목록 소켓 경로를 같은 unread 규칙에 연결
-- 결과: 중복 알림/과증가 해소, 화면 맥락과 무관한 unread 일관성 확보(`300+` 상한 유지)
+자막은 URL의 `.srt` 내용을 cue 단위로 파싱하고, 현재 재생 시간에 맞는 문구를 화면에 동기화합니다.
 
-### 5) 좋아요 연타 시 상태 역전
-- 문제: 연타 상황에서 늦게 온 이전 응답이 최신 UI를 덮어씀
-- 원인: 초기 구현은 `throttle/debounce`로 "마지막 요청만 전송"하는 데 집중했지만, 이미 전송된 이전 요청의 응답이 더 늦게 도착하면 상태를 덮어쓸 수 있었음
-- 해결: 낙관적 업데이트는 유지하고, 요청마다 `requestId`를 부여한 뒤 "현재 최신 요청 번호"와 일치하는 응답만 반영하도록 변경 (불일치 응답은 폐기) + 실패 롤백
-- 결과: 즉시 반응 UX 유지, 마지막 의도만 확정 반영
+### 9. PG 결제 검증
 
-### 6) 검색 -> 상세 전환 후 상태 꼬임
-- 문제: 커스텀 전환 후 셀 인터랙션/원복 상태가 깨짐
-- 원인: 전환 중 snapshot/원본 뷰 상태 복구 타이밍 불일치
-- 해결: push/pop 전환 단계를 분리하고 완료 시점에 상태 강제 복구
-- 결과: shared-element 전환 안정화, 재탭 불가/겹침 현상 감소
+SDK 성공 콜백만으로 구매를 확정하지 않고, `imp_uid`를 서버에 전달해 영수증 검증이 성공한 경우에만 구매 완료 화면으로 이동합니다.
+결제 이후에는 주문 코드로 결제 상세 정보를 다시 조회해 영수증 화면에서 결제 수단, 금액, 승인 번호, 구매 상품 정보를 표시합니다.
 
-### 7) 화질 변경 시 재생 리셋
-- 문제: 화질 변경마다 영상이 처음부터 재생되는 체감 발생
-- 원인: 화질 선택 시 URL 교체 기반 전환으로 버퍼 리셋
-- 해결: 마스터 스트림에서는 적응형 비트레이트 상한만 조절, URL 교체 최소화
-- 결과: 재생 연속성 향상, 화질 전환 시 끊김/리셋 체감 감소
+### 10. WebView 브릿지와 푸시 딥링크
 
-### 8) 채팅/댓글 리스트 프로필 이미지 오염
-- 문제: 캐시에 남은 과거 이미지로 최신 프로필 반영이 늦거나, 재사용 셀에 다른 사용자 이미지가 잠깐 노출됨
-- 원인: 비동기 이미지 완료 시점과 셀 재사용 타이밍이 엇갈리고, 프로필 캐시 갱신 주기가 길면 구버전 표시 가능
-- 해결: `cacheKey(URL+userId)`와 셀 바인딩 키 검증으로 오염 차단 + 사용자 캐시 TTL 갱신 및 목록 upsert로 최신성 보정
-- 결과: 스크롤 구간에서도 오표시를 줄이고, 채팅/댓글 리스트의 프로필 최신성 신뢰도 향상
+홈 배너는 WebView로 진입하고, 웹 이벤트 완료는 `WKScriptMessageHandler`로 앱에 전달됩니다.
+이때 필요한 access token은 ViewModel에서 유효성을 확인해 웹 이벤트 흐름과 앱 화면 이동을 연결했습니다.
+
+채팅 푸시는 payload의 `room_id`를 기준으로 채팅방 라우팅을 수행합니다.
+앱 종료 상태에서도 탭바/네비게이션 구성이 준비될 때까지 재시도해 채팅방 딥링크 유실을 줄였습니다.
+
+### 11. 앱 잠금과 백그라운드 보호
+
+사용자가 잠금을 설정하면 앱 전환, 백그라운드 진입, 재활성화 흐름에서 보호 화면을 유지합니다.
+앱 스위처 미리보기에는 민감한 채팅/프로필 정보가 노출되지 않도록 커버 뷰를 올리고, 재진입 시에는 커스텀 비밀번호 또는 LocalAuthentication 기반 생체 인증으로 잠금을 해제합니다.
+
+최근 보안 개선에서는 앱 전역 HTTP 허용을 제거하고 필요한 서버 도메인에만 ATS 예외를 부여해 네트워크 보안 범위를 줄였습니다.
+
+## 트러블슈팅
+
+### Token refresh 중복 호출
+
+- 문제: 동시 401 발생 시 refresh 요청이 여러 번 실행될 수 있음
+- 원인: 요청별 만료 처리로 토큰 갱신 경합 발생
+- 해결: `TokenStorage` actor에서 진행 중인 refresh task를 공유
+- 결과: refresh 폭주 방지, 토큰 저장 정합성 개선
+
+### PHPicker 메타데이터 유실
+
+- 문제: 선택 이미지가 재인코딩되면 EXIF/GPS 정보가 누락될 수 있음
+- 원인: `UIImage` 또는 변환된 `Data` 경유 시 원본 메타데이터 손실 가능
+- 해결: `assetIdentifier -> PHAsset 원본 URL -> Data fallback` 순서로 추출
+- 결과: 원본 촬영 정보 보존율 향상, 접근 실패 시에도 등록 흐름 유지
+
+### 미디어 업로드 실패율
+
+- 문제: 고용량 이미지/동영상이 5MB 제한을 초과해 게시글 작성이 실패함
+- 원인: 원본 파일을 그대로 업로드하거나 과도하게 높은 품질로 압축
+- 해결: 이미지 다운샘플링과 단계적 JPEG 품질 조정, 동영상 preset fallback 적용
+- 결과: 제한 초과 파일만 제외하고 나머지 파일 업로드 가능
+
+### 좋아요 연타 시 상태 역전
+
+- 문제: 늦게 도착한 이전 응답이 최신 UI 상태를 덮어씀
+- 원인: debounce만으로는 이미 전송된 요청의 응답 순서를 보장할 수 없음
+- 해결: 항목별 requestId를 기록하고 최신 요청 응답만 반영
+- 결과: 즉시 반응 UX와 최종 상태 정합성 동시 확보
+
+### 채팅 unread 누락/과증가
+
+- 문제: 화면 위치와 푸시/소켓 경로에 따라 unread가 누락되거나 중복 증가함
+- 원인: unread 규칙이 호출 지점마다 분산
+- 해결: `ChatLocalStore`에 unread 증감 규칙을 통합하고 모든 수신 경로에서 동일 Store 사용
+- 결과: 목록/채팅방/다른 화면/푸시 수신 상태와 관계없이 배지 일관성 유지
+
+### 앱 스위처 민감 정보 노출
+
+- 문제: 백그라운드 전환 직후 앱 스위처 미리보기에서 채팅 화면이 보일 수 있음
+- 원인: 잠금 화면 표시 시점과 앱 스냅샷 생성 시점이 다름
+- 해결: `sceneWillResignActive`, `sceneDidEnterBackground` 시점에 보호 커버를 별도 유지
+- 결과: 잠금 설정 여부와 무관하게 민감 화면 노출 구간 차단
+
+### HLS 화질 변경 시 재생 리셋
+
+- 문제: 화질 선택 때마다 영상이 처음부터 재생되는 체감 발생
+- 원인: URL 교체 중심의 화질 전환
+- 해결: 마스터 스트림에서는 `preferredPeakBitRate`로 상한 조절, 필요한 경우에만 URL 교체
+- 결과: 화질 전환 시 재생 연속성 개선
+
+## 실행 방법
+
+### 요구 환경
+
+- Xcode
+- iOS 16.0+ Simulator 또는 Device
+- Swift Package Manager
+
+### 설정 파일
+
+민감 정보는 저장소에 포함하지 않습니다. 아래 파일은 로컬에서 생성해야 합니다.
+
+```text
+Filo/Core/Network/NetworkConfig.swift
+Filo/Core/Payment/PaymentConfig.swift
+Filo/Resources/GoogleService-Info.plist
+```
+
+예시:
+
+```swift
+// Filo/Core/Network/NetworkConfig.swift
+enum NetworkConfig {
+    static let baseURL = "https://example.com/v1"
+    static let webBaseURL = "https://example.com"
+    static let apiKey = "..."
+}
+```
+
+```swift
+// Filo/Core/Payment/PaymentConfig.swift
+enum PaymentConfig {
+    static let userCode = "imp00000000"
+    static let appScheme = "filo"
+}
+```
+
+### Build
+
+```bash
+xcodebuild -project Filo.xcodeproj -scheme Filo -sdk iphonesimulator -configuration Debug build
+```
+
+현재 저장소에는 별도 테스트 타깃이나 CLI 테스트 스크립트가 없습니다.
+검증은 Xcode 빌드와 시뮬레이터 실행 중심으로 진행합니다.
+
+## 커밋 기반 개선 흐름
+
+최근 커밋에서는 기능 추가 이후 안정성과 보안 범위를 좁히는 작업이 이어졌습니다.
+
+- 앱 전역 HTTP 허용을 서버 도메인 단위 ATS 예외로 축소
+- 앱 잠금/생체 인증/앱 스위처 보호 화면 추가
+- 채팅 잠금 미설정 상태에서도 앱 스위처 보호 화면 유지
+- 커뮤니티 미디어 업로드 다운샘플링/압축 단계 개선
+- 채팅 프로필 캐시와 셀 재사용 오염 방지 로직 정리
+- 필터 상세 조절값 표시, 온도 단위, 대댓글 레이아웃 등 UI 보정
 
 ## 회고
 
-Filo는 화면 구현 자체보다 “실서비스에서 깨지지 않는 흐름”을 만드는 데 집중한 프로젝트였습니다.  
-기능을 빠르게 붙이는 것보다, 토큰 갱신 동시성·좋아요 연타 정합성·채팅 동기화 중복 같은 경계 상황을 먼저 정의하고 구조로 해결하는 습관을 갖게 되었습니다.  
-특히 `MVVM + Input/Output` 단방향 흐름, `APITarget + Router` 네트워크 추상화, 로컬 스토어 기반 상태 동기화는 기능이 늘어날수록 유지보수 비용을 낮추는 데 효과적이었습니다.  
-또한 미디어 업로드 최적화(부분 실패 허용), unread 일관성, 프로필 캐시 최신화처럼 UX와 정합성이 충돌하는 지점에서 기준을 명확히 세우는 경험을 했습니다.  
-결과적으로 Filo를 통해 “동작하는 앱”을 넘어 “예외 상황에서도 신뢰할 수 있는 앱”을 설계하는 방법을 체득했습니다.
+Filo는 단순히 화면을 많이 붙이는 것보다, 실제 서비스에서 자주 깨지는 경계 상황을 구조로 해결하는 데 집중한 프로젝트입니다.
+토큰 갱신 동시성, 좋아요 응답 순서, 채팅 unread, 원본 메타데이터 보존, 결제 검증, 앱 스위처 보호처럼 사용자 신뢰와 직접 연결되는 문제를 기능별 임시 처리로 두지 않고 공통 계층과 상태 규칙으로 정리했습니다.
+
+이 과정을 통해 UIKit 기반 앱에서도 화면 구현, 네트워크 안정성, 로컬 저장소 동기화, 미디어 처리, 보안 UX를 하나의 제품 흐름 안에서 설계하는 경험을 쌓았습니다.
